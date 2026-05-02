@@ -30,7 +30,7 @@ def _get_pool() -> aioredis.ConnectionPool:
     return _pool
 
 
-async def get_redis() -> AsyncGenerator[Redis, None]:
+async def get_redis() -> AsyncGenerator[Redis]:
     """FastAPI dependency that yields a Redis client from the shared pool."""
     async with aioredis.Redis(connection_pool=_get_pool()) as client:
         yield client

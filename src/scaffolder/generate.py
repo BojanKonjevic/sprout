@@ -69,8 +69,11 @@ def _collect(ctx: Context) -> dict[str, Any]:
             dev_deps.extend(mod.extra_dev_deps())
         if hasattr(mod, "extra_nix_packages"):
             nix_packages.extend(mod.extra_nix_packages())
-        if hasattr(mod, "extra_just_recipes"):
-            # Render the recipe string through Jinja so (( name )) etc. resolve
+        if hasattr(mod, "extra_just_recipes_ctx"):
+            raw = mod.extra_just_recipes_ctx(ctx)
+            rendered = string_env.from_string(raw).render(**render_vars)
+            just_recipes.append(rendered)
+        elif hasattr(mod, "extra_just_recipes"):
             raw = mod.extra_just_recipes()
             rendered = string_env.from_string(raw).render(**render_vars)
             just_recipes.append(rendered)

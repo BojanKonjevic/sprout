@@ -12,15 +12,17 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
 # Install dependencies (cached layer — only reruns when lockfiles change)
 COPY pyproject.toml uv.lock ./
-RUN uv sync --frozen --no-dev
+RUN uv sync --frozen --no-dev --no-install-project
 
 # Copy source
 COPY src/ ./src/
+
+# Install the project itself (source is now present)
+RUN uv sync --frozen --no-dev
 
 ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONPATH="/app/src"
 
 EXPOSE 8000
 
-# Override CMD in compose.yml for dev; this is the production default.
 CMD ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -1,12 +1,18 @@
 """Redis addon — connection helper, compose service, settings patch."""
 
+from __future__ import annotations
+
 import shutil
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import jinja2
 
 from scaffolder.context import Context
 from scaffolder.ui import success
+
+if TYPE_CHECKING:
+    pass
 
 _HERE = Path(__file__).parent
 
@@ -91,7 +97,15 @@ def extra_nix_packages() -> list[str]:
     return ["redis"]
 
 
-def extra_just_recipes() -> str:
+def extra_just_recipes_ctx(ctx: Context) -> str:
+    if ctx.has("docker"):
+        return """\
+redis-up:
+    docker compose up -d redis
+redis-down:
+    docker compose stop redis
+redis-cli:
+    redis-cli"""
     return """\
 redis-up:
     docker compose -f compose.redis.yml up -d
