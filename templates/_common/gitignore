@@ -1,0 +1,27 @@
+# Nix
+result
+result-*
+.direnv/
+
+# uv / Python
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+dist/
+build/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+htmlcov/
+.coverage
+
+# DB / env
+*.db
+.env
+
+# Editors
+.vscode/
+.idea/
+*.swp
