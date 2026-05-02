@@ -14,8 +14,6 @@ def apply(ctx: Context) -> None:
     shutil.copy(files / "Dockerfile", Path("Dockerfile"))
     shutil.copy(files / ".dockerignore", Path(".dockerignore"))
 
-    # compose.yml is rendered minimally — just app service by default.
-    # Redis addon will add its own service if also selected.
     compose = (files / "compose.yml").read_text()
     Path("compose.yml").write_text(compose.replace("{{name}}", ctx.name))
 
@@ -32,11 +30,14 @@ def extra_nix_packages() -> list[str]:
 
 
 def extra_just_recipes() -> str:
+    # Use (( name )) — these strings are rendered through Jinja before
+    # being inserted into the justfile, so they must use the same
+    # delimiters as everything else. {{name}} would pass through raw.
     return """\
 docker-build:
-    docker build -t {{name}} .
+    docker build -t (( name )) .
 docker-run:
-    docker run --rm -p 8000:8000 {{name}}
+    docker run --rm -p 8000:8000 (( name ))
 docker-up:
     docker compose up --build
 docker-down:

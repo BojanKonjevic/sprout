@@ -14,9 +14,6 @@ from scaffolder.ui import step, success
 
 
 def _make_env(templates_dir: Path) -> jinja2.Environment:
-    # Use (( )) for variables, [% %] for blocks — avoids conflicts with:
-    #   - Nix's  ${...}  interpolation
-    #   - just's {{...}} template syntax
     return jinja2.Environment(
         loader=jinja2.FileSystemLoader(str(templates_dir)),
         keep_trailing_newline=True,
@@ -27,24 +24,19 @@ def _make_env(templates_dir: Path) -> jinja2.Environment:
     )
 
 
+def _make_string_env() -> jinja2.Environment:
+    """Env for rendering addon recipe strings (no file loader needed)."""
+    return jinja2.Environment(
+        keep_trailing_newline=True,
+        variable_start_string="((",
+        variable_end_string="))",
+        block_start_string="[%",
+        block_end_string="%]",
+    )
+
+
 # ---------------------------------------------------------------------------
-# Addon contribution protocol
-#
-# Each addon's apply.py may optionally define:
-#
-#   def extra_deps() -> list[str]:
-#       return ["redis>=5", "hiredis"]
-#
-#   def extra_dev_deps() -> list[str]:
-#       return ["fakeredis"]
-#
-#   def extra_just_recipes() -> str:
-#       return 'redis:\n    redis-server\n'
-#
-#   def extra_nix_packages() -> list[str]:
-#       return ["redis"]
-#
-# generate_all() calls these if present and merges the results.
+# Addon contribution collection
 # ---------------------------------------------------------------------------
 
 
@@ -62,19 +54,26 @@ def _collect(ctx: Context) -> dict[str, Any]:
     just_recipes: list[str] = []
     nix_packages: list[str] = []
 
+    string_env = _make_string_env()
+    render_vars = {"name": ctx.name, "pkg_name": ctx.pkg_name, "template": ctx.template}
+
     for addon_id in ctx.addons:
         addon_apply = ctx.scaffolder_root / "addons" / addon_id / "apply.py"
         if not addon_apply.exists():
             continue
         mod = _load_addon_module(addon_apply)
+
         if hasattr(mod, "extra_deps"):
             deps.extend(mod.extra_deps())
         if hasattr(mod, "extra_dev_deps"):
             dev_deps.extend(mod.extra_dev_deps())
-        if hasattr(mod, "extra_just_recipes"):
-            just_recipes.append(mod.extra_just_recipes())
         if hasattr(mod, "extra_nix_packages"):
             nix_packages.extend(mod.extra_nix_packages())
+        if hasattr(mod, "extra_just_recipes"):
+            # Render the recipe string through Jinja so (( name )) etc. resolve
+            raw = mod.extra_just_recipes()
+            rendered = string_env.from_string(raw).render(**render_vars)
+            just_recipes.append(rendered)
 
     return {
         "extra_deps": deps,
