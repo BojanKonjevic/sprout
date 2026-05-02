@@ -8,6 +8,7 @@ from scaffolder.context import Context
 from scaffolder.generate import generate_all
 from scaffolder.git import init_and_commit
 from scaffolder.nix import lock_flake
+from scaffolder.rollback import scaffold_or_rollback
 from scaffolder.prompt import prompt_template
 from scaffolder.ui import error, info, step, success
 from scaffolder.validate import validate_name, check_uv_installed
@@ -49,12 +50,12 @@ def main() -> None:
         project_dir=project_dir,
     )
 
-    _load_apply(scaffolder_root / "templates" / "_common" / "apply.py")(ctx)
-    _load_apply(scaffolder_root / "templates" / template / "apply.py")(ctx)
-
-    generate_all(ctx)
-    lock_flake()
-    init_and_commit(project_dir)
+    with scaffold_or_rollback(project_dir):
+        _load_apply(scaffolder_root / "templates" / "_common" / "apply.py")(ctx)
+        _load_apply(scaffolder_root / "templates" / template / "apply.py")(ctx)
+        generate_all(ctx)
+        lock_flake()
+        init_and_commit(project_dir)
 
     print()
     success(f"Project '{name}' created!  (template: {template})")
