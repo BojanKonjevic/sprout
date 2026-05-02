@@ -11,7 +11,7 @@ from scaffolder.nix import lock_flake
 from scaffolder.rollback import scaffold_or_rollback
 from scaffolder.prompt import prompt_template
 from scaffolder.ui import error, info, step, success
-from scaffolder.validate import validate_name, check_uv_installed
+from scaffolder.validate import validate_name, check_preflight
 
 
 def _load_apply(path: Path) -> Callable:
@@ -32,8 +32,10 @@ def main() -> None:
         os.environ.get("SCAFFOLDER_ROOT", Path(__file__).parent.parent.parent)
     )
 
+    # All checks before we touch the filesystem
     validate_name(name, pkg_name)
-    check_uv_installed()
+    check_preflight()
+
     template = prompt_template()
 
     step(f"Creating '{name}'  (template: {template})")
