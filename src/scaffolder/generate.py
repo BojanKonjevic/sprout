@@ -1,9 +1,16 @@
+import importlib.util
 from pathlib import Path
+from typing import Any
 
 import jinja2
 
 from scaffolder.context import Context
 from scaffolder.ui import step, success
+
+
+# ---------------------------------------------------------------------------
+# Jinja env
+# ---------------------------------------------------------------------------
 
 
 def _make_env(templates_dir: Path) -> jinja2.Environment:
@@ -20,10 +27,80 @@ def _make_env(templates_dir: Path) -> jinja2.Environment:
     )
 
 
+# ---------------------------------------------------------------------------
+# Addon contribution protocol
+#
+# Each addon's apply.py may optionally define:
+#
+#   def extra_deps() -> list[str]:
+#       return ["redis>=5", "hiredis"]
+#
+#   def extra_dev_deps() -> list[str]:
+#       return ["fakeredis"]
+#
+#   def extra_just_recipes() -> str:
+#       return 'redis:\n    redis-server\n'
+#
+#   def extra_nix_packages() -> list[str]:
+#       return ["redis"]
+#
+# generate_all() calls these if present and merges the results.
+# ---------------------------------------------------------------------------
+
+
+def _load_addon_module(addon_apply: Path) -> Any:
+    spec = importlib.util.spec_from_file_location("addon_apply", addon_apply)
+    mod = importlib.util.module_from_spec(spec)  # type: ignore[arg-type]
+    spec.loader.exec_module(mod)  # type: ignore[union-attr]
+    return mod
+
+
+def _collect(ctx: Context) -> dict[str, Any]:
+    """Walk selected addons and merge their contributions."""
+    deps: list[str] = []
+    dev_deps: list[str] = []
+    just_recipes: list[str] = []
+    nix_packages: list[str] = []
+
+    for addon_id in ctx.addons:
+        addon_apply = ctx.scaffolder_root / "addons" / addon_id / "apply.py"
+        if not addon_apply.exists():
+            continue
+        mod = _load_addon_module(addon_apply)
+        if hasattr(mod, "extra_deps"):
+            deps.extend(mod.extra_deps())
+        if hasattr(mod, "extra_dev_deps"):
+            dev_deps.extend(mod.extra_dev_deps())
+        if hasattr(mod, "extra_just_recipes"):
+            just_recipes.append(mod.extra_just_recipes())
+        if hasattr(mod, "extra_nix_packages"):
+            nix_packages.extend(mod.extra_nix_packages())
+
+    return {
+        "extra_deps": deps,
+        "extra_dev_deps": dev_deps,
+        "extra_just_recipes": just_recipes,
+        "extra_nix_packages": nix_packages,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Public entry point
+# ---------------------------------------------------------------------------
+
+
 def generate_all(ctx: Context) -> None:
     step("Generating config files")
     env = _make_env(ctx.scaffolder_root / "generate")
-    vars = {"name": ctx.name, "pkg_name": ctx.pkg_name, "template": ctx.template}
+    contributions = _collect(ctx)
+
+    vars: dict[str, Any] = {
+        "name": ctx.name,
+        "pkg_name": ctx.pkg_name,
+        "template": ctx.template,
+        "addons": ctx.addons,
+        **contributions,
+    }
 
     for template_name, dest in [
         ("pyproject.toml.j2", Path("pyproject.toml")),

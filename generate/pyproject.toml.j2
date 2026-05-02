@@ -23,6 +23,9 @@ dependencies = [
 [% else %]
   "python-dotenv",
 [% endif %]
+[% for dep in extra_deps %]
+  "(( dep ))",
+[% endfor %]
 ]
 
 [dependency-groups]
@@ -33,6 +36,9 @@ dev = [
   "httpx",
   "mypy",
   "ipython",
+[% for dep in extra_dev_deps %]
+  "(( dep ))",
+[% endfor %]
 ]
 
 [tool.setuptools.packages.find]
@@ -41,8 +47,6 @@ where = ["src"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
-# Belt-and-suspenders alongside PYTHONPATH: pytest inserts src/ into sys.path
-# before stdlib, so same-named stdlib modules (e.g. 'email') can't shadow ours.
 pythonpath = ["src"]
 
 [tool.ruff]
@@ -61,3 +65,4 @@ module = ["jose.*", "passlib.*"]
 ignore_missing_imports = true
 ignore_errors = true
 [% endif %]
+

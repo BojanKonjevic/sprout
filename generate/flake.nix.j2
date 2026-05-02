@@ -27,27 +27,21 @@
           fd
           stdenv.cc.cc.lib
           ruff
+[% for pkg in extra_nix_packages %]
+          (( pkg ))
+[% endfor %]
         ];
 
         shellHook = ''
-          # libstdc++ must be set before uv sync so native extensions
-          # (greenlet, asyncpg, cryptography) link correctly at compile + runtime.
           export LD_LIBRARY_PATH="${pkgs.stdenv.cc.cc.lib}/lib:$LD_LIBRARY_PATH"
-
-          # Lock uv to the Nix-managed Python — never download a separate one.
           export UV_PYTHON_DOWNLOADS=never
           export UV_PYTHON="${python}/bin/python3"
-
-          # src/ layout: package importable without an editable install.
           export PYTHONPATH="$PWD/src"
 
-          # Sync deps on every entry — no-op when uv.lock is unchanged (<50ms).
           uv sync --quiet
 
-          # Prepend venv so pytest/ruff/mypy from uv win over any Nix copies.
           export PATH="$PWD/.venv/bin:$PATH"
 
-          # Install git hooks once (silently skipped before git init).
           if [ -f .pre-commit-config.yaml ] && [ ! -f .git/hooks/pre-commit ]; then
             pre-commit install --quiet 2>/dev/null || true
           fi
@@ -70,8 +64,13 @@
 [% else %]
           printf "  \033[34m%-26s\033[0m %s\n" "just run" "run the app"
 [% endif %]
+[% for addon_id in addons %]
+          printf "  \033[34m%-26s\033[0m %s\n" "just (( addon_id ))-up"   "start (( addon_id )) (compose)"
+          printf "  \033[34m%-26s\033[0m %s\n" "just (( addon_id ))-down" "stop (( addon_id )) (compose)"
+[% endfor %]
           printf "\n"
         '';
       };
     });
 }
+

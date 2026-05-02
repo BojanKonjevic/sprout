@@ -29,3 +29,7 @@ db-reset:
 [% else -%]
     python -m (( pkg_name ))
 [%- endif %]
+[% for recipe in extra_just_recipes %]
+(( recipe ))
+[% endfor %]
+

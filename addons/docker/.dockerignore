@@ -1,0 +1,14 @@
+.venv/
+.direnv/
+.git/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+__pycache__/
+*.py[cod]
+htmlcov/
+.coverage
+*.db
+.env
+result
+result-*
