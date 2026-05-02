@@ -13,6 +13,7 @@
   }:
     flake-utils.lib.eachDefaultSystem (system: let
       pkgs = nixpkgs.legacyPackages.${system};
+      python = pkgs.python3.withPackages (ps: [ps.jinja2]);
     in {
       apps.default = {
         type = "app";
@@ -20,7 +21,7 @@
         program = toString (pkgs.writeShellScript "new-python-project" ''
           export SCAFFOLDER_ROOT="${self}"
           export PATH="${pkgs.uv}/bin:$PATH"
-          exec ${pkgs.bash}/bin/bash "${self}/main.sh" "$@"
+          exec ${python}/bin/python3 "${self}/main.py" "$@"
         '');
       };
     });

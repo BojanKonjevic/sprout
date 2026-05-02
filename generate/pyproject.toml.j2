@@ -1,0 +1,63 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "(( name ))"
+version = "0.1.0"
+description = ""
+requires-python = ">=3.13"
+dependencies = [
+[% if template == "fastapi" %]
+  "fastapi",
+  "uvicorn[standard]",
+  "sqlalchemy[asyncio]",
+  "alembic",
+  "asyncpg",
+  "pydantic-settings",
+  "passlib[bcrypt]",
+  "python-jose[cryptography]",
+  "email-validator",
+  "python-multipart",
+  "python-dotenv",
+[% else %]
+  "python-dotenv",
+[% endif %]
+]
+
+[dependency-groups]
+dev = [
+  "pytest>=8",
+  "pytest-cov",
+  "pytest-asyncio",
+  "httpx",
+  "mypy",
+  "ipython",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+# Belt-and-suspenders alongside PYTHONPATH: pytest inserts src/ into sys.path
+# before stdlib, so same-named stdlib modules (e.g. 'email') can't shadow ours.
+pythonpath = ["src"]
+
+[tool.ruff]
+line-length = 88
+exclude = ["alembic/", ".venv/"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "ANN", "SIM"]
+
+[tool.mypy]
+strict = true
+[% if template == "fastapi" %]
+
+[[tool.mypy.overrides]]
+module = ["jose.*", "passlib.*"]
+ignore_missing_imports = true
+ignore_errors = true
+[% endif %]
