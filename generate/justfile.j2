@@ -9,8 +9,7 @@ fmt:
 check:
     mypy src/
 run:
-[% if template == "fastapi" %]
-    uvicorn (( pkg_name )).main:app --reload
+    [% if template == "fastapi" -%]uvicorn (( pkg_name )).main:app --reload
 migrate msg="":
     alembic revision --autogenerate -m "{{msg}}"
 upgrade:
@@ -27,6 +26,6 @@ db-reset:
     -dropdb (( name ))
     -dropdb (( name ))_test
     createdb (( name )) && createdb (( name ))_test && just upgrade
-[% else %]
+[% else -%]
     python -m (( pkg_name ))
-[% endif %]
+[%- endif %]
