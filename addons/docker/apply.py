@@ -3,6 +3,8 @@
 import shutil
 from pathlib import Path
 
+import jinja2
+
 from scaffolder.context import Context
 from scaffolder.ui import success
 
@@ -14,15 +16,23 @@ def apply(ctx: Context) -> None:
     shutil.copy(files / "Dockerfile", Path("Dockerfile"))
     shutil.copy(files / ".dockerignore", Path(".dockerignore"))
 
-    compose = (files / "compose.yml").read_text()
-    Path("compose.yml").write_text(compose.replace("{{name}}", ctx.name))
+    env = jinja2.Environment(
+        loader=jinja2.FileSystemLoader(str(files)),
+        keep_trailing_newline=True,
+        variable_start_string="((",
+        variable_end_string="))",
+        block_start_string="[%",
+        block_end_string="%]",
+    )
+    Path("compose.yml").write_text(
+        env.get_template("compose.yml.j2").render(
+            name=ctx.name,
+            pkg_name=ctx.pkg_name,
+            template=ctx.template,
+        )
+    )
 
     success("Dockerfile, compose.yml, .dockerignore")
-
-
-# ---------------------------------------------------------------------------
-# Contributions to generated config files
-# ---------------------------------------------------------------------------
 
 
 def extra_nix_packages() -> list[str]:
@@ -30,9 +40,6 @@ def extra_nix_packages() -> list[str]:
 
 
 def extra_just_recipes() -> str:
-    # Use (( name )) — these strings are rendered through Jinja before
-    # being inserted into the justfile, so they must use the same
-    # delimiters as everything else. {{name}} would pass through raw.
     return """\
 docker-build:
     docker build -t (( name )) .
