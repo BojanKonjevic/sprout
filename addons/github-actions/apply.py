@@ -16,9 +16,15 @@ def apply(ctx: Context) -> None:
     workflows_dir = Path(".github") / "workflows"
     workflows_dir.mkdir(parents=True, exist_ok=True)
 
+    # Custom delimiters — GitHub Actions uses ${{ }} everywhere, which
+    # Jinja's default delimiters would try to parse and choke on.
     env = jinja2.Environment(
         loader=jinja2.FileSystemLoader(str(files)),
         keep_trailing_newline=True,
+        variable_start_string="((",
+        variable_end_string="))",
+        block_start_string="[%",
+        block_end_string="%]",
     )
 
     Path(workflows_dir / "ci.yml").write_text(
@@ -26,7 +32,7 @@ def apply(ctx: Context) -> None:
             name=ctx.name,
             pkg_name=ctx.pkg_name,
             template=ctx.template,
-            has_redis="redis" in ctx.addons,
+            has_redis=ctx.has("redis"),
             has_postgres=ctx.template == "fastapi",
         )
     )

@@ -9,15 +9,15 @@ on:
 jobs:
   ci:
     runs-on: ubuntu-latest
-
-    {% if has_postgres %}
+[% if has_postgres or has_redis %]
     services:
+[% if has_postgres %]
       postgres:
         image: postgres:16
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: {{ name }}_test
+          POSTGRES_DB: (( name ))_test
         ports:
           - 5432:5432
         options: >-
@@ -25,8 +25,8 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
-    {% endif %}
-    {% if has_redis %}
+[% endif %]
+[% if has_redis %]
       redis:
         image: redis:7-alpine
         ports:
@@ -36,7 +36,8 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
-    {% endif %}
+[% endif %]
+[% endif %]
 
     steps:
       - uses: actions/checkout@v4
@@ -46,12 +47,20 @@ jobs:
         with:
           version: "latest"
           enable-cache: true
+          cache-dependency-glob: "uv.lock"
 
       - name: Set up Python
         run: uv python install 3.13
 
       - name: Install dependencies
         run: uv sync --all-extras
+[% if has_postgres %]
+
+      - name: Run migrations
+        env:
+          DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/(( name ))_test
+        run: uv run alembic upgrade head
+[% endif %]
 
       - name: Lint
         run: uv run ruff check .
@@ -62,24 +71,13 @@ jobs:
       - name: Type check
         run: uv run mypy src/
 
-      {% if has_postgres %}
-      - name: Run migrations
+      - name: Test
         env:
-          DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/{{ name }}_test
-        run: uv run alembic upgrade head
+[% if has_postgres %]
+          DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/(( name ))_test
+[% endif %]
+[% if has_redis %]
+          REDIS_URL: redis://localhost:6379/0
+[% endif %]
+        run: uv run pytest -v
 
-      - name: Test
-        env:
-          DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/{{ name }}_test
-          {% if has_redis %}
-          REDIS_URL: redis://localhost:6379/0
-          {% endif %}
-        run: uv run pytest -v
-      {% else %}
-      - name: Test
-        {% if has_redis %}
-        env:
-          REDIS_URL: redis://localhost:6379/0
-        {% endif %}
-        run: uv run pytest -v
-      {% endif %}
