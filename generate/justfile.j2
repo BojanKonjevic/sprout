@@ -16,16 +16,16 @@ upgrade:
     alembic upgrade head
 downgrade:
     alembic downgrade -1
-db-drop:
-    dropdb (( name ))
-db-drop-test:
-    dropdb (( name ))_test
 db-create:
-    createdb (( name )) && createdb (( name ))_test && just upgrade
+    docker compose up -d db
+    sleep 2
+    docker compose exec db createdb -U postgres (( name ))
+    docker compose exec db createdb -U postgres (( name ))_test
+    just upgrade
 db-reset:
-    -dropdb (( name ))
-    -dropdb (( name ))_test
-    createdb (( name )) && createdb (( name ))_test && just upgrade
+    docker compose exec db dropdb -U postgres --if-exists (( name ))
+    docker compose exec db dropdb -U postgres --if-exists (( name ))_test
+    just db-create
 [% else -%]
     python -m (( pkg_name ))
 [%- endif %]

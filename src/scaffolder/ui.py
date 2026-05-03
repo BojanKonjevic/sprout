@@ -100,9 +100,6 @@ def confirm(ctx: object) -> bool:
         "pre-build dev shell",
         "git init + initial commit",
     ]
-    if ctx.template == "fastapi":
-        steps.insert(1, f"createdb {ctx.name}  &&  createdb {ctx.name}_test")
-
     for s in steps:
         print(f"    {CYAN}·{RESET}  {DIM}{s}{RESET}")
 

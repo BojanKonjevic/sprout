@@ -148,7 +148,7 @@ def main() -> None:
         print(f"    3. Add src/{pkg_name}/api/routes/auth.py")
         print(f"    4. Register it in src/{pkg_name}/api/router.py")
         print("    5. Activate the client fixture in tests/conftest.py")
-        print("    6. just migrate 'add users' && just upgrade")
+        print("    6. just db-create && just migrate 'add users' && just upgrade")
 
     if "docker" in addons:
         print()

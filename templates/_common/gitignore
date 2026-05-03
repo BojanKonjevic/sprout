@@ -20,6 +20,7 @@ htmlcov/
 # DB / env
 *.db
 .env
+.pgdata/
 
 # Editors
 .vscode/

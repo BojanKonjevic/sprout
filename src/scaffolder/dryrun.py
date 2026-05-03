@@ -127,9 +127,6 @@ def _commands(ctx: Context) -> list[str]:
         "git add .",
         'git commit -m "init: scaffold from sprout"',
     ]
-    if ctx.template == "fastapi":
-        cmds.insert(2, f"createdb {ctx.name}")
-        cmds.insert(3, f"createdb {ctx.name}_test")
     return cmds
 
 

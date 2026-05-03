@@ -54,7 +54,7 @@ def _patch_settings(settings_path: Path) -> None:
     text = settings_path.read_text()
     if "redis_url" in text:
         return
-    old = '    database_url: str = "postgresql+asyncpg:///'
+    old = '    database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/'
     new = '    redis_url: str = "redis://localhost:6379/0"\n' + old
     if old in text:
         text = text.replace(old, new, 1)

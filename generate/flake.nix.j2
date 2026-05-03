@@ -57,10 +57,6 @@
           printf "  \033[34m%-26s\033[0m %s\n" "just migrate \"msg\"" "generate migration"
           printf "  \033[34m%-26s\033[0m %s\n" "just upgrade"         "apply migrations"
           printf "  \033[34m%-26s\033[0m %s\n" "just downgrade"       "roll back one step"
-          printf "  \033[34m%-26s\033[0m %s\n" "just db-drop"         "delete the main db"
-          printf "  \033[34m%-26s\033[0m %s\n" "just db-drop-test"    "delete the test db"
-          printf "  \033[34m%-26s\033[0m %s\n" "just db-create"       "create both dbs + migrate"
-          printf "  \033[34m%-26s\033[0m %s\n" "just db-reset"        "recreate both dbs + migrate"
 [% else %]
           printf "  \033[34m%-26s\033[0m %s\n" "just run" "run the app"
 [% endif %]
