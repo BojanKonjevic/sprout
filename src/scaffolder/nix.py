@@ -1,7 +1,7 @@
 import subprocess
 from pathlib import Path
 
-from scaffolder.ui import spinner
+from scaffolder.ui import spinner, warn
 
 
 def lock_flake() -> None:
@@ -14,9 +14,11 @@ def lock_flake() -> None:
 
 
 def warm_devshell() -> None:
-    with spinner("Building dev shell"):
-        subprocess.run(
-            ["nix", "develop", "--command", "true"],
-            check=True,
+    with spinner("Pre-building dev shell  (speeds up first cd)"):
+        result = subprocess.run(
+            ["direnv", "exec", ".", "true"],
             capture_output=True,
         )
+    if result.returncode != 0:
+        warn("Dev shell pre-build failed — first 'cd' will build it instead.")
+        warn(result.stderr.decode(errors="replace").strip())
