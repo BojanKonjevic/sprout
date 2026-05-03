@@ -104,6 +104,13 @@ def _addon_files(ctx: Context) -> list[tuple[str, str]]:
                 ),
                 (f"src/{ctx.pkg_name}/tasks.py", "sample task + decorator pattern"),
             ]
+        elif addon_id == "sentry":
+            files += [
+                (
+                    f"src/{ctx.pkg_name}/sentry.py",
+                    "init_sentry() — no-ops when DSN is unset",
+                ),
+            ]
     return files
 
 

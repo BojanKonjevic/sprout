@@ -1,0 +1,34 @@
+"""Sentry initialisation.
+
+Set SENTRY_DSN in your .env to enable. Leave blank to disable (safe for local dev).
+
+Get your DSN at: https://sentry.io/settings/<org>/projects/<project>/keys/
+"""
+
+import os
+
+import sentry_sdk
+[% if template == "fastapi" %]
+from sentry_sdk.integrations.fastapi import FastApiIntegration
+from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
+[% endif %]
+
+
+def init_sentry() -> None:
+    dsn = os.getenv("SENTRY_DSN", "")
+    if not dsn:
+        return
+
+    sentry_sdk.init(
+        dsn=dsn,
+        environment=os.getenv("SENTRY_ENVIRONMENT", "development"),
+        traces_sample_rate=1.0,
+        profiles_sample_rate=1.0,
+[% if template == "fastapi" %]
+        integrations=[
+            FastApiIntegration(),
+            SqlalchemyIntegration(),
+        ],
+[% endif %]
+        send_default_pii=False,
+    )
