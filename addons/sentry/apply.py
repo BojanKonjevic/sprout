@@ -1,4 +1,4 @@
-"""Sentry addon — error tracking and performance monitoring."""
+"""Sentry error tracking + performance monitoring."""
 
 from __future__ import annotations
 
@@ -53,7 +53,6 @@ def _patch_fastapi_main(main_path: Path, ctx: Context) -> None:
     text = main_path.read_text()
     if "sentry" in text:
         return
-
     text = text.replace(
         "from fastapi import FastAPI",
         "from fastapi import FastAPI\nfrom .sentry import init_sentry",
@@ -73,7 +72,6 @@ def _patch_blank_main(main_path: Path, ctx: Context) -> None:
     text = main_path.read_text()
     if "sentry" in text:
         return
-
     text = text.replace(
         "def main()",
         "from .sentry import init_sentry\n\n\ndef main()",
@@ -127,7 +125,7 @@ def extra_deps() -> list[str]:
 def extra_just_recipes() -> str:
     return """\
 sentry-test:
-    python -c "from (( pkg_name )).sentry import init_sentry; import os; os.environ['SENTRY_DSN'] = os.environ.get('SENTRY_DSN', ''); init_sentry(); print('Sentry DSN:', os.environ.get('SENTRY_DSN') or 'not set')"
+    python -c "from (( pkg_name )).sentry import init_sentry; import os; init_sentry(); print('Sentry DSN:', os.environ.get('SENTRY_DSN') or 'not set')"
 sentry-check:
-    python -c "import sentry_sdk; print(sentry_sdk.VERSION)"
+    python -c "import sentry_sdk; print('sentry-sdk', sentry_sdk.VERSION)"
 """

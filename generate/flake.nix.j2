@@ -69,7 +69,8 @@
           printf "  \033[34m%-26s\033[0m %s\n" "just (( addon_id ))-down" "stop (( addon_id )) (compose)"
 [% endfor %]
 [% if "sentry" in addons %]
-          printf "  \033[34m%-26s\033[0m %s\n" "just sentry-test"  "check DSN + SDK"
+          printf "  \033[34m%-26s\033[0m %s\n" "just sentry-check" "verify SDK version"
+          printf "  \033[34m%-26s\033[0m %s\n" "just sentry-test"  "check DSN is set"
 [% endif %]
           printf "\n"
         '';
