@@ -8,13 +8,12 @@ from pathlib import Path
 import jinja2
 
 from scaffolder.context import Context
-from scaffolder.ui import success, warn, YELLOW, CYAN, BOLD, DIM, RESET
+from scaffolder.ui import success, warn, YELLOW, DIM, RESET
 
 _HERE = Path(__file__).parent
 
 
 def _prompt_add_redis() -> bool:
-    """Ask the user whether to auto-add the redis addon."""
     try:
         raw = (
             input(
@@ -33,7 +32,6 @@ def _prompt_add_redis() -> bool:
 def apply(ctx: Context) -> None:
     if not ctx.has("redis"):
         if not sys.stdin.isatty():
-            # Non-interactive — fail loudly rather than produce broken output
             print(
                 f"\n  {YELLOW}⚠{RESET}  Celery addon requires the redis addon. "
                 f"Add 'redis' to your addons list.\n",
@@ -42,14 +40,11 @@ def apply(ctx: Context) -> None:
             sys.exit(1)
 
         if _prompt_add_redis():
-            # Patch the context in-place so downstream steps (compose append,
-            # github-actions CI, dryrun) all see redis as selected too.
             ctx.addons.insert(ctx.addons.index("celery"), "redis")
 
-            # Run the redis addon apply directly so its files are created now
-            redis_apply_path = ctx.scaffolder_root / "addons" / "redis" / "apply.py"
             import importlib.util
 
+            redis_apply_path = ctx.scaffolder_root / "addons" / "redis" / "apply.py"
             spec = importlib.util.spec_from_file_location(
                 "redis_apply", redis_apply_path
             )
@@ -95,7 +90,7 @@ def _append_worker_service(compose_path: Path, ctx: Context) -> None:
     if "celery" in existing:
         return
 
-    block = f"""
+    worker_block = f"""\
   celery-worker:
     build: .
     command: celery -A {ctx.pkg_name}.worker worker --loglevel=info
@@ -122,7 +117,15 @@ def _append_worker_service(compose_path: Path, ctx: Context) -> None:
           path: ./src
           target: /app/src
 """
-    compose_path.write_text(existing.rstrip() + "\n" + block)
+
+    # Insert before the top-level `volumes:` block if it exists,
+    # otherwise just append.
+    if "\nvolumes:" in existing:
+        updated = existing.replace("\nvolumes:", "\n" + worker_block + "\nvolumes:", 1)
+    else:
+        updated = existing.rstrip() + "\n\n" + worker_block
+
+    compose_path.write_text(updated)
 
 
 def extra_deps() -> list[str]:
