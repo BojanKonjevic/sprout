@@ -96,6 +96,14 @@ def _addon_files(ctx: Context) -> list[tuple[str, str]]:
             files += [
                 (".github/workflows/ci.yml", "lint + typecheck + test on push/PR"),
             ]
+        elif addon_id == "celery":
+            files += [
+                (
+                    f"src/{ctx.pkg_name}/worker.py",
+                    "Celery app instance + beat schedule",
+                ),
+                (f"src/{ctx.pkg_name}/tasks.py", "sample task + decorator pattern"),
+            ]
     return files
 
 
