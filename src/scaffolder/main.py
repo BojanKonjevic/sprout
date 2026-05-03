@@ -16,9 +16,9 @@ from scaffolder.validate import validate_name, check_preflight
 
 USAGE = """\
 Usage:
-  new-python-project <project-name> [--dry-run]
-  new-python-project --list-templates
-  new-python-project --list-addons
+  sprout <project-name> [--dry-run]
+  sprout --list-templates
+  sprout --list-addons
 """
 
 
@@ -147,12 +147,12 @@ def main() -> None:
     if template == "fastapi":
         print()
         info("When you're ready to add auth:")
-        print("     1. Define User + RefreshToken in models/")
+        print(f"    1. Define User + RefreshToken in models/")
         print(f"    2. Add src/{pkg_name}/core/dependencies.py  (get_current_user)")
         print(f"    3. Add src/{pkg_name}/api/routes/auth.py")
         print(f"    4. Register it in src/{pkg_name}/api/router.py")
-        print("     5. Activate the client fixture in tests/conftest.py")
-        print("     6. just migrate 'add users' && just upgrade")
+        print(f"    5. Activate the client fixture in tests/conftest.py")
+        print(f"    6. just migrate 'add users' && just upgrade")
 
     if "docker" in addons:
         print()

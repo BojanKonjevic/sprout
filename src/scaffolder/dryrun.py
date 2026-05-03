@@ -133,7 +133,7 @@ def _commands(ctx: Context) -> list[str]:
         "nix flake lock",
         "git init",
         "git add .",
-        'git commit -m "init: scaffold from new-python-project"',
+        'git commit -m "init: scaffold from sprout"',
     ]
     if ctx.template == "fastapi":
         cmds.insert(2, f"createdb {ctx.name}")

@@ -1,5 +1,5 @@
 {
-  description = "Python project scaffolder";
+  description = "sprout — Python project scaffolder";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -18,7 +18,7 @@
       apps.default = {
         type = "app";
         meta.description = "Creates a new Python project from template";
-        program = toString (pkgs.writeShellScript "new-python-project" ''
+        program = toString (pkgs.writeShellScript "sprout" ''
           export SCAFFOLDER_ROOT="${self}"
           export PATH="${pkgs.uv}/bin:$PATH"
           exec ${python}/bin/python3 "${self}/main.py" "$@"

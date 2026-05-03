@@ -12,4 +12,4 @@ def init_and_commit(project_dir: Path) -> None:
 
         run("git", "init")
         run("git", "add", ".")
-        run("git", "commit", "-m", "init: scaffold from new-python-project")
+        run("git", "commit", "-m", "init: scaffold from sprout")
