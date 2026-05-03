@@ -78,7 +78,7 @@ def apply(ctx: Context) -> None:
     if ctx.has("docker") and Path("compose.yml").exists():
         _append_worker_service(Path("compose.yml"), ctx)
         success(
-            "tasks/celery_app.py, tasks/example_tasks.py,"
+            "tasks/celery_app.py, tasks/example_tasks.py, "
             "compose.yml (celery worker + beat appended)"
         )
     else:
@@ -96,6 +96,8 @@ def _append_worker_service(compose_path: Path, ctx: Context) -> None:
     command: celery -A {ctx.pkg_name}.tasks.celery_app worker --loglevel=info
     env_file:
       - .env
+    environment:
+      REDIS_URL: redis://redis:6379/0
     depends_on:
       - redis
     develop:
@@ -109,6 +111,8 @@ def _append_worker_service(compose_path: Path, ctx: Context) -> None:
     command: celery -A {ctx.pkg_name}.tasks.celery_app beat --loglevel=info
     env_file:
       - .env
+    environment:
+      REDIS_URL: redis://redis:6379/0
     depends_on:
       - redis
     develop:
