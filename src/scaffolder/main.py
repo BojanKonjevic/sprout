@@ -1,18 +1,18 @@
 import importlib.util
 import os
 import sys
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
 
 from scaffolder.context import Context
 from scaffolder.dryrun import run_dry
 from scaffolder.generate import generate_all
 from scaffolder.git import init_and_commit
 from scaffolder.nix import lock_flake, warm_devshell
+from scaffolder.prompt import TEMPLATES, prompt_addons, prompt_template
 from scaffolder.rollback import scaffold_or_rollback
-from scaffolder.prompt import prompt_template, prompt_addons, TEMPLATES
-from scaffolder.ui import confirm, error, info, step, success, warn
-from scaffolder.validate import validate_name, check_preflight
+from scaffolder.ui import confirm, error, info, step, success
+from scaffolder.validate import check_preflight, validate_name
 
 USAGE = """\
 Usage:
@@ -22,7 +22,7 @@ Usage:
 """
 
 
-def _load_apply(path: Path) -> Callable:
+def _load_apply(path: Path) -> Callable[[Context], None]:
     spec = importlib.util.spec_from_file_location("apply", path)
     mod = importlib.util.module_from_spec(spec)  # type: ignore[arg-type]
     spec.loader.exec_module(mod)  # type: ignore[union-attr]
@@ -51,7 +51,7 @@ def _parse_args() -> tuple[str | None, bool, bool, bool]:
 
 
 def _cmd_list_templates() -> None:
-    from scaffolder.ui import BOLD, CYAN, DIM, RESET
+    from scaffolder.ui import CYAN, DIM, RESET
 
     print()
     for name, desc in TEMPLATES:
@@ -72,9 +72,7 @@ def _cmd_list_addons(scaffolder_root: Path) -> None:
 def main() -> None:
     name, dry_run, list_templates, list_addons = _parse_args()
 
-    scaffolder_root = Path(
-        os.environ.get("SCAFFOLDER_ROOT", Path(__file__).parent.parent.parent)
-    )
+    scaffolder_root = Path(os.environ.get("SCAFFOLDER_ROOT", Path(__file__).parent.parent.parent))
 
     if list_templates:
         _cmd_list_templates()
@@ -113,7 +111,7 @@ def main() -> None:
         return
 
     if not confirm(ctx):
-        print(f"\n  \033[0;33mAborted.\033[0m\n")
+        print("\n  \033[0;33mAborted.\033[0m\n")
         sys.exit(0)
 
     project_dir = ctx.project_dir
@@ -138,21 +136,19 @@ def main() -> None:
         init_and_commit(project_dir)
 
     print()
-    success(
-        f"Project '{name}' ready!  ({template}{' + ' + ', '.join(addons) if addons else ''})"
-    )
+    success(f"Project '{name}' ready!  ({template}{' + ' + ', '.join(addons) if addons else ''})")
     print()
     print(f"  cd {name}")
 
     if template == "fastapi":
         print()
         info("When you're ready to add auth:")
-        print(f"    1. Define User + RefreshToken in models/")
+        print("    1. Define User + RefreshToken in models/")
         print(f"    2. Add src/{pkg_name}/core/dependencies.py  (get_current_user)")
         print(f"    3. Add src/{pkg_name}/api/routes/auth.py")
         print(f"    4. Register it in src/{pkg_name}/api/router.py")
-        print(f"    5. Activate the client fixture in tests/conftest.py")
-        print(f"    6. just migrate 'add users' && just upgrade")
+        print("    5. Activate the client fixture in tests/conftest.py")
+        print("    6. just migrate 'add users' && just upgrade")
 
     if "docker" in addons:
         print()
@@ -168,6 +164,4 @@ def main() -> None:
     if "github-actions" in addons:
         print()
         info("GitHub Actions CI is set up at .github/workflows/ci.yml")
-        print(
-            "    Push to GitHub and it will lint, type-check, and test automatically."
-        )
+        print("    Push to GitHub and it will lint, type-check, and test automatically.")

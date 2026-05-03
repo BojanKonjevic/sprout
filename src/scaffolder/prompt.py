@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import sys
 
-from scaffolder.ui import BOLD, CYAN, DIM, GREEN, MAGENTA, RESET, YELLOW, warn
+from scaffolder.ui import BOLD, CYAN, DIM, GREEN, MAGENTA, RESET, warn
 
 TEMPLATES: list[tuple[str, str]] = [
     ("blank", "dev tools only  (pytest, ruff, mypy)"),
@@ -41,7 +41,8 @@ def _clear_lines(n: int) -> None:
 
 def _read_key() -> str:
     """Read a single keypress from stdin (Unix raw mode)."""
-    import tty, termios  # noqa: E401
+    import termios
+    import tty  # noqa: F401
 
     fd = sys.stdin.fileno()
     old = termios.tcgetattr(fd)
@@ -59,7 +60,7 @@ def _read_key() -> str:
 
 def _tty_available() -> bool:
     try:
-        import tty, termios  # noqa: F401,E401
+        import tty  # noqa: F401
 
         return sys.stdin.isatty()
     except ImportError:
@@ -220,7 +221,8 @@ def _fallback_addons(available: list[tuple[str, str]]) -> list[str]:
     if not available:
         return []
     print(
-        f"\n  {BOLD}Select addons:{RESET}  {DIM}(space-separated numbers, or enter to skip){RESET}\n"
+        f"\n  {BOLD}Select addons:{RESET} "
+        "{DIM}(space-separated numbers, or enter to skip){RESET}\n"
     )
     for i, (addon_id, desc) in enumerate(available, 1):
         print(f"    {CYAN}{i}){RESET} {addon_id:<18} {DIM}—{RESET} {desc}")

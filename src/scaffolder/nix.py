@@ -1,5 +1,4 @@
 import subprocess
-from pathlib import Path
 
 from scaffolder.ui import spinner, warn
 

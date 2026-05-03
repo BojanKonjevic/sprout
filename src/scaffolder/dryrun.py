@@ -1,25 +1,17 @@
 """Dry-run mode — prints a structured preview without touching the filesystem."""
 
-import importlib.util
-from pathlib import Path
-from typing import Any
-
 from scaffolder.context import Context
 from scaffolder.generate import _collect
 from scaffolder.ui import (
     BOLD,
-    CYAN,
     DIM,
-    GREEN,
     MAGENTA,
     RESET,
-    YELLOW,
     dry_cmd,
     dry_dep,
     dry_file,
     dry_header,
     dry_section,
-    step,
 )
 
 

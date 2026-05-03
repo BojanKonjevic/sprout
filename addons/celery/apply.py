@@ -8,7 +8,7 @@ from pathlib import Path
 import jinja2
 
 from scaffolder.context import Context
-from scaffolder.ui import success, warn, YELLOW, DIM, RESET
+from scaffolder.ui import DIM, RESET, YELLOW, success, warn
 
 _HERE = Path(__file__).parent
 
@@ -45,16 +45,12 @@ def apply(ctx: Context) -> None:
             import importlib.util
 
             redis_apply_path = ctx.scaffolder_root / "addons" / "redis" / "apply.py"
-            spec = importlib.util.spec_from_file_location(
-                "redis_apply", redis_apply_path
-            )
+            spec = importlib.util.spec_from_file_location("redis_apply", redis_apply_path)
             mod = importlib.util.module_from_spec(spec)  # type: ignore[arg-type]
             spec.loader.exec_module(mod)  # type: ignore[union-attr]
             mod.apply(ctx)
         else:
-            warn(
-                "Continuing without Redis — set REDIS_URL manually before starting the worker."
-            )
+            warn("Continuing without Redis — set REDIS_URL manually before starting the worker.")
 
     # Create tasks/ subpackage
     tasks_dir = Path("src") / ctx.pkg_name / "tasks"
@@ -82,7 +78,8 @@ def apply(ctx: Context) -> None:
     if ctx.has("docker") and Path("compose.yml").exists():
         _append_worker_service(Path("compose.yml"), ctx)
         success(
-            "tasks/celery_app.py, tasks/example_tasks.py, compose.yml (celery worker + beat appended)"
+            "tasks/celery_app.py, tasks/example_tasks.py,"
+            "compose.yml (celery worker + beat appended)"
         )
     else:
         success("tasks/celery_app.py, tasks/example_tasks.py")
@@ -145,7 +142,7 @@ celery-up:
 celery-down:
     docker compose stop celery-worker celery-beat
 celery-flower:
-    docker compose run --rm celery-worker celery -A (( pkg_name )).tasks.celery_app flower --port=5555
+    docker compose run --rm celery-worker celery -A (( pkg_name )).tasks.celery_app flower --port=5555  # noqa: E501
 celery-logs:
     docker compose logs -f celery-worker"""
     return """\

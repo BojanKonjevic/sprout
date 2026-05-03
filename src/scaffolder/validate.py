@@ -1,11 +1,10 @@
 import re
-import sys
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 from scaffolder.ui import error, info, warn
-
 
 # ---------------------------------------------------------------------------
 # Name validation
@@ -19,9 +18,7 @@ def validate_name(name: str, pkg_name: str) -> None:
 
     if not re.match(r"^[a-zA-Z][a-zA-Z0-9_-]*$", name):
         error(f"Invalid project name '{name}'.")
-        info(
-            "Must start with a letter; only letters, numbers, hyphens, and underscores allowed."
-        )
+        info("Must start with a letter; only letters, numbers, hyphens, and underscores allowed.")
         sys.exit(1)
 
     if pkg_name in sys.stdlib_module_names:
@@ -67,10 +64,7 @@ def _check_uv() -> list[str]:
         if len(parts) >= 2:
             major, minor, *_ = (int(x) for x in parts[1].split("."))
             if (major, minor) < (0, 4):
-                return [
-                    f"uv {parts[1]} is too old (need >= 0.4).\n"
-                    "     Upgrade: uv self update"
-                ]
+                return [f"uv {parts[1]} is too old (need >= 0.4).\n     Upgrade: uv self update"]
     except (subprocess.CalledProcessError, ValueError):
         pass
 

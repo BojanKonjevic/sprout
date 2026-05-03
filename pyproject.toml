@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sprout"
+version = "0.1.0"
+description = "Python project scaffolder"
+requires-python = ">=3.13"
+dependencies = ["jinja2"]
+
+[dependency-groups]
+dev = [
+    "mypy>=1",
+    "ruff>=0.4",
+    "pytest>=8",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.ruff.lint.per-file-ignores]
+"addons/celery/apply.py" = ["E501"]
+"addons/sentry/apply.py" = ["E501"]
+
+[tool.mypy]
+strict = true

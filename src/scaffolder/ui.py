@@ -1,6 +1,6 @@
+import itertools
 import sys
 import threading
-import itertools
 import time
 
 BOLD = "\033[1m"
@@ -78,9 +78,7 @@ def confirm(ctx: object) -> bool:
 
     template_line = f"{CYAN}{ctx.template}{RESET}"
     addon_line = (
-        "  ".join(f"{GREEN}{a}{RESET}" for a in ctx.addons)
-        if ctx.addons
-        else f"{DIM}none{RESET}"
+        "  ".join(f"{GREEN}{a}{RESET}" for a in ctx.addons) if ctx.addons else f"{DIM}none{RESET}"
     )
 
     print(f"\n  {BOLD}Ready to scaffold:{RESET}")
@@ -158,7 +156,7 @@ class _Spinner:
         if self._tty:
             self._stop.set()
             self._thread.join()
-            sys.stdout.write(f"\r\033[2K")
+            sys.stdout.write("\r\033[2K")
             sys.stdout.write(_SHOW_CURSOR)
             sys.stdout.flush()
         if exc_type is None:

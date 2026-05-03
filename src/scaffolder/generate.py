@@ -7,7 +7,6 @@ import jinja2
 from scaffolder.context import Context
 from scaffolder.ui import step, success
 
-
 # ---------------------------------------------------------------------------
 # Jinja env
 # ---------------------------------------------------------------------------

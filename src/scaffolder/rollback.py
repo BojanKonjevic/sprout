@@ -1,13 +1,13 @@
 import shutil
+from collections.abc import Generator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Generator
 
 from scaffolder.ui import error, warn
 
 
 @contextmanager
-def scaffold_or_rollback(project_dir: Path) -> Generator[None, None, None]:
+def scaffold_or_rollback(project_dir: Path) -> Generator[None]:
     """Run scaffold steps; delete project_dir entirely if anything raises.
 
     Usage:

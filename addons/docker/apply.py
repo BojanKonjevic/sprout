@@ -28,13 +28,9 @@ def apply(ctx: Context) -> None:
         template=ctx.template,
     )
 
-    Path("Dockerfile").write_text(
-        env.get_template("Dockerfile.j2").render(**render_vars)
-    )
+    Path("Dockerfile").write_text(env.get_template("Dockerfile.j2").render(**render_vars))
     Path(".dockerignore").write_text((files / ".dockerignore").read_text())
-    Path("compose.yml").write_text(
-        env.get_template("compose.yml.j2").render(**render_vars)
-    )
+    Path("compose.yml").write_text(env.get_template("compose.yml.j2").render(**render_vars))
 
     success("Dockerfile, compose.yml, .dockerignore")
 

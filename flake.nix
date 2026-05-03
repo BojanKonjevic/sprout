@@ -13,7 +13,7 @@
   }:
     flake-utils.lib.eachDefaultSystem (system: let
       pkgs = nixpkgs.legacyPackages.${system};
-      python = pkgs.python3.withPackages (ps: [ps.jinja2]);
+      python = pkgs.python3.withPackages (ps: [ps.jinja2 ps.mypy]);
     in {
       apps.default = {
         type = "app";
@@ -23,6 +23,15 @@
           export PATH="${pkgs.uv}/bin:$PATH"
           exec ${python}/bin/python3 "${self}/main.py" "$@"
         '');
+      };
+
+      devShells.default = pkgs.mkShell {
+        packages = with pkgs; [
+          python
+          uv
+          ruff
+          just
+        ];
       };
     });
 }
