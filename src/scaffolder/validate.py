@@ -6,116 +6,6 @@ from pathlib import Path
 
 from scaffolder.ui import error, info, warn
 
-STDLIB_RESERVED = {
-    "test",
-    "sys",
-    "os",
-    "io",
-    "re",
-    "json",
-    "math",
-    "time",
-    "datetime",
-    "collections",
-    "itertools",
-    "functools",
-    "pathlib",
-    "typing",
-    "abc",
-    "ast",
-    "copy",
-    "csv",
-    "enum",
-    "http",
-    "logging",
-    "operator",
-    "random",
-    "socket",
-    "string",
-    "struct",
-    "threading",
-    "types",
-    "unittest",
-    "urllib",
-    "uuid",
-    "warnings",
-    "xml",
-    "email",
-    "html",
-    "queue",
-    "array",
-    "bisect",
-    "calendar",
-    "cmath",
-    "contextlib",
-    "contextvars",
-    "dataclasses",
-    "decimal",
-    "difflib",
-    "dis",
-    "filecmp",
-    "fnmatch",
-    "fractions",
-    "gc",
-    "getopt",
-    "getpass",
-    "gettext",
-    "glob",
-    "graphlib",
-    "hashlib",
-    "heapq",
-    "hmac",
-    "inspect",
-    "ipaddress",
-    "keyword",
-    "locale",
-    "marshal",
-    "mimetypes",
-    "mmap",
-    "numbers",
-    "pickle",
-    "pprint",
-    "profile",
-    "pstats",
-    "readline",
-    "runpy",
-    "select",
-    "selectors",
-    "shelve",
-    "shlex",
-    "shutil",
-    "signal",
-    "site",
-    "smtplib",
-    "sqlite3",
-    "stat",
-    "statistics",
-    "subprocess",
-    "symbol",
-    "symtable",
-    "sysconfig",
-    "tabnanny",
-    "tarfile",
-    "tempfile",
-    "textwrap",
-    "token",
-    "tokenize",
-    "tomllib",
-    "trace",
-    "traceback",
-    "tracemalloc",
-    "tty",
-    "unicodedata",
-    "venv",
-    "weakref",
-    "webbrowser",
-    "zipapp",
-    "zipfile",
-    "zipimport",
-    "zlib",
-    "zoneinfo",
-}
-
 
 # ---------------------------------------------------------------------------
 # Name validation
@@ -134,7 +24,7 @@ def validate_name(name: str, pkg_name: str) -> None:
         )
         sys.exit(1)
 
-    if pkg_name in STDLIB_RESERVED:
+    if pkg_name in sys.stdlib_module_names:
         error(f"'{pkg_name}' shadows a Python stdlib module.")
         info(f"Suggestion: '{name}-app'  or  'my-{name}'")
         sys.exit(1)
@@ -169,12 +59,10 @@ def _check_uv() -> list[str]:
             "     Install: curl -LsSf https://astral.sh/uv/install.sh | sh"
         ]
 
-    # Require uv >= 0.4 — older versions use a different venv layout
     try:
         out = subprocess.run(
             ["uv", "--version"], capture_output=True, text=True, check=True
         ).stdout.strip()
-        # "uv 0.4.18" or "uv 0.5.0"
         parts = out.split()
         if len(parts) >= 2:
             major, minor, *_ = (int(x) for x in parts[1].split("."))
@@ -184,7 +72,7 @@ def _check_uv() -> list[str]:
                     "     Upgrade: uv self update"
                 ]
     except (subprocess.CalledProcessError, ValueError):
-        pass  # version parse failed — not worth blocking on
+        pass
 
     return []
 
@@ -207,7 +95,6 @@ def _check_nix() -> list[str]:
             "     Quick:   curl -L https://nixos.org/nix/install | sh"
         ]
 
-    # Check that flakes are enabled — nix flake lock will fail silently otherwise
     try:
         result = subprocess.run(
             ["nix", "config", "show", "experimental-features"],
@@ -222,7 +109,7 @@ def _check_nix() -> list[str]:
                 "       experimental-features = nix-command flakes"
             ]
     except (subprocess.CalledProcessError, FileNotFoundError):
-        pass  # if the config subcommand itself fails, move on
+        pass
 
     return []
 
@@ -236,11 +123,6 @@ def _check_direnv() -> list[str]:
             "     Don't forget to hook it into your shell."
         ]
     return []
-
-
-# ---------------------------------------------------------------------------
-# Kept for backwards compat — now a thin wrapper around check_preflight
-# ---------------------------------------------------------------------------
 
 
 def check_uv_installed() -> None:
