@@ -41,7 +41,9 @@ def apply(ctx: Context) -> None:
         success("sentry.py, main.py patched, settings.py patched, .env updated")
     else:
         _patch_blank_main(Path("src") / ctx.pkg_name / "main.py", ctx)
-        _patch_env_blank(Path(".env") if Path(".env").exists() else None)
+        _patch_env(Path(".env")) if Path(".env").exists() else Path(".env").write_text(
+            "SENTRY_DSN=\nSENTRY_ENVIRONMENT=development\n"
+        )
         success("sentry.py, main.py patched")
 
 
@@ -52,24 +54,16 @@ def _patch_fastapi_main(main_path: Path, ctx: Context) -> None:
     if "sentry" in text:
         return
 
-    old = "from fastapi import FastAPI"
-    new = f"from fastapi import FastAPI\nfrom .sentry import init_sentry"
-    text = text.replace(old, new, 1)
-
-    old = "@asynccontextmanager\nasync def lifespan"
-    new = "@asynccontextmanager\nasync def lifespan"
-    # Patch lifespan to call init_sentry before yield
-    old2 = "async def lifespan(app: FastAPI) -> AsyncGenerator[None]:\n    yield"
-    new2 = "async def lifespan(app: FastAPI) -> AsyncGenerator[None]:\n    init_sentry()\n    yield"
-    if old2 in text:
-        text = text.replace(old2, new2, 1)
-    else:
-        # lifespan body may vary — prepend init_sentry at top of function
-        text = text.replace(
-            "async def lifespan(app: FastAPI)",
-            "async def lifespan(app: FastAPI)",
-        )
-
+    text = text.replace(
+        "from fastapi import FastAPI",
+        "from fastapi import FastAPI\nfrom .sentry import init_sentry",
+        1,
+    )
+    text = text.replace(
+        "async def lifespan(app: FastAPI) -> AsyncGenerator[None]:\n    yield",
+        "async def lifespan(app: FastAPI) -> AsyncGenerator[None]:\n    init_sentry()\n    yield",
+        1,
+    )
     main_path.write_text(text)
 
 
@@ -80,16 +74,16 @@ def _patch_blank_main(main_path: Path, ctx: Context) -> None:
     if "sentry" in text:
         return
 
-    old = "def main()"
-    new = f"from .sentry import init_sentry\n\n\ndef main()"
-    text = text.replace(old, new, 1)
-
-    # Call init_sentry as first line of main
-    old2 = "def main() -> None:\n    "
-    new2 = "def main() -> None:\n    init_sentry()\n    "
-    if old2 in text:
-        text = text.replace(old2, new2, 1)
-
+    text = text.replace(
+        "def main()",
+        "from .sentry import init_sentry\n\n\ndef main()",
+        1,
+    )
+    text = text.replace(
+        "def main() -> None:\n    ",
+        "def main() -> None:\n    init_sentry()\n    ",
+        1,
+    )
     main_path.write_text(text)
 
 
@@ -99,7 +93,6 @@ def _patch_settings(settings_path: Path) -> None:
     text = settings_path.read_text()
     if "sentry_dsn" in text:
         return
-    # Append sentry_dsn field before the closing of the Settings class
     old = "    access_token_expire_minutes: int = 30\n    refresh_token_expire_days: int = 30"
     new = (
         "    access_token_expire_minutes: int = 30\n"
@@ -127,12 +120,14 @@ def _patch_env(env_path: Path) -> None:
     env_path.write_text(text)
 
 
-def _patch_env_blank(env_path: Path | None) -> None:
-    if env_path is None:
-        Path(".env").write_text("SENTRY_DSN=\nSENTRY_ENVIRONMENT=development\n")
-        return
-    _patch_env(env_path)
-
-
 def extra_deps() -> list[str]:
     return ["sentry-sdk[fastapi]"]
+
+
+def extra_just_recipes() -> str:
+    return """\
+sentry-test:
+    python -c "from (( pkg_name )).sentry import init_sentry; import os; os.environ['SENTRY_DSN'] = os.environ.get('SENTRY_DSN', ''); init_sentry(); print('Sentry DSN:', os.environ.get('SENTRY_DSN') or 'not set')"
+sentry-check:
+    python -c "import sentry_sdk; print(sentry_sdk.VERSION)"
+"""

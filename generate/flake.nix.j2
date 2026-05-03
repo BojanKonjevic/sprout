@@ -64,10 +64,13 @@
 [% else %]
           printf "  \033[34m%-26s\033[0m %s\n" "just run" "run the app"
 [% endif %]
-[% for addon_id in addons if addon_id != "github-actions" %]
+[% for addon_id in addons if addon_id not in ("github-actions", "sentry") %]
           printf "  \033[34m%-26s\033[0m %s\n" "just (( addon_id ))-up"   "start (( addon_id )) (compose)"
           printf "  \033[34m%-26s\033[0m %s\n" "just (( addon_id ))-down" "stop (( addon_id )) (compose)"
 [% endfor %]
+[% if "sentry" in addons %]
+          printf "  \033[34m%-26s\033[0m %s\n" "just sentry-test"  "check DSN + SDK"
+[% endif %]
           printf "\n"
         '';
       };
