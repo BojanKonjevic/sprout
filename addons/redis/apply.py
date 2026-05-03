@@ -11,9 +11,6 @@ import jinja2
 from scaffolder.context import Context
 from scaffolder.ui import success
 
-if TYPE_CHECKING:
-    pass
-
 _HERE = Path(__file__).parent
 
 

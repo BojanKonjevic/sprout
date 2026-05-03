@@ -117,9 +117,3 @@ def _check_direnv() -> list[str]:
             "     Don't forget to hook it into your shell."
         ]
     return []
-
-
-def check_uv_installed() -> None:
-    """Deprecated: call check_preflight() instead."""
-    warn("check_uv_installed() is deprecated — use check_preflight()")
-    check_preflight()
