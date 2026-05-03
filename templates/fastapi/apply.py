@@ -1,4 +1,5 @@
 import shutil
+import stat
 from pathlib import Path
 
 import jinja2
@@ -6,6 +7,12 @@ import jinja2
 from scaffolder.context import Context
 from scaffolder.postgres import create_databases
 from scaffolder.ui import step, success
+
+
+def _copy(src: Path, dest: Path) -> None:
+    """Copy a file and ensure it is user-writable regardless of source permissions."""
+    shutil.copy(src, dest)
+    dest.chmod(dest.stat().st_mode | stat.S_IWRITE | stat.S_IREAD)
 
 
 def _render(src: Path, dest: Path, ctx: Context) -> None:
@@ -36,7 +43,6 @@ def apply(ctx: Context) -> None:
     )
     (Path("src") / ctx.pkg_name / "routes" / "__init__.py").touch()
 
-    # Verbatim copies — no substitution needed
     verbatim = [
         (files / "main.py", Path("src") / ctx.pkg_name / "main.py"),
         (files / "database.py", Path("src") / ctx.pkg_name / "database.py"),
@@ -47,9 +53,8 @@ def apply(ctx: Context) -> None:
         (files / ".env.example", Path(".env.example")),
     ]
     for src_file, dest in verbatim:
-        shutil.copy(src_file, dest)
+        _copy(src_file, dest)
 
-    # Rendered templates — need name/pkg_name substitution
     _render(files / "settings.py.j2", Path("src") / ctx.pkg_name / "settings.py", ctx)
     _render(files / "alembic.ini.j2", Path("alembic.ini"), ctx)
     _render(files / "alembic" / "env.py.j2", Path("alembic") / "env.py", ctx)

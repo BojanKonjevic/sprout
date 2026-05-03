@@ -1,10 +1,17 @@
 import shutil
+import stat
 from pathlib import Path
 
 import jinja2
 
 from scaffolder.context import Context
 from scaffolder.ui import step, success
+
+
+def _copy(src: Path, dest: Path) -> None:
+    """Copy a file and ensure it is user-writable regardless of source permissions."""
+    shutil.copy(src, dest)
+    dest.chmod(dest.stat().st_mode | stat.S_IWRITE | stat.S_IREAD)
 
 
 def _render(src: Path, dest: Path, ctx: Context) -> None:
@@ -32,7 +39,7 @@ def apply(ctx: Context) -> None:
     )
 
     _render(files / "main.py.j2", Path("src") / ctx.pkg_name / "main.py", ctx)
-    shutil.copy(files / "__main__.py", Path("src") / ctx.pkg_name / "__main__.py")
+    _copy(files / "__main__.py", Path("src") / ctx.pkg_name / "__main__.py")
     _render(files / "tests" / "test_main.py.j2", Path("tests") / "test_main.py", ctx)
 
     success("src/, tests/")
