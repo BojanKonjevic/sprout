@@ -62,16 +62,72 @@ def dry_section(title: str) -> None:
     print(f"\n  {BOLD}{DIM}{title}{RESET}")
 
 
+# ─── Confirm prompt ───────────────────────────────────────────────────────────
+
+
+def confirm(ctx: object) -> bool:
+    """Print a compact plan and ask the user to confirm before scaffolding.
+
+    Returns True to proceed, False to abort. Accepts ctx: Context (typed as
+    object here to avoid a circular import — context.py is leaf, ui.py must
+    stay importable without scaffolder.context).
+    """
+    from scaffolder.context import Context  # local to avoid circular import
+
+    assert isinstance(ctx, Context)
+
+    template_line = f"{CYAN}{ctx.template}{RESET}"
+    addon_line = (
+        "  ".join(f"{GREEN}{a}{RESET}" for a in ctx.addons)
+        if ctx.addons
+        else f"{DIM}none{RESET}"
+    )
+
+    print(f"\n  {BOLD}Ready to scaffold:{RESET}")
+    print(f"\n    {'name':<12}  {BOLD}{ctx.name}{RESET}")
+    print(f"    {'directory':<12}  {DIM}{ctx.project_dir}{RESET}")
+    print(f"    {'template':<12}  {template_line}")
+    print(f"    {'addons':<12}  {addon_line}")
+    print()
+
+    # Steps that will run
+    steps = [
+        "copy common files + template",
+    ]
+    for a in ctx.addons:
+        steps.append(f"apply addon: {a}")
+    steps += [
+        "generate pyproject.toml, justfile, flake.nix",
+        "nix flake lock",
+        "pre-build dev shell",
+        "git init + initial commit",
+    ]
+    if ctx.template == "fastapi":
+        steps.insert(1, f"createdb {ctx.name}  &&  createdb {ctx.name}_test")
+
+    for s in steps:
+        print(f"    {CYAN}·{RESET}  {DIM}{s}{RESET}")
+
+    print()
+
+    if not sys.stdin.isatty():
+        # Non-interactive — proceed automatically
+        return True
+
+    try:
+        raw = input(f"  Proceed? {DIM}[Y/n]{RESET}  ").strip().lower()
+    except (EOFError, KeyboardInterrupt):
+        print()
+        return False
+
+    return raw in ("", "y", "yes")
+
+
 # ─── Spinner ──────────────────────────────────────────────────────────────────
 
 
 class _Spinner:
-    """Displays an animated spinner on a single line while work runs.
-
-    Usage:
-        with spinner("Locking Nix flake inputs"):
-            subprocess.run(["nix", "flake", "lock"], check=True)
-    """
+    """Displays an animated spinner on a single line while work runs."""
 
     _FRAMES = ("⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏")
     _INTERVAL = 0.08
@@ -95,7 +151,6 @@ class _Spinner:
         if self._tty:
             self._thread.start()
         else:
-            # Non-interactive: just print the label once and let output flow
             print(f"\n{BOLD}{MAGENTA}▸{RESET} {self._label}…")
         return self
 
@@ -103,7 +158,6 @@ class _Spinner:
         if self._tty:
             self._stop.set()
             self._thread.join()
-            # Overwrite spinner line — success() or error() will follow
             sys.stdout.write(f"\r\033[2K")
             sys.stdout.write(_SHOW_CURSOR)
             sys.stdout.flush()

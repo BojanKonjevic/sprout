@@ -11,7 +11,7 @@ from scaffolder.git import init_and_commit
 from scaffolder.nix import lock_flake, warm_devshell
 from scaffolder.rollback import scaffold_or_rollback
 from scaffolder.prompt import prompt_template, prompt_addons
-from scaffolder.ui import error, info, step, success
+from scaffolder.ui import confirm, error, info, step, success, warn
 from scaffolder.validate import validate_name, check_preflight
 
 
@@ -70,8 +70,9 @@ def main() -> None:
         run_dry(ctx)
         return
 
-    addon_label = f"  addons: {', '.join(addons)}" if addons else "  no addons"
-    step(f"Creating '{name}'  (template: {template})\n{addon_label}")
+    if not confirm(ctx):
+        print(f"\n  {YELLOW}Aborted.{RESET}\n")
+        sys.exit(0)
 
     project_dir = ctx.project_dir
     project_dir.mkdir()
