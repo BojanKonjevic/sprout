@@ -8,7 +8,7 @@ from scaffolder.context import Context
 from scaffolder.dryrun import run_dry
 from scaffolder.generate import generate_all
 from scaffolder.git import init_and_commit
-from scaffolder.nix import lock_flake
+from scaffolder.nix import lock_flake, warm_devshell
 from scaffolder.rollback import scaffold_or_rollback
 from scaffolder.prompt import prompt_template, prompt_addons
 from scaffolder.ui import error, info, step, success
@@ -31,7 +31,6 @@ def _load_addon_registry(scaffolder_root: Path) -> list[tuple[str, str]]:
 
 
 def _parse_args() -> tuple[str, bool]:
-    """Returns (project_name, dry_run)."""
     args = [a for a in sys.argv[1:] if a != "--dry-run"]
     dry_run = "--dry-run" in sys.argv[1:]
 
@@ -51,8 +50,6 @@ def main() -> None:
 
     validate_name(name, pkg_name)
 
-    # Skip heavy tool checks in dry-run — the point is to preview without
-    # requiring the full environment to be set up.
     if not dry_run:
         check_preflight()
 
@@ -94,6 +91,7 @@ def main() -> None:
 
         generate_all(ctx)
         lock_flake()
+        warm_devshell()
         init_and_commit(project_dir)
 
     print()
