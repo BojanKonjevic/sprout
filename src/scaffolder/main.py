@@ -10,9 +10,16 @@ from scaffolder.generate import generate_all
 from scaffolder.git import init_and_commit
 from scaffolder.nix import lock_flake, warm_devshell
 from scaffolder.rollback import scaffold_or_rollback
-from scaffolder.prompt import prompt_template, prompt_addons
+from scaffolder.prompt import prompt_template, prompt_addons, TEMPLATES
 from scaffolder.ui import confirm, error, info, step, success, warn
 from scaffolder.validate import validate_name, check_preflight
+
+USAGE = """\
+Usage:
+  new-python-project <project-name> [--dry-run]
+  new-python-project --list-templates
+  new-python-project --list-addons
+"""
 
 
 def _load_apply(path: Path) -> Callable:
@@ -30,23 +37,58 @@ def _load_addon_registry(scaffolder_root: Path) -> list[tuple[str, str]]:
     return mod.ADDONS  # type: ignore[no-any-return]
 
 
-def _parse_args() -> tuple[str, bool]:
-    args = [a for a in sys.argv[1:] if a != "--dry-run"]
-    dry_run = "--dry-run" in sys.argv[1:]
+def _parse_args() -> tuple[str | None, bool, bool, bool]:
+    """Returns (project_name, dry_run, list_templates, list_addons)."""
+    argv = sys.argv[1:]
+    dry_run = "--dry-run" in argv
+    list_templates = "--list-templates" in argv
+    list_addons = "--list-addons" in argv
 
-    if not args:
-        error("Usage: new-python-project <project-name> [--dry-run]")
-        sys.exit(1)
+    positional = [a for a in argv if not a.startswith("--")]
+    name = positional[0] if positional else None
 
-    return args[0], dry_run
+    return name, dry_run, list_templates, list_addons
+
+
+def _cmd_list_templates() -> None:
+    from scaffolder.ui import BOLD, CYAN, DIM, RESET
+
+    print()
+    for name, desc in TEMPLATES:
+        print(f"  {CYAN}{name:<12}{RESET}  {DIM}{desc}{RESET}")
+    print()
+
+
+def _cmd_list_addons(scaffolder_root: Path) -> None:
+    from scaffolder.ui import CYAN, DIM, RESET
+
+    addons = _load_addon_registry(scaffolder_root)
+    print()
+    for addon_id, desc in addons:
+        print(f"  {CYAN}{addon_id:<20}{RESET}  {DIM}{desc}{RESET}")
+    print()
 
 
 def main() -> None:
-    name, dry_run = _parse_args()
-    pkg_name = name.replace("-", "_")
+    name, dry_run, list_templates, list_addons = _parse_args()
+
     scaffolder_root = Path(
         os.environ.get("SCAFFOLDER_ROOT", Path(__file__).parent.parent.parent)
     )
+
+    if list_templates:
+        _cmd_list_templates()
+        return
+
+    if list_addons:
+        _cmd_list_addons(scaffolder_root)
+        return
+
+    if not name:
+        print(USAGE)
+        sys.exit(1)
+
+    pkg_name = name.replace("-", "_")
 
     validate_name(name, pkg_name)
 
@@ -71,7 +113,7 @@ def main() -> None:
         return
 
     if not confirm(ctx):
-        print(f"\n  {YELLOW}Aborted.{RESET}\n")
+        print(f"\n  \033[0;33mAborted.\033[0m\n")
         sys.exit(0)
 
     project_dir = ctx.project_dir
