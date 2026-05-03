@@ -11,11 +11,15 @@ Usage:
 """
 
 from collections.abc import AsyncGenerator
+import os
 
 import redis.asyncio as aioredis
 from redis.asyncio import Redis
 
-from ..settings import settings
+# REDIS_URL is read from the environment directly.
+# For FastAPI projects, settings.py exposes this via the redis_url field,
+# which is set from the REDIS_URL environment variable.
+REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 
 _pool: aioredis.ConnectionPool | None = None
 
@@ -24,7 +28,7 @@ def _get_pool() -> aioredis.ConnectionPool:
     global _pool
     if _pool is None:
         _pool = aioredis.ConnectionPool.from_url(
-            settings.redis_url,
+            REDIS_URL,
             decode_responses=True,
         )
     return _pool
