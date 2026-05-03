@@ -79,7 +79,7 @@ def _addon_files(ctx: Context) -> list[tuple[str, str]]:
     for addon_id in ctx.addons:
         if addon_id == "docker":
             files += [
-                ("Dockerfile", "multi-stage, uv-based"),
+                ("Dockerfile", "multi-stage, uv-based  (cmd depends on template)"),
                 ("compose.yml", "app service (+ redis if selected)"),
                 (".dockerignore", "excludes .venv, caches, secrets"),
             ]

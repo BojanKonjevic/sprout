@@ -1,6 +1,5 @@
 """Docker addon — adds Dockerfile, compose.yml, .dockerignore."""
 
-import shutil
 from pathlib import Path
 
 import jinja2
@@ -13,8 +12,6 @@ _HERE = Path(__file__).parent
 
 def apply(ctx: Context) -> None:
     files = _HERE / "files"
-    shutil.copy(files / "Dockerfile", Path("Dockerfile"))
-    shutil.copy(files / ".dockerignore", Path(".dockerignore"))
 
     env = jinja2.Environment(
         loader=jinja2.FileSystemLoader(str(files)),
@@ -24,12 +21,19 @@ def apply(ctx: Context) -> None:
         block_start_string="[%",
         block_end_string="%]",
     )
+
+    render_vars = dict(
+        name=ctx.name,
+        pkg_name=ctx.pkg_name,
+        template=ctx.template,
+    )
+
+    Path("Dockerfile").write_text(
+        env.get_template("Dockerfile.j2").render(**render_vars)
+    )
+    Path(".dockerignore").write_text((files / ".dockerignore").read_text())
     Path("compose.yml").write_text(
-        env.get_template("compose.yml.j2").render(
-            name=ctx.name,
-            pkg_name=ctx.pkg_name,
-            template=ctx.template,
-        )
+        env.get_template("compose.yml.j2").render(**render_vars)
     )
 
     success("Dockerfile, compose.yml, .dockerignore")
