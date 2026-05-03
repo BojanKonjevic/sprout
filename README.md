@@ -6,7 +6,7 @@ A Nix-based Python project scaffolder. Generates a new project from a template w
 
 - [Nix](https://nixos.org/download) with flakes enabled
 - [direnv](https://direnv.net)
-- PostgreSQL (for the `fastapi` template)
+- Docker (for the `fastapi` template)
 
 ## Usage
 
@@ -106,4 +106,4 @@ When you're ready to add authentication to a FastAPI project:
 3. Add `api/routes/auth.py`
 4. Register it in `api/router.py`
 5. Activate the `client` fixture in `tests/conftest.py`
-6. Run `just migrate 'add users' && just upgrade`
+6. Run `just db-create && just migrate 'add users' && just upgrade`
