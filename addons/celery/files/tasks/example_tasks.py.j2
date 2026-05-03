@@ -1,0 +1,15 @@
+"""Example Celery tasks.
+
+Usage:
+    from (( pkg_name )).tasks.example_tasks import add
+    result = add.delay(1, 2)
+    print(result.get(timeout=10))  # 3
+"""
+
+from .celery_app import celery_app
+
+
+@celery_app.task
+def add(x: int, y: int) -> int:
+    """Example task — replace or delete."""
+    return x + y

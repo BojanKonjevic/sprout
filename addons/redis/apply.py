@@ -1,4 +1,4 @@
-"""Redis addon — connection helper, compose service, settings patch."""
+"""Redis addon — connection helper in integrations/, compose service, settings patch."""
 
 from __future__ import annotations
 
@@ -20,16 +20,19 @@ _HERE = Path(__file__).parent
 def apply(ctx: Context) -> None:
     files = _HERE / "files"
 
-    pkg_dir = Path("src") / ctx.pkg_name
-    pkg_dir.mkdir(parents=True, exist_ok=True)
-    shutil.copy(files / "redis.py", pkg_dir / "redis.py")
+    # Place redis client under integrations/ to keep third-party wiring separate
+    integrations_dir = Path("src") / ctx.pkg_name / "integrations"
+    integrations_dir.mkdir(parents=True, exist_ok=True)
+    (integrations_dir / "__init__.py").touch()
+
+    shutil.copy(files / "redis.py", integrations_dir / "redis.py")
 
     if ctx.template == "fastapi":
         _patch_settings(Path("src") / ctx.pkg_name / "settings.py")
 
     if ctx.has("docker") and Path("compose.yml").exists():
         _append_redis_service(Path("compose.yml"))
-        success("redis.py, compose.yml (redis service appended)")
+        success("integrations/redis.py, compose.yml (redis service appended)")
     else:
         env = jinja2.Environment(
             loader=jinja2.FileSystemLoader(str(files)),
@@ -42,7 +45,7 @@ def apply(ctx: Context) -> None:
         Path("compose.redis.yml").write_text(
             env.get_template("compose.redis.yml.j2").render(name=ctx.name)
         )
-        success("redis.py, compose.redis.yml")
+        success("integrations/redis.py, compose.redis.yml")
 
 
 def _patch_settings(settings_path: Path) -> None:
@@ -78,11 +81,6 @@ volumes:
   redis-data:
 """
     compose_path.write_text(existing.rstrip() + "\n" + redis_block)
-
-
-# ---------------------------------------------------------------------------
-# Contributions to generated config files
-# ---------------------------------------------------------------------------
 
 
 def extra_deps() -> list[str]:

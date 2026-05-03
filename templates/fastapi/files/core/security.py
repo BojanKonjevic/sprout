@@ -6,7 +6,7 @@ from uuid import UUID
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 
-from .settings import settings
+from ..settings import settings
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 

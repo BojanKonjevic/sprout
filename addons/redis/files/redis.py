@@ -1,9 +1,9 @@
 """Redis connection helper.
 
 Usage:
-    from .redis import get_redis
+    from mypackage.integrations.redis import get_redis
 
-    @app.get("/example")
+    @router.get("/example")
     async def example(redis: Redis = Depends(get_redis)) -> dict:
         await redis.set("key", "value", ex=60)
         value = await redis.get("key")
@@ -15,7 +15,7 @@ from collections.abc import AsyncGenerator
 import redis.asyncio as aioredis
 from redis.asyncio import Redis
 
-from .settings import settings
+from ..settings import settings
 
 _pool: aioredis.ConnectionPool | None = None
 
@@ -37,7 +37,7 @@ async def get_redis() -> AsyncGenerator[Redis]:
 
 
 async def close_redis() -> None:
-    """Call this from your lifespan shutdown to cleanly drain the pool."""
+    """Call from lifespan shutdown to cleanly drain the pool."""
     global _pool
     if _pool is not None:
         await _pool.aclose()

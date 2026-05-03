@@ -1,0 +1,7 @@
+from fastapi import FastAPI
+
+from .api.router import api_router
+from .lifecycle import lifespan
+
+app = FastAPI(title="(( name ))", version="0.1.0", lifespan=lifespan)
+app.include_router(api_router)

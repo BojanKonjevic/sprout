@@ -1,4 +1,4 @@
-"""Celery addon — task queue backed by Redis."""
+"""Celery addon — task queue backed by Redis, written into tasks/ subpackage."""
 
 from __future__ import annotations
 
@@ -56,12 +56,13 @@ def apply(ctx: Context) -> None:
                 "Continuing without Redis — set REDIS_URL manually before starting the worker."
             )
 
-    files = _HERE / "files"
-    pkg_dir = Path("src") / ctx.pkg_name
-    pkg_dir.mkdir(parents=True, exist_ok=True)
+    # Create tasks/ subpackage
+    tasks_dir = Path("src") / ctx.pkg_name / "tasks"
+    tasks_dir.mkdir(parents=True, exist_ok=True)
+    (tasks_dir / "__init__.py").touch()
 
     env = jinja2.Environment(
-        loader=jinja2.FileSystemLoader(str(files)),
+        loader=jinja2.FileSystemLoader(str(_HERE / "files" / "tasks")),
         keep_trailing_newline=True,
         variable_start_string="((",
         variable_end_string="))",
@@ -71,18 +72,20 @@ def apply(ctx: Context) -> None:
 
     render_vars = dict(name=ctx.name, pkg_name=ctx.pkg_name)
 
-    (pkg_dir / "worker.py").write_text(
-        env.get_template("worker.py.j2").render(**render_vars)
+    (tasks_dir / "celery_app.py").write_text(
+        env.get_template("celery_app.py.j2").render(**render_vars)
     )
-    (pkg_dir / "tasks.py").write_text(
-        env.get_template("tasks.py.j2").render(**render_vars)
+    (tasks_dir / "example_tasks.py").write_text(
+        env.get_template("example_tasks.py.j2").render(**render_vars)
     )
 
     if ctx.has("docker") and Path("compose.yml").exists():
         _append_worker_service(Path("compose.yml"), ctx)
-        success("worker.py, tasks.py, compose.yml (celery worker + beat appended)")
+        success(
+            "tasks/celery_app.py, tasks/example_tasks.py, compose.yml (celery worker + beat appended)"
+        )
     else:
-        success("worker.py, tasks.py")
+        success("tasks/celery_app.py, tasks/example_tasks.py")
 
 
 def _append_worker_service(compose_path: Path, ctx: Context) -> None:
@@ -93,7 +96,7 @@ def _append_worker_service(compose_path: Path, ctx: Context) -> None:
     worker_block = f"""\
   celery-worker:
     build: .
-    command: celery -A {ctx.pkg_name}.worker worker --loglevel=info
+    command: celery -A {ctx.pkg_name}.tasks.celery_app worker --loglevel=info
     env_file:
       - .env
     depends_on:
@@ -106,7 +109,7 @@ def _append_worker_service(compose_path: Path, ctx: Context) -> None:
 
   celery-beat:
     build: .
-    command: celery -A {ctx.pkg_name}.worker beat --loglevel=info
+    command: celery -A {ctx.pkg_name}.tasks.celery_app beat --loglevel=info
     env_file:
       - .env
     depends_on:
@@ -118,8 +121,6 @@ def _append_worker_service(compose_path: Path, ctx: Context) -> None:
           target: /app/src
 """
 
-    # Insert before the top-level `volumes:` block if it exists,
-    # otherwise just append.
     if "\nvolumes:" in existing:
         updated = existing.replace("\nvolumes:", "\n" + worker_block + "\nvolumes:", 1)
     else:
@@ -144,13 +145,13 @@ celery-up:
 celery-down:
     docker compose stop celery-worker celery-beat
 celery-flower:
-    docker compose run --rm celery-worker celery -A (( pkg_name )).worker flower --port=5555
+    docker compose run --rm celery-worker celery -A (( pkg_name )).tasks.celery_app flower --port=5555
 celery-logs:
     docker compose logs -f celery-worker"""
     return """\
 celery-worker:
-    celery -A (( pkg_name )).worker worker --loglevel=info
+    celery -A (( pkg_name )).tasks.celery_app worker --loglevel=info
 celery-beat:
-    celery -A (( pkg_name )).worker beat --loglevel=info
+    celery -A (( pkg_name )).tasks.celery_app beat --loglevel=info
 celery-flower:
-    celery -A (( pkg_name )).worker flower --port=5555"""
+    celery -A (( pkg_name )).tasks.celery_app flower --port=5555"""
