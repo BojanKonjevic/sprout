@@ -57,6 +57,8 @@
           printf "  \033[34m%-26s\033[0m %s\n" "just migrate \"msg\"" "generate migration"
           printf "  \033[34m%-26s\033[0m %s\n" "just upgrade"         "apply migrations"
           printf "  \033[34m%-26s\033[0m %s\n" "just downgrade"       "roll back one step"
+          printf "  \033[34m%-26s\033[0m %s\n" "just db-create" "start db + create databases + migrate"
+          printf "  \033[34m%-26s\033[0m %s\n" "just db-reset"  "drop + recreate databases"
 [% else %]
           printf "  \033[34m%-26s\033[0m %s\n" "just run" "run the app"
 [% endif %]
