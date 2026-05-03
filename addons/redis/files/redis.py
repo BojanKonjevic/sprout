@@ -10,8 +10,8 @@ Usage:
         return {"value": value}
 """
 
-from collections.abc import AsyncGenerator
 import os
+from collections.abc import AsyncGenerator
 
 import redis.asyncio as aioredis
 from redis.asyncio import Redis
