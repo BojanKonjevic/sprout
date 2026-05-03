@@ -65,4 +65,11 @@ module = ["jose.*", "passlib.*"]
 ignore_missing_imports = true
 ignore_errors = true
 [% endif %]
+[% if "celery" in addons %]
+
+[[tool.mypy.overrides]]
+module = ["celery.*"]
+ignore_missing_imports = true
+ignore_errors = true
+[% endif %]
 
