@@ -5,10 +5,11 @@ Set SENTRY_DSN in your .env to enable. Leave blank to disable (safe for local de
 Get your DSN at: https://sentry.io/settings/<org>/projects/<project>/keys/
 """
 
+# ruff: noqa: I001
 import os
 
 import sentry_sdk
-[% if template == "fastapi" -%]
+[% if template == "fastapi" %]
 from sentry_sdk.integrations.fastapi import FastApiIntegration
 from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
 [% endif %]
