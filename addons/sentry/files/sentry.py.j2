@@ -8,7 +8,7 @@ Get your DSN at: https://sentry.io/settings/<org>/projects/<project>/keys/
 import os
 
 import sentry_sdk
-[% if template == "fastapi" %]
+[% if template == "fastapi" -%]
 from sentry_sdk.integrations.fastapi import FastApiIntegration
 from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
 [% endif %]
