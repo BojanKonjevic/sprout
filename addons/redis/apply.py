@@ -1,13 +1,10 @@
-"""Redis addon — connection helper in integrations/, compose service, settings patch."""
-
 from __future__ import annotations
 
-import shutil
 from pathlib import Path
 
 from scaffolder.context import Context
 from scaffolder.render import make_env
-from scaffolder.ui import success
+from scaffolder.ui import success, warn
 
 _HERE = Path(__file__).parent
 
@@ -15,27 +12,39 @@ _HERE = Path(__file__).parent
 def apply(ctx: Context) -> None:
     files = _HERE / "files"
 
-    integrations_dir = Path("src") / ctx.pkg_name / "integrations"
-    integrations_dir.mkdir(parents=True, exist_ok=True)
-    (integrations_dir / "__init__.py").touch()
+    integrations_rel = f"src/{ctx.pkg_name}/integrations"
+    ctx.create_dir(integrations_rel)
+    ctx.write_file(f"{integrations_rel}/__init__.py", "")
 
-    shutil.copy(files / "redis.py", integrations_dir / "redis.py")
+    ctx.copy_file(files / "redis.py", f"{integrations_rel}/redis.py")
 
     if ctx.template == "fastapi":
-        _patch_settings(Path("src") / ctx.pkg_name / "settings.py")
+        _patch_settings(ctx)
 
-    if ctx.has("docker") and Path("compose.yml").exists():
-        _append_redis_service(Path("compose.yml"))
+    if ctx.has("docker"):
+        if ctx.dry_run:
+            ctx.record_modification("compose.yml", "append redis service")
+        else:
+            if Path("compose.yml").exists():
+                _append_redis_service(Path("compose.yml"))
+            else:
+                warn("compose.yml not found — redis service append skipped.")
         success("integrations/redis.py, compose.yml (redis service appended)")
     else:
         env = make_env(files)
-        Path("compose.redis.yml").write_text(
-            env.get_template("compose.redis.yml.j2").render(name=ctx.name)
+        ctx.write_file(
+            "compose.redis.yml",
+            env.get_template("compose.redis.yml.j2").render(name=ctx.name),
         )
         success("integrations/redis.py, compose.redis.yml")
 
 
-def _patch_settings(settings_path: Path) -> None:
+def _patch_settings(ctx: Context) -> None:
+    settings_rel = f"src/{ctx.pkg_name}/settings.py"
+    if ctx.dry_run:
+        ctx.record_modification(settings_rel, "add redis_url setting")
+        return
+    settings_path = Path(settings_rel)
     if not settings_path.exists():
         return
     text = settings_path.read_text()
@@ -67,7 +76,8 @@ def _append_redis_service(compose_path: Path) -> None:
 volumes:
   redis-data:
 """
-    compose_path.write_text(existing.rstrip() + "\n" + redis_block)
+    with open(compose_path, "a") as f:
+        f.write(redis_block)
 
 
 def extra_deps() -> list[str]:

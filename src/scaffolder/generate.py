@@ -62,10 +62,12 @@ def generate_all(ctx: Context) -> None:
         **contributions,
     }
 
-    for template_name, dest in [
-        ("pyproject.toml.j2", Path("pyproject.toml")),
-        ("justfile.j2", Path("justfile")),
-        ("flake.nix.j2", Path("flake.nix")),
+    for template_name, dest_rel in [
+        ("pyproject.toml.j2", "pyproject.toml"),
+        ("justfile.j2", "justfile"),
+        ("flake.nix.j2", "flake.nix"),
     ]:
-        dest.write_text(env.get_template(template_name).render(**vars))
-        success(str(dest))
+        content = env.get_template(template_name).render(**vars)
+        ctx.write_file(dest_rel, content)
+        if not ctx.dry_run:
+            success(dest_rel)

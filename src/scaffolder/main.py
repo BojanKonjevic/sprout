@@ -5,7 +5,6 @@ from collections.abc import Callable
 from pathlib import Path
 
 from scaffolder.context import Context
-from scaffolder.dryrun import run_dry
 from scaffolder.generate import generate_all
 from scaffolder.git import init_and_commit
 from scaffolder.nix import lock_flake, warm_devshell
@@ -109,7 +108,17 @@ def main() -> None:
     )
 
     if dry_run:
-        run_dry(ctx)
+        from scaffolder.dryrun import DryRunContext, run_dry
+
+        dry_ctx = DryRunContext(
+            name=name,
+            pkg_name=pkg_name,
+            template=template,
+            addons=addons,
+            scaffolder_root=scaffolder_root,
+            project_dir=Path.cwd() / name,
+        )
+        run_dry(dry_ctx)
         return
 
     if not confirm(ctx):

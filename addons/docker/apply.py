@@ -1,5 +1,3 @@
-"""Docker addon — adds Dockerfile, compose.yml, .dockerignore."""
-
 from pathlib import Path
 
 from scaffolder.context import Context
@@ -13,15 +11,11 @@ def apply(ctx: Context) -> None:
     files = _HERE / "files"
     env = make_env(files)
 
-    render_vars = dict(
-        name=ctx.name,
-        pkg_name=ctx.pkg_name,
-        template=ctx.template,
-    )
+    render_vars = dict(name=ctx.name, pkg_name=ctx.pkg_name, template=ctx.template)
 
-    Path("Dockerfile").write_text(env.get_template("Dockerfile.j2").render(**render_vars))
-    Path(".dockerignore").write_text((files / ".dockerignore").read_text())
-    Path("compose.yml").write_text(env.get_template("compose.yml.j2").render(**render_vars))
+    ctx.write_file("Dockerfile", env.get_template("Dockerfile.j2").render(**render_vars))
+    ctx.write_file(".dockerignore", (files / ".dockerignore").read_text())
+    ctx.write_file("compose.yml", env.get_template("compose.yml.j2").render(**render_vars))
 
     success("Dockerfile, compose.yml, .dockerignore")
 

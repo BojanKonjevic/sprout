@@ -1,5 +1,3 @@
-"""Sentry error tracking + performance monitoring."""
-
 from __future__ import annotations
 
 from pathlib import Path
@@ -15,39 +13,42 @@ def apply(ctx: Context) -> None:
     env = make_env(_HERE / "files")
     render_vars = dict(name=ctx.name, pkg_name=ctx.pkg_name, template=ctx.template)
 
-    integrations_dir = Path("src") / ctx.pkg_name / "integrations"
-    integrations_dir.mkdir(parents=True, exist_ok=True)
-    (integrations_dir / "__init__.py").touch()
-
-    (integrations_dir / "sentry.py").write_text(
-        env.get_template("sentry.py.j2").render(**render_vars)
+    integrations_rel = f"src/{ctx.pkg_name}/integrations"
+    ctx.create_dir(integrations_rel)
+    ctx.write_file(f"{integrations_rel}/__init__.py", "")
+    ctx.write_file(
+        f"{integrations_rel}/sentry.py",
+        env.get_template("sentry.py.j2").render(**render_vars),
     )
 
     if ctx.template == "fastapi":
-        _patch_fastapi_lifecycle(Path("src") / ctx.pkg_name / "lifecycle.py")
-        _patch_settings(Path("src") / ctx.pkg_name / "settings.py")
-        _patch_env(Path(".env"))
-        _patch_env(Path(".env.example"))
+        _patch_fastapi_lifecycle(ctx)
+        _patch_settings(ctx)
+        _patch_env(ctx, ".env")
+        _patch_env(ctx, ".env.example")
         success("integrations/sentry.py, lifecycle.py patched, settings.py patched, .env updated")
     else:
-        _patch_blank_main(Path("src") / ctx.pkg_name / "main.py", ctx)
-        if Path(".env").exists():
-            _patch_env(Path(".env"))
+        _patch_blank_main(ctx)
+        if not ctx.dry_run and Path(".env").exists():
+            _patch_env(ctx, ".env")
         else:
-            Path(".env").write_text("SENTRY_DSN=\nSENTRY_ENVIRONMENT=development\n")
+            ctx.write_file(".env", "SENTRY_DSN=\nSENTRY_ENVIRONMENT=development\n")
         success("integrations/sentry.py, main.py patched")
 
 
-def _patch_fastapi_lifecycle(lifecycle_path: Path) -> None:
+def _patch_fastapi_lifecycle(ctx: Context) -> None:
+    lifecycle_rel = f"src/{ctx.pkg_name}/lifecycle.py"
+    if ctx.dry_run:
+        ctx.record_modification(lifecycle_rel, "add init_sentry() call")
+        return
+    lifecycle_path = Path(lifecycle_rel)
     if not lifecycle_path.exists():
         return
     text = lifecycle_path.read_text()
     if "sentry" in text:
         return
-
     IMPORT_ANCHOR = "from .db.session import engine"
     YIELD_ANCHOR = "    yield\n    await engine.dispose()"
-
     if IMPORT_ANCHOR not in text or YIELD_ANCHOR not in text:
         warn(
             "sentry: could not patch lifecycle.py — expected anchors not found. "
@@ -55,7 +56,6 @@ def _patch_fastapi_lifecycle(lifecycle_path: Path) -> None:
             "init_sentry() before yield manually."
         )
         return
-
     text = text.replace(
         IMPORT_ANCHOR,
         f"{IMPORT_ANCHOR}\nfrom .integrations.sentry import init_sentry",
@@ -69,7 +69,12 @@ def _patch_fastapi_lifecycle(lifecycle_path: Path) -> None:
     lifecycle_path.write_text(text)
 
 
-def _patch_blank_main(main_path: Path, ctx: Context) -> None:
+def _patch_blank_main(ctx: Context) -> None:
+    main_rel = f"src/{ctx.pkg_name}/main.py"
+    if ctx.dry_run:
+        ctx.record_modification(main_rel, "add sentry init")
+        return
+    main_path = Path(main_rel)
     if not main_path.exists():
         return
     text = main_path.read_text()
@@ -88,7 +93,12 @@ def _patch_blank_main(main_path: Path, ctx: Context) -> None:
     main_path.write_text(text)
 
 
-def _patch_settings(settings_path: Path) -> None:
+def _patch_settings(ctx: Context) -> None:
+    settings_rel = f"src/{ctx.pkg_name}/settings.py"
+    if ctx.dry_run:
+        ctx.record_modification(settings_rel, "add sentry_dsn and sentry_environment settings")
+        return
+    settings_path = Path(settings_rel)
     if not settings_path.exists():
         return
     text = settings_path.read_text()
@@ -111,7 +121,11 @@ def _patch_settings(settings_path: Path) -> None:
     settings_path.write_text(text)
 
 
-def _patch_env(env_path: Path) -> None:
+def _patch_env(ctx: Context, env_path_str: str) -> None:
+    if ctx.dry_run:
+        ctx.record_modification(env_path_str, "add SENTRY_DSN and SENTRY_ENVIRONMENT")
+        return
+    env_path = Path(env_path_str)
     if not env_path.exists():
         return
     text = env_path.read_text()

@@ -1,33 +1,39 @@
-"""Celery addon — task queue backed by Redis, written into tasks/ subpackage."""
-
 from __future__ import annotations
 
 from pathlib import Path
 
 from scaffolder.context import Context
 from scaffolder.render import make_env
-from scaffolder.ui import success
+from scaffolder.ui import success, warn
 
 _HERE = Path(__file__).parent
 
 
 def apply(ctx: Context) -> None:
-    tasks_dir = Path("src") / ctx.pkg_name / "tasks"
-    tasks_dir.mkdir(parents=True, exist_ok=True)
-    (tasks_dir / "__init__.py").touch()
+    tasks_dir_rel = f"src/{ctx.pkg_name}/tasks"
+    ctx.create_dir(tasks_dir_rel)
+    ctx.write_file(f"{tasks_dir_rel}/__init__.py", "")
 
     env = make_env(_HERE / "files" / "tasks")
     render_vars = dict(name=ctx.name, pkg_name=ctx.pkg_name)
 
-    (tasks_dir / "celery_app.py").write_text(
-        env.get_template("celery_app.py.j2").render(**render_vars)
+    ctx.write_file(
+        f"{tasks_dir_rel}/celery_app.py",
+        env.get_template("celery_app.py.j2").render(**render_vars),
     )
-    (tasks_dir / "example_tasks.py").write_text(
-        env.get_template("example_tasks.py.j2").render(**render_vars)
+    ctx.write_file(
+        f"{tasks_dir_rel}/example_tasks.py",
+        env.get_template("example_tasks.py.j2").render(**render_vars),
     )
 
-    if ctx.has("docker") and Path("compose.yml").exists():
-        _append_worker_service(Path("compose.yml"), ctx)
+    if ctx.has("docker"):
+        if ctx.dry_run:
+            ctx.record_modification("compose.yml", "append celery-worker and celery-beat services")
+        else:
+            if Path("compose.yml").exists():
+                _append_worker_service(Path("compose.yml"), ctx)
+            else:
+                warn("compose.yml not found — celery services append skipped.")
         success(
             "tasks/celery_app.py, tasks/example_tasks.py, "
             "compose.yml (celery worker + beat appended)"
