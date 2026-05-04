@@ -39,7 +39,7 @@ def extra_nix_packages() -> list[str]:
     return ["docker", "docker-compose"]
 
 
-def extra_just_recipes() -> str:
+def extra_just_recipes(ctx: Context) -> str:
     return """\
 docker-build:
     docker build -t (( name )) .

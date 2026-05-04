@@ -139,7 +139,7 @@ def extra_deps() -> list[str]:
     return ["sentry-sdk[fastapi]"]
 
 
-def extra_just_recipes() -> str:
+def extra_just_recipes(ctx: Context) -> str:
     return """\
 sentry-test:
     python -c "from (( pkg_name )).integrations.sentry import init_sentry; import os; init_sentry(); print('Sentry DSN:', os.environ.get('SENTRY_DSN') or 'not set')" # noqa: E501

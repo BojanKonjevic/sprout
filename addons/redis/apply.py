@@ -91,7 +91,7 @@ def extra_nix_packages() -> list[str]:
     return ["redis"]
 
 
-def extra_just_recipes_ctx(ctx: Context) -> str:
+def extra_just_recipes(ctx: Context) -> str:
     if ctx.has("docker"):
         return """\
 redis-up:
