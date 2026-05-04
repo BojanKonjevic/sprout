@@ -117,10 +117,10 @@ def main() -> None:
         sys.exit(0)
 
     project_dir = ctx.project_dir
-    project_dir.mkdir()
-    os.chdir(project_dir)
-
     with scaffold_or_rollback(project_dir):
+        project_dir.mkdir()
+        os.chdir(project_dir)
+
         _load_apply(scaffolder_root / "templates" / "_common" / "apply.py")(ctx)
         _load_apply(scaffolder_root / "templates" / template / "apply.py")(ctx)
 
