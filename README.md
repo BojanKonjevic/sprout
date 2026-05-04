@@ -1,6 +1,7 @@
 # sprout
 
-A Nix-based Python project scaffolder. Generates a new project from a template with optional addons, then drops you into a working dev shell.
+A Python project scaffolder (the tool itself uses Nix for development, but the projects it generates are plain Python + uv).  
+Generates a new project from a template with optional addons, then drops you into a working dev shell.
 
 ## Requirements
 
@@ -30,7 +31,7 @@ sprout --list-addons        show available addons
 
 ## Templates
 
-**`blank`** — Python package with dev tooling only. Gets you pytest, ruff, mypy, a justfile, and a Nix dev shell. Good starting point for CLIs, scripts, and libraries.
+**`blank`** — Python package with dev tooling only. Gets you pytest, ruff, mypy, a justfile, and a .envrc that auto‑activates a virtual environment (via uv). Good starting point for CLIs, scripts, and libraries.
 
 **`fastapi`** — Production-oriented FastAPI setup. Includes:
 - FastAPI with a structured package layout (`api/`, `core/`, `db/`, `models/`, `schemas/`)
