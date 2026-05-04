@@ -148,15 +148,8 @@ def main() -> None:
     print()
     print(f"  cd {name}")
 
-    if template == "fastapi":
-        print()
-        info("When you're ready to add auth:")
-        print("    1. Define User + RefreshToken in models/")
-        print(f"    2. Add src/{pkg_name}/core/dependencies.py  (get_current_user)")
-        print(f"    3. Add src/{pkg_name}/api/routes/auth.py")
-        print(f"    4. Register it in src/{pkg_name}/api/router.py")
-        print("    5. Activate the client fixture in tests/conftest.py")
-        print("    6. just db-create && just migrate 'add users' && just upgrade")
+    # Print available just commands
+    _print_commands(template, pkg_name, addons)
 
     if "docker" in addons:
         print()
@@ -173,3 +166,46 @@ def main() -> None:
         print()
         info("GitHub Actions CI is set up at .github/workflows/ci.yml")
         print("    Push to GitHub and it will lint, type-check, and test automatically.")
+
+
+def _print_commands(template: str, pkg_name: str, addons: list[str]) -> None:
+    """Print a short list of available just commands."""
+    BOLD = "\033[1m"
+    CYAN = "\033[0;36m"
+    RESET = "\033[0m"
+
+    def cmd(label: str, desc: str) -> None:
+        print(f"  {CYAN}{label:<26}{RESET} {desc}")
+
+    print()
+    print(f"  {BOLD}Available commands:{RESET}")
+    print()
+    cmd("just test", "run tests")
+    cmd("just cov", "coverage report")
+    cmd("just lint", "ruff check")
+    cmd("just fmt", "ruff format")
+    cmd("just check", "mypy")
+
+    if template == "fastapi":
+        cmd("just run", "start dev server (--reload)")
+        cmd('just migrate "msg"', "generate migration")
+        cmd("just upgrade", "apply migrations")
+        cmd("just downgrade", "roll back one step")
+        cmd("just db-create", "start db + create databases + migrate")
+        cmd("just db-reset", "drop + recreate databases")
+    else:
+        cmd("just run", "run the app")
+
+    for addon_id in addons:
+        if addon_id in ("docker", "redis"):
+            cmd(f"just {addon_id}-up", f"start {addon_id} (compose)")
+            cmd(f"just {addon_id}-down", f"stop {addon_id} (compose)")
+        if addon_id == "celery":
+            cmd("just celery-up", "start celery worker + beat")
+            cmd("just celery-down", "stop celery")
+            cmd("just celery-flower", "flower monitoring UI")
+            cmd("just celery-logs", "tail worker logs")
+        if addon_id == "sentry":
+            cmd("just sentry-check", "verify SDK version")
+            cmd("just sentry-test", "check DSN is set")
+    print()
