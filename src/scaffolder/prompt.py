@@ -151,7 +151,11 @@ def _tui_single(prompt: str, items: list[tuple[str, str]]) -> str:
     return name
 
 
-def _tui_multi(prompt: str, items: list[tuple[str, str]]) -> list[str]:
+def _tui_multi(
+    prompt: str,
+    items: list[tuple[str, str]],
+    requires_map: dict[str, list[str]] | None = None,
+) -> list[str]:
     """Arrow-key multi-select. Returns list of selected item names."""
     print(f"\n  {BOLD}{prompt}{RESET}\n")
     sys.stdout.write(_HIDE_CURSOR)
@@ -159,6 +163,7 @@ def _tui_multi(prompt: str, items: list[tuple[str, str]]) -> list[str]:
     cursor = 0
     n_items = len(items)
     selected: set[int] = set()
+    name_to_idx = {name: i for i, (name, _) in enumerate(items)}
     rendered = _render_multi(items, cursor, selected)
 
     try:
@@ -169,10 +174,21 @@ def _tui_multi(prompt: str, items: list[tuple[str, str]]) -> list[str]:
             elif key in ("\x1b[B", "j"):
                 cursor = (cursor + 1) % n_items
             elif key == " ":
+                item_name = items[cursor][0]
                 if cursor in selected:
                     selected.discard(cursor)
+                    # Cascade-deselect anything that requires this addon
+                    if requires_map:
+                        for i, (name, _) in enumerate(items):
+                            if item_name in (requires_map.get(name) or []):
+                                selected.discard(i)
                 else:
                     selected.add(cursor)
+                    # Auto-select required addons
+                    if requires_map:
+                        for req in requires_map.get(item_name) or []:
+                            if req in name_to_idx:
+                                selected.add(name_to_idx[req])
             elif key in ("\r", "\n"):
                 break
             elif key == "\x03":
@@ -217,7 +233,10 @@ def _fallback_template() -> str:
         warn("Please enter 1 or 2.")
 
 
-def _fallback_addons(available: list[tuple[str, str]]) -> list[str]:
+def _fallback_addons(
+    available: list[tuple[str, str]],
+    requires_map: dict[str, list[str]] | None = None,
+) -> list[str]:
     if not available:
         return []
     print(
@@ -249,6 +268,11 @@ def _fallback_addons(available: list[tuple[str, str]]) -> list[str]:
             addon_id = available[idx][0]
             if addon_id not in selected:
                 selected.append(addon_id)
+                if requires_map:
+                    for req in requires_map.get(addon_id) or []:
+                        if req not in selected:
+                            selected.append(req)
+                            warn(f"Auto-selected '{req}' (required by '{addon_id}').")
         if valid:
             return selected
 
@@ -262,9 +286,14 @@ def prompt_template() -> str:
     return _fallback_template()
 
 
-def prompt_addons(available: list[tuple[str, str]]) -> list[str]:
+def prompt_addons(available: list[tuple[str, str, list[str]]]) -> list[str]:
     if not available:
         return []
+    items = [
+        (aid, f"{desc}  [{DIM}needs: {', '.join(reqs)}{RESET}]" if reqs else desc)
+        for aid, desc, reqs in available
+    ]
+    requires_map = {aid: reqs for aid, _, reqs in available}
     if _tty_available():
-        return _tui_multi("Select addons:", available)
-    return _fallback_addons(available)
+        return _tui_multi("Select addons:", items, requires_map)
+    return _fallback_addons(items, requires_map)
