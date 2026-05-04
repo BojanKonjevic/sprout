@@ -96,7 +96,7 @@ def main() -> None:
 
     template = prompt_template()
     available_addons = _load_addon_registry(scaffolder_root)
-    addons = prompt_addons(available_addons)
+    addons = prompt_addons(available_addons, template)
     validate_addon_deps(addons, available_addons)
 
     ctx = Context(

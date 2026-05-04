@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import sys
 
-from scaffolder.ui import BOLD, CYAN, DIM, GREEN, MAGENTA, RESET, warn
+from scaffolder.ui import BOLD, CYAN, DIM, GREEN, MAGENTA, RESET, warn, YELLOW
 
 TEMPLATES: list[tuple[str, str]] = [
     ("blank", "dev tools only  (pytest, ruff, mypy)"),
@@ -73,6 +73,11 @@ _ARROW = f"{MAGENTA}›{RESET}"
 _SPACER = " "
 _CHECK = f"{GREEN}[✓]{RESET}"
 _EMPTY = f"{DIM}[ ]{RESET}"
+_LOCKED = f"{YELLOW}[~]{RESET}"
+
+TEMPLATE_REQUIRES: dict[str, list[str]] = {
+    "fastapi": ["docker"],
+}
 
 
 def _render_single(items: list[tuple[str, str]], cursor: int) -> int:
@@ -93,11 +98,23 @@ def _render_single(items: list[tuple[str, str]], cursor: int) -> int:
     return lines
 
 
-def _render_multi(items: list[tuple[str, str]], cursor: int, selected: set[int]) -> int:
+def _render_multi(
+    items: list[tuple[str, str]],
+    cursor: int,
+    selected: set[int],
+    locked: set[int] | None = None,
+    flash: str = "",
+) -> int:
     """Draw a multi-select list. Returns number of lines written."""
+    locked = locked or set()
     lines = 0
     for i, (name, desc) in enumerate(items):
-        tick = _CHECK if i in selected else _EMPTY
+        if i in locked:
+            tick = _LOCKED
+        elif i in selected:
+            tick = _CHECK
+        else:
+            tick = _EMPTY
         if i == cursor:
             prefix = f"  {_ARROW} "
             label = f"{CYAN}{BOLD}{name}{RESET}"
@@ -106,7 +123,10 @@ def _render_multi(items: list[tuple[str, str]], cursor: int, selected: set[int])
             label = name
         sys.stdout.write(f"{prefix}{tick} {label:<18}{DIM}  {desc}{RESET}\n")
         lines += 1
-    sys.stdout.write(f"\n  {DIM}↑↓ move · space toggle · enter confirm{RESET}\n")
+    if flash:
+        sys.stdout.write(f"\n  {YELLOW}⚠  {flash}{RESET}\n")
+    else:
+        sys.stdout.write(f"\n  {DIM}↑↓ move · space toggle · enter confirm{RESET}\n")
     lines += 2
     sys.stdout.flush()
     return lines
@@ -155,6 +175,7 @@ def _tui_multi(
     prompt: str,
     items: list[tuple[str, str]],
     requires_map: dict[str, list[str]] | None = None,
+    always_locked: set[int] | None = None,
 ) -> list[str]:
     """Arrow-key multi-select. Returns list of selected item names."""
     print(f"\n  {BOLD}{prompt}{RESET}\n")
@@ -162,29 +183,54 @@ def _tui_multi(
 
     cursor = 0
     n_items = len(items)
-    selected: set[int] = set()
+    selected: set[int] = set(always_locked or set())
     name_to_idx = {name: i for i, (name, _) in enumerate(items)}
-    rendered = _render_multi(items, cursor, selected)
+
+    def _compute_locked() -> set[int]:
+        locked = set(always_locked or set())
+        if requires_map:
+            for sel_idx in selected:
+                sel_name = items[sel_idx][0]
+                for req in requires_map.get(sel_name) or []:
+                    if req in name_to_idx:
+                        locked.add(name_to_idx[req])
+        return locked
+
+    flash = ""
+    locked = _compute_locked()
+    rendered = _render_multi(items, cursor, selected, locked)
 
     try:
         while True:
             key = _read_key()
+            flash = ""
             if key in ("\x1b[A", "k"):
                 cursor = (cursor - 1) % n_items
             elif key in ("\x1b[B", "j"):
                 cursor = (cursor + 1) % n_items
             elif key == " ":
+                locked = _compute_locked()
                 item_name = items[cursor][0]
-                if cursor in selected:
+                if cursor in locked:
+                    if cursor in (always_locked or set()):
+                        flash = f"{item_name} is required by the template"
+                    else:
+                        dependents = [
+                            items[i][0]
+                            for i in selected
+                            if item_name in (requires_map or {}).get(items[i][0], [])
+                        ]
+                        flash = f"{item_name} is required by {', '.join(dependents)}"
+                elif cursor in selected:
                     selected.discard(cursor)
-                    # Cascade-deselect anything that requires this addon
                     if requires_map:
                         for i, (name, _) in enumerate(items):
-                            if item_name in (requires_map.get(name) or []):
+                            if item_name in (requires_map.get(name) or []) and i not in (
+                                always_locked or set()
+                            ):
                                 selected.discard(i)
                 else:
                     selected.add(cursor)
-                    # Auto-select required addons
                     if requires_map:
                         for req in requires_map.get(item_name) or []:
                             if req in name_to_idx:
@@ -196,8 +242,9 @@ def _tui_multi(
                 print()
                 sys.exit(0)
 
+            locked = _compute_locked()
             _clear_lines(rendered)
-            rendered = _render_multi(items, cursor, selected)
+            rendered = _render_multi(items, cursor, selected, locked, flash)
     finally:
         sys.stdout.write(_SHOW_CURSOR)
         sys.stdout.flush()
@@ -286,14 +333,18 @@ def prompt_template() -> str:
     return _fallback_template()
 
 
-def prompt_addons(available: list[tuple[str, str, list[str]]]) -> list[str]:
+def prompt_addons(available: list[tuple[str, str, list[str]]], template: str = "") -> list[str]:
     if not available:
         return []
-    items = [
-        (aid, f"{desc}  [{DIM}needs: {', '.join(reqs)}{RESET}]" if reqs else desc)
-        for aid, desc, reqs in available
-    ]
+    items = [(aid, desc) for aid, desc, reqs in available]
     requires_map = {aid: reqs for aid, _, reqs in available}
+    name_to_idx = {aid: i for i, (aid, _) in enumerate(items)}
+
+    always_locked: set[int] = set()
+    for req in TEMPLATE_REQUIRES.get(template, []):
+        if req in name_to_idx:
+            always_locked.add(name_to_idx[req])
+
     if _tty_available():
-        return _tui_multi("Select addons:", items, requires_map)
+        return _tui_multi("Select addons:", items, requires_map, always_locked)
     return _fallback_addons(items, requires_map)
