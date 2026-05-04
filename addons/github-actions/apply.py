@@ -2,30 +2,18 @@
 
 from pathlib import Path
 
-import jinja2
-
 from scaffolder.context import Context
+from scaffolder.render import make_env
 from scaffolder.ui import success
 
 _HERE = Path(__file__).parent
 
 
 def apply(ctx: Context) -> None:
-    files = _HERE / "files"
-
     workflows_dir = Path(".github") / "workflows"
     workflows_dir.mkdir(parents=True, exist_ok=True)
 
-    # Custom delimiters — GitHub Actions uses ${{ }} everywhere, which
-    # Jinja's default delimiters would try to parse and choke on.
-    env = jinja2.Environment(
-        loader=jinja2.FileSystemLoader(str(files)),
-        keep_trailing_newline=True,
-        variable_start_string="((",
-        variable_end_string="))",
-        block_start_string="[%",
-        block_end_string="%]",
-    )
+    env = make_env(_HERE / "files")
 
     Path(workflows_dir / "ci.yml").write_text(
         env.get_template("ci.yml.j2").render(

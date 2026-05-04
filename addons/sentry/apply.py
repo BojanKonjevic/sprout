@@ -4,29 +4,17 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import jinja2
-
 from scaffolder.context import Context
+from scaffolder.render import make_env
 from scaffolder.ui import success, warn
 
 _HERE = Path(__file__).parent
 
 
 def apply(ctx: Context) -> None:
-    files = _HERE / "files"
-
-    env = jinja2.Environment(
-        loader=jinja2.FileSystemLoader(str(files)),
-        keep_trailing_newline=True,
-        variable_start_string="((",
-        variable_end_string="))",
-        block_start_string="[%",
-        block_end_string="%]",
-    )
-
+    env = make_env(_HERE / "files")
     render_vars = dict(name=ctx.name, pkg_name=ctx.pkg_name, template=ctx.template)
 
-    # Place under integrations/ alongside redis.py
     integrations_dir = Path("src") / ctx.pkg_name / "integrations"
     integrations_dir.mkdir(parents=True, exist_ok=True)
     (integrations_dir / "__init__.py").touch()
@@ -36,7 +24,6 @@ def apply(ctx: Context) -> None:
     )
 
     if ctx.template == "fastapi":
-        # Patch lifecycle.py (where lifespan lives in the new structure)
         _patch_fastapi_lifecycle(Path("src") / ctx.pkg_name / "lifecycle.py")
         _patch_settings(Path("src") / ctx.pkg_name / "settings.py")
         _patch_env(Path(".env"))
@@ -52,7 +39,6 @@ def apply(ctx: Context) -> None:
 
 
 def _patch_fastapi_lifecycle(lifecycle_path: Path) -> None:
-    """Inject init_sentry() into lifespan (lifecycle.py)."""
     if not lifecycle_path.exists():
         return
     text = lifecycle_path.read_text()

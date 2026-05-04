@@ -5,9 +5,8 @@ from __future__ import annotations
 import shutil
 from pathlib import Path
 
-import jinja2
-
 from scaffolder.context import Context
+from scaffolder.render import make_env
 from scaffolder.ui import success
 
 _HERE = Path(__file__).parent
@@ -16,7 +15,6 @@ _HERE = Path(__file__).parent
 def apply(ctx: Context) -> None:
     files = _HERE / "files"
 
-    # Place redis client under integrations/ to keep third-party wiring separate
     integrations_dir = Path("src") / ctx.pkg_name / "integrations"
     integrations_dir.mkdir(parents=True, exist_ok=True)
     (integrations_dir / "__init__.py").touch()
@@ -30,14 +28,7 @@ def apply(ctx: Context) -> None:
         _append_redis_service(Path("compose.yml"))
         success("integrations/redis.py, compose.yml (redis service appended)")
     else:
-        env = jinja2.Environment(
-            loader=jinja2.FileSystemLoader(str(files)),
-            keep_trailing_newline=True,
-            variable_start_string="((",
-            variable_end_string="))",
-            block_start_string="[%",
-            block_end_string="%]",
-        )
+        env = make_env(files)
         Path("compose.redis.yml").write_text(
             env.get_template("compose.redis.yml.j2").render(name=ctx.name)
         )

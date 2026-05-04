@@ -4,29 +4,19 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import jinja2
-
 from scaffolder.context import Context
+from scaffolder.render import make_env
 from scaffolder.ui import success
 
 _HERE = Path(__file__).parent
 
 
 def apply(ctx: Context) -> None:
-    # Create tasks/ subpackage
     tasks_dir = Path("src") / ctx.pkg_name / "tasks"
     tasks_dir.mkdir(parents=True, exist_ok=True)
     (tasks_dir / "__init__.py").touch()
 
-    env = jinja2.Environment(
-        loader=jinja2.FileSystemLoader(str(_HERE / "files" / "tasks")),
-        keep_trailing_newline=True,
-        variable_start_string="((",
-        variable_end_string="))",
-        block_start_string="[%",
-        block_end_string="%]",
-    )
-
+    env = make_env(_HERE / "files" / "tasks")
     render_vars = dict(name=ctx.name, pkg_name=ctx.pkg_name)
 
     (tasks_dir / "celery_app.py").write_text(

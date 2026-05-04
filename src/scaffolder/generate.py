@@ -2,48 +2,9 @@ import importlib.util
 from pathlib import Path
 from typing import Any
 
-import jinja2
-
 from scaffolder.context import Context
+from scaffolder.render import make_env
 from scaffolder.ui import step, success
-
-# ---------------------------------------------------------------------------
-# Jinja env
-# ---------------------------------------------------------------------------
-
-
-def _make_env(templates_dir: Path) -> jinja2.Environment:
-    return jinja2.Environment(
-        loader=jinja2.FileSystemLoader(str(templates_dir)),
-        keep_trailing_newline=True,
-        variable_start_string="((",
-        variable_end_string="))",
-        block_start_string="[%",
-        block_end_string="%]",
-    )
-
-
-def _make_string_env() -> jinja2.Environment:
-    """Env for rendering addon recipe strings (no file loader needed)."""
-    return jinja2.Environment(
-        keep_trailing_newline=True,
-        variable_start_string="((",
-        variable_end_string="))",
-        block_start_string="[%",
-        block_end_string="%]",
-    )
-
-
-# ---------------------------------------------------------------------------
-# Addon contribution collection
-# ---------------------------------------------------------------------------
-
-
-def _load_addon_module(addon_apply: Path) -> Any:
-    spec = importlib.util.spec_from_file_location("addon_apply", addon_apply)
-    mod = importlib.util.module_from_spec(spec)  # type: ignore[arg-type]
-    spec.loader.exec_module(mod)  # type: ignore[union-attr]
-    return mod
 
 
 def _collect(ctx: Context) -> dict[str, Any]:
@@ -53,7 +14,7 @@ def _collect(ctx: Context) -> dict[str, Any]:
     just_recipes: list[str] = []
     nix_packages: list[str] = []
 
-    string_env = _make_string_env()
+    string_env = make_env()
     render_vars = {"name": ctx.name, "pkg_name": ctx.pkg_name, "template": ctx.template}
 
     for addon_id in ctx.addons:
@@ -81,14 +42,16 @@ def _collect(ctx: Context) -> dict[str, Any]:
     }
 
 
-# ---------------------------------------------------------------------------
-# Public entry point
-# ---------------------------------------------------------------------------
+def _load_addon_module(addon_apply: Path) -> Any:
+    spec = importlib.util.spec_from_file_location("addon_apply", addon_apply)
+    mod = importlib.util.module_from_spec(spec)  # type: ignore[arg-type]
+    spec.loader.exec_module(mod)  # type: ignore[union-attr]
+    return mod
 
 
 def generate_all(ctx: Context) -> None:
     step("Generating config files")
-    env = _make_env(ctx.scaffolder_root / "generate")
+    env = make_env(ctx.scaffolder_root / "generate")
     contributions = _collect(ctx)
 
     vars: dict[str, Any] = {

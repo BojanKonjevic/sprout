@@ -2,9 +2,8 @@ import shutil
 import stat
 from pathlib import Path
 
-import jinja2
-
 from scaffolder.context import Context
+from scaffolder.render import make_env
 from scaffolder.ui import step, success
 
 
@@ -14,14 +13,7 @@ def _copy(src: Path, dest: Path) -> None:
 
 
 def _render(src: Path, dest: Path, ctx: Context) -> None:
-    env = jinja2.Environment(
-        loader=jinja2.FileSystemLoader(str(src.parent)),
-        keep_trailing_newline=True,
-        variable_start_string="((",
-        variable_end_string="))",
-        block_start_string="[%",
-        block_end_string="%]",
-    )
+    env = make_env(src.parent)
     dest.write_text(
         env.get_template(src.name).render(
             name=ctx.name,

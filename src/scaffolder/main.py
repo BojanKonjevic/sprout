@@ -12,7 +12,7 @@ from scaffolder.nix import lock_flake, warm_devshell
 from scaffolder.prompt import TEMPLATES, prompt_addons, prompt_template
 from scaffolder.rollback import scaffold_or_rollback
 from scaffolder.ui import confirm, error, info, step, success
-from scaffolder.validate import check_preflight, validate_name, validate_addon_deps
+from scaffolder.validate import check_preflight, validate_addon_deps, validate_name
 
 USAGE = """\
 Usage:

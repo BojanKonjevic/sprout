@@ -2,9 +2,8 @@
 
 from pathlib import Path
 
-import jinja2
-
 from scaffolder.context import Context
+from scaffolder.render import make_env
 from scaffolder.ui import success
 
 _HERE = Path(__file__).parent
@@ -12,15 +11,7 @@ _HERE = Path(__file__).parent
 
 def apply(ctx: Context) -> None:
     files = _HERE / "files"
-
-    env = jinja2.Environment(
-        loader=jinja2.FileSystemLoader(str(files)),
-        keep_trailing_newline=True,
-        variable_start_string="((",
-        variable_end_string="))",
-        block_start_string="[%",
-        block_end_string="%]",
-    )
+    env = make_env(files)
 
     render_vars = dict(
         name=ctx.name,
