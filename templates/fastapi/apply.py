@@ -1,12 +1,12 @@
 import shutil
 import stat
-import sys
 from pathlib import Path
 
 import jinja2
 
 from scaffolder.context import Context
 from scaffolder.ui import step, success, error
+from scaffolder.exceptions import ScaffoldError
 
 
 def _copy(src: Path, dest: Path) -> None:
@@ -35,8 +35,9 @@ def _render(src: Path, dest: Path, ctx: Context) -> None:
 
 def apply(ctx: Context) -> None:
     if "docker" not in ctx.addons:
-        error("The fastapi template requires the docker addon. Please re-run and select docker.")
-        sys.exit(1)
+        raise ScaffoldError(
+            "The fastapi template requires the docker addon. Please re-run and select docker."
+        )
 
     step("Applying fastapi template")
     files = ctx.scaffolder_root / "templates" / "fastapi" / "files"

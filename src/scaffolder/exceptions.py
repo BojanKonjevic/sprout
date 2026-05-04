@@ -1,0 +1,2 @@
+class ScaffoldError(Exception):
+    pass
