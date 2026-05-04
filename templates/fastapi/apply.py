@@ -1,3 +1,4 @@
+import secrets
 import shutil
 import stat
 from pathlib import Path
@@ -13,12 +14,13 @@ def _copy(src: Path, dest: Path) -> None:
     dest.chmod(dest.stat().st_mode | stat.S_IWRITE | stat.S_IREAD)
 
 
-def _render(src: Path, dest: Path, ctx: Context) -> None:
+def _render(src: Path, dest: Path, ctx: Context, **extra_vars) -> None:
     env = make_env(src.parent)
     dest.write_text(
         env.get_template(src.name).render(
             name=ctx.name,
             pkg_name=ctx.pkg_name,
+            **extra_vars,
         )
     )
 
@@ -79,6 +81,9 @@ def apply(ctx: Context) -> None:
     _render(files / "alembic.ini.j2", Path("alembic.ini"), ctx)
     _render(files / "alembic" / "env.py.j2", Path("alembic") / "env.py", ctx)
     _render(files / "tests" / "conftest.py.j2", Path("tests") / "conftest.py", ctx)
-    _render(files / ".env.j2", Path(".env"), ctx)
+
+    # Generate a real secret key for .env; .env.example keeps the placeholder
+    secret_key = secrets.token_hex(32)
+    _render(files / ".env.j2", Path(".env"), ctx, secret_key=secret_key)
 
     success("src/, tests/, alembic/")
