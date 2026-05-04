@@ -13,15 +13,17 @@
   }:
     flake-utils.lib.eachDefaultSystem (system: let
       pkgs = nixpkgs.legacyPackages.${system};
-      python = pkgs.python3.withPackages (ps: [ps.jinja2 ps.mypy]);
+      python = pkgs.python3.withPackages (ps: [ps.jinja2]);
     in {
       apps.default = {
         type = "app";
-        meta.description = "Creates a new Python project from template";
         program = toString (pkgs.writeShellScript "sprout" ''
           export SCAFFOLDER_ROOT="${self}"
-          export PATH="${pkgs.uv}/bin:$PATH"
-          exec ${python}/bin/python3 "${self}/main.py" "$@"
+          export UV_PYTHON_DOWNLOADS=never
+          export UV_PYTHON="${python}/bin/python3"
+          # Ensure python3 is available in the script's PATH
+          export PATH="${python}/bin:${pkgs.uv}/bin:$PATH"
+          exec python3 "${self}/main.py" "$@"
         '');
       };
 
@@ -29,9 +31,18 @@
         packages = with pkgs; [
           python
           uv
-          ruff
           just
+          ruff
+          mypy
+          git
         ];
+        shellHook = ''
+          export UV_PYTHON_DOWNLOADS=never
+          export UV_PYTHON="${python}/bin/python3"
+          # Install pip dependencies into .venv
+          uv sync --quiet
+          export PYTHONPATH="$PWD/src:$(echo $PWD/.venv/lib/python3.*/site-packages)"
+        '';
       };
     });
 }

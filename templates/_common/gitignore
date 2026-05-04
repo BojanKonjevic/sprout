@@ -1,6 +1,4 @@
-# Nix
-result
-result-*
+# Direnv (cache folder)
 .direnv/
 
 # uv / Python

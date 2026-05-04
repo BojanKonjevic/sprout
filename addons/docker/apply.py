@@ -20,10 +20,6 @@ def apply(ctx: Context) -> None:
     success("Dockerfile, compose.yml, .dockerignore")
 
 
-def extra_nix_packages() -> list[str]:
-    return ["docker", "docker-compose"]
-
-
 def extra_just_recipes(ctx: Context) -> str:
     return """\
 docker-build:

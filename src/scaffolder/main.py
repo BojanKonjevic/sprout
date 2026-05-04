@@ -7,7 +7,6 @@ from pathlib import Path
 from scaffolder.context import Context
 from scaffolder.generate import generate_all
 from scaffolder.git import init_and_commit
-from scaffolder.nix import lock_flake, warm_devshell
 from scaffolder.prompt import TEMPLATES, prompt_addons, prompt_template
 from scaffolder.rollback import scaffold_or_rollback
 from scaffolder.ui import confirm, error, info, step, success
@@ -87,7 +86,6 @@ def main() -> None:
         sys.exit(1)
 
     pkg_name = name.replace("-", "_")
-
     validate_name(name, pkg_name)
 
     if not dry_run:
@@ -142,8 +140,7 @@ def main() -> None:
             _load_apply(addon_apply)(ctx)
 
         generate_all(ctx)
-        lock_flake()
-        warm_devshell()
+
         init_and_commit(project_dir)
 
     print()

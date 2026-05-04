@@ -4,22 +4,20 @@ A Nix-based Python project scaffolder. Generates a new project from a template w
 
 ## Requirements
 
-- [Nix](https://nixos.org/download) with flakes enabled
-- [direnv](https://direnv.net)
-- Docker (for the `fastapi` template)
+- **uv** (>= 0.4) – [install](https://docs.astral.sh/uv/getting-started/installation/)
+- **git**
+- **direnv** (optional but recommended) – auto‑activates the environment on `cd`
+
+For the `fastapi` template you will also need **Docker**.
 
 ## Usage
 
-```bash
-nix run github:bojankonjevic/sprout -- my-project
-```
-
-Then:
+Clone the repository and install sprout:
 
 ```bash
-cd my-project
-just run
-```
+git clone https://github.com/bojankonjevic/sprout.git
+cd sprout
+uv sync
 
 ## Options
 

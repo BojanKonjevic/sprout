@@ -23,8 +23,10 @@ class DryRunContext(Context):
     recorded_files: list[tuple[str, str, str]]  # (action, path, details)
 
     def __init__(self, **kwargs: Any) -> None:
+        # Let the dataclass init do its thing (including setting _dry_run to False)
         super().__init__(**kwargs)
         self.recorded_files = []
+        # Force dry_run to be True by setting the private attribute directly
         object.__setattr__(self, "_dry_run", True)
 
     @property
@@ -72,7 +74,7 @@ def run_dry(ctx_template: Context) -> None:
         if addon_apply.exists():
             _load_apply(addon_apply)(dry_ctx)
 
-    # Generate config files (pyproject.toml, justfile, flake.nix)
+    # Generate config files (pyproject.toml, justfile)
     generate_all(dry_ctx)
 
     # Collect extra deps / just recipes
@@ -113,19 +115,13 @@ def run_dry(ctx_template: Context) -> None:
     for dep in contributions["extra_dev_deps"]:
         dry_dep(dep, "addon")
 
-    if contributions["extra_nix_packages"]:
-        dry_header("Nix packages (flake.nix)")
-        for pkg in contributions["extra_nix_packages"]:
-            dry_dep(pkg, "addon")
-
     dry_header("Generated config files")
-    for template_name in ["pyproject.toml", "justfile", "flake.nix"]:
+    for template_name in ["pyproject.toml", "justfile"]:
         dry_dep(template_name)
 
     dry_header("Commands that would run")
     for cmd in [
         "direnv allow",
-        "nix flake lock",
         "git init",
         "git add .",
         'git commit -m "init: scaffold from sprout"',

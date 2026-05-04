@@ -8,11 +8,9 @@ from scaffolder.ui import step, success
 
 
 def _collect(ctx: Context) -> dict[str, Any]:
-    """Walk selected addons and merge their contributions."""
     deps: list[str] = []
     dev_deps: list[str] = []
     just_recipes: list[str] = []
-    nix_packages: list[str] = []
 
     string_env = make_env()
     render_vars = {"name": ctx.name, "pkg_name": ctx.pkg_name, "template": ctx.template}
@@ -27,8 +25,6 @@ def _collect(ctx: Context) -> dict[str, Any]:
             deps.extend(mod.extra_deps())
         if hasattr(mod, "extra_dev_deps"):
             dev_deps.extend(mod.extra_dev_deps())
-        if hasattr(mod, "extra_nix_packages"):
-            nix_packages.extend(mod.extra_nix_packages())
         if hasattr(mod, "extra_just_recipes"):
             raw = mod.extra_just_recipes(ctx)
             rendered = string_env.from_string(raw).render(**render_vars)
@@ -38,7 +34,6 @@ def _collect(ctx: Context) -> dict[str, Any]:
         "extra_deps": deps,
         "extra_dev_deps": dev_deps,
         "extra_just_recipes": just_recipes,
-        "extra_nix_packages": nix_packages,
     }
 
 
@@ -65,7 +60,6 @@ def generate_all(ctx: Context) -> None:
     for template_name, dest_rel in [
         ("pyproject.toml.j2", "pyproject.toml"),
         ("justfile.j2", "justfile"),
-        ("flake.nix.j2", "flake.nix"),
     ]:
         content = env.get_template(template_name).render(**vars)
         ctx.write_file(dest_rel, content)

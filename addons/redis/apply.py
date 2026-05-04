@@ -88,10 +88,6 @@ def extra_dev_deps() -> list[str]:
     return ["fakeredis[aioredis]"]
 
 
-def extra_nix_packages() -> list[str]:
-    return ["redis"]
-
-
 def extra_just_recipes(ctx: Context) -> str:
     if ctx.has("docker"):
         return """\

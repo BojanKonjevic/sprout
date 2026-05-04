@@ -95,9 +95,7 @@ def confirm(ctx: object) -> bool:
     for a in ctx.addons:
         steps.append(f"apply addon: {a}")
     steps += [
-        "generate pyproject.toml, justfile, flake.nix",
-        "nix flake lock",
-        "pre-build dev shell",
+        "generate pyproject.toml, justfile",
         "git init + initial commit",
     ]
     for s in steps:

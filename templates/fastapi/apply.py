@@ -32,7 +32,7 @@ def apply(ctx: Context) -> None:
 
     # Package init
     ctx.write_file(f"{pkg_rel}/__init__.py", f'"""{ctx.name}"""\n\n__version__ = "0.1.0"\n')
-    for subpkg in ["api", "api/routes", "core", "db", "models", "schemas"]:
+    for subpkg in ["api", "api/routes", "core", "db", "schemas"]:
         ctx.write_file(f"{pkg_rel}/{subpkg}/__init__.py", "")
 
     ctx.write_file(

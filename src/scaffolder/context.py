@@ -67,17 +67,17 @@ class Context:
 
     # ── Recording hooks (overridden in DryRunContext) ─────────────────
 
-    def _record_write(self, path: str, content: str = ""):
+    def _record_write(self, path: str, content: str = "") -> None:
         pass
 
-    def _record_dir(self, path: str):
+    def _record_dir(self, path: str) -> None:
         pass
 
-    def _record_copy(self, path: str):
+    def _record_copy(self, path: str) -> None:
         pass
 
-    def _record_append(self, path: str, content: str):
+    def _record_append(self, path: str, content: str) -> None:
         pass
 
-    def _record_action(self, action: str, path: str, description: str):
+    def _record_action(self, action: str, path: str, description: str) -> None:
         pass

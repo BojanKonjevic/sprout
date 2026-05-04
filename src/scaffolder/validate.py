@@ -38,8 +38,6 @@ def check_preflight() -> None:
 
     failures += _check_uv()
     failures += _check_git()
-    failures += _check_nix()
-    failures += _check_direnv()
 
     if failures:
         print()
@@ -74,47 +72,7 @@ def _check_uv() -> list[str]:
 def _check_git() -> list[str]:
     if shutil.which("git") is None:
         return [
-            "'git' is not installed or not in PATH.\n"
-            "     Install: https://git-scm.com/downloads\n"
-            "     Or via nix: nix-env -iA nixpkgs.git"
-        ]
-    return []
-
-
-def _check_nix() -> list[str]:
-    if shutil.which("nix") is None:
-        return [
-            "'nix' is not installed.\n"
-            "     Install: https://nixos.org/download  (multi-user recommended)\n"
-            "     Quick:   curl -L https://nixos.org/nix/install | sh"
-        ]
-
-    try:
-        result = subprocess.run(
-            ["nix", "config", "show", "experimental-features"],
-            capture_output=True,
-            text=True,
-        )
-        features = result.stdout
-        if "flakes" not in features or "nix-command" not in features:
-            return [
-                "Nix flakes are not enabled.\n"
-                "     Add to ~/.config/nix/nix.conf:\n"
-                "       experimental-features = nix-command flakes"
-            ]
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        pass
-
-    return []
-
-
-def _check_direnv() -> list[str]:
-    if shutil.which("direnv") is None:
-        return [
-            "'direnv' is not installed.\n"
-            "     Install: https://direnv.net/docs/installation.html\n"
-            "     Or via nix: nix-env -iA nixpkgs.direnv\n"
-            "     Don't forget to hook it into your shell."
+            "'git' is not installed or not in PATH.\n     Install: https://git-scm.com/downloads\n"
         ]
     return []
 
