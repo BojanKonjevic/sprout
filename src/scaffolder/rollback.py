@@ -1,3 +1,4 @@
+import os
 import shutil
 from collections.abc import Generator
 from contextlib import contextmanager
@@ -27,6 +28,8 @@ def scaffold_or_rollback(project_dir: Path) -> Generator[None]:
         raise SystemExit(1) from exc
 
 
+# After:
 def _cleanup(project_dir: Path) -> None:
     if project_dir.exists():
+        os.chdir(project_dir.parent)
         shutil.rmtree(project_dir, ignore_errors=True)
