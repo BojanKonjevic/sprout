@@ -12,13 +12,17 @@ run:
     [% if template == "fastapi" -%]uvicorn (( pkg_name )).main:app --reload
 migrate msg="":
     alembic revision --autogenerate -m "{{msg}}"
-upgrade:
+upgrade: wait-db
     alembic upgrade head
 downgrade:
     alembic downgrade -1
+wait-db:
+    @echo "Waiting for postgres..."
+    @until docker compose exec -T db pg_isready -U postgres; do sleep 1; done
+    @echo "Postgres is ready."
 db-create:
     docker compose up -d db
-    sleep 2
+    just wait-db
     docker compose exec db createdb -U postgres (( name ))
     docker compose exec db createdb -U postgres (( name ))_test
     just upgrade
@@ -32,4 +36,3 @@ db-reset:
 [% for recipe in extra_just_recipes %]
 (( recipe ))
 [% endfor %]
-
