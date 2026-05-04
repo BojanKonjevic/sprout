@@ -221,8 +221,7 @@ def _fallback_addons(available: list[tuple[str, str]]) -> list[str]:
     if not available:
         return []
     print(
-        f"\n  {BOLD}Select addons:{RESET} "
-        "{DIM}(space-separated numbers, or enter to skip){RESET}\n"
+        f"\n  {BOLD}Select addons:{RESET} {DIM}(space-separated numbers, or enter to skip){RESET}\n"
     )
     for i, (addon_id, desc) in enumerate(available, 1):
         print(f"    {CYAN}{i}){RESET} {addon_id:<18} {DIM}—{RESET} {desc}")

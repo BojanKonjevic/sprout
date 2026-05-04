@@ -4,7 +4,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from scaffolder.ui import error, info, warn
+from scaffolder.ui import error, info
 
 # ---------------------------------------------------------------------------
 # Name validation
