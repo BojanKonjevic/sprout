@@ -117,3 +117,26 @@ def _check_direnv() -> list[str]:
             "     Don't forget to hook it into your shell."
         ]
     return []
+
+
+def validate_addon_deps(
+    selected: list[str],
+    available: list[tuple[str, str, list[str]]],
+) -> None:
+    """Fail fast if any selected addon is missing a required dependency."""
+    requires_map = {addon_id: reqs for addon_id, _, reqs in available}
+    errors: list[str] = []
+
+    for addon_id in selected:
+        for req in requires_map.get(addon_id, []):
+            if req not in selected:
+                errors.append(
+                    f"Addon '{addon_id}' requires '{req}' — add it or remove '{addon_id}'."
+                )
+
+    if errors:
+        print()
+        for msg in errors:
+            error(msg)
+        print()
+        sys.exit(1)

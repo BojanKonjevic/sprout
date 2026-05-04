@@ -1,4 +1,3 @@
-import importlib.util
 import shutil
 import stat
 import sys
@@ -7,7 +6,7 @@ from pathlib import Path
 import jinja2
 
 from scaffolder.context import Context
-from scaffolder.ui import DIM, RESET, YELLOW, step, success
+from scaffolder.ui import step, success, error
 
 
 def _copy(src: Path, dest: Path) -> None:
@@ -34,45 +33,10 @@ def _render(src: Path, dest: Path, ctx: Context) -> None:
     )
 
 
-def _prompt_add_docker() -> bool:
-    try:
-        raw = (
-            input(
-                f"  {YELLOW}⚠{RESET}  The fastapi template requires Docker for the "
-                f"database. Add it automatically? {DIM}[Y/n]{RESET}  "
-            )
-            .strip()
-            .lower()
-        )
-    except (EOFError, KeyboardInterrupt):
-        print()
-        sys.exit(0)
-    return raw in ("", "y", "yes")
-
-
 def apply(ctx: Context) -> None:
     if "docker" not in ctx.addons:
-        if not sys.stdin.isatty():
-            print(
-                f"\n  {YELLOW}⚠{RESET}  FastAPI template requires the docker addon. "
-                f"Add 'docker' to your addons list.\n",
-                file=sys.stderr,
-            )
-            sys.exit(1)
-
-        if _prompt_add_docker():
-            ctx.addons.insert(0, "docker")
-            docker_apply_path = ctx.scaffolder_root / "addons" / "docker" / "apply.py"
-            spec = importlib.util.spec_from_file_location("docker_apply", docker_apply_path)
-            mod = importlib.util.module_from_spec(spec)  # type: ignore[arg-type]
-            spec.loader.exec_module(mod)  # type: ignore[union-attr]
-            mod.apply(ctx)
-        else:
-            print(
-                f"\n  {YELLOW}⚠{RESET}  Docker is required for the fastapi template. Aborting.\n",
-                file=sys.stderr,
-            )
-            sys.exit(1)
+        error("The fastapi template requires the docker addon. Please re-run and select docker.")
+        sys.exit(1)
 
     step("Applying fastapi template")
     files = ctx.scaffolder_root / "templates" / "fastapi" / "files"

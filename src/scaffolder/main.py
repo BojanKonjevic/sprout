@@ -12,7 +12,7 @@ from scaffolder.nix import lock_flake, warm_devshell
 from scaffolder.prompt import TEMPLATES, prompt_addons, prompt_template
 from scaffolder.rollback import scaffold_or_rollback
 from scaffolder.ui import confirm, error, info, step, success
-from scaffolder.validate import check_preflight, validate_name
+from scaffolder.validate import check_preflight, validate_name, validate_addon_deps
 
 USAGE = """\
 Usage:
@@ -29,7 +29,7 @@ def _load_apply(path: Path) -> Callable[[Context], None]:
     return mod.apply  # type: ignore[no-any-return]
 
 
-def _load_addon_registry(scaffolder_root: Path) -> list[tuple[str, str]]:
+def _load_addon_registry(scaffolder_root: Path) -> list[tuple[str, str, list[str]]]:
     registry_path = scaffolder_root / "addons" / "_registry.py"
     spec = importlib.util.spec_from_file_location("_registry", registry_path)
     mod = importlib.util.module_from_spec(spec)  # type: ignore[arg-type]
@@ -64,8 +64,9 @@ def _cmd_list_addons(scaffolder_root: Path) -> None:
 
     addons = _load_addon_registry(scaffolder_root)
     print()
-    for addon_id, desc in addons:
-        print(f"  {CYAN}{addon_id:<20}{RESET}  {DIM}{desc}{RESET}")
+    for addon_id, desc, requires in addons:
+        req_suffix = f"  {DIM}requires: {', '.join(requires)}{RESET}" if requires else ""
+        print(f"  {CYAN}{addon_id:<20}{RESET}  {DIM}{desc}{RESET}{req_suffix}")
     print()
 
 
@@ -95,7 +96,8 @@ def main() -> None:
 
     template = prompt_template()
     available_addons = _load_addon_registry(scaffolder_root)
-    addons = prompt_addons(available_addons)
+    addons = prompt_addons([(aid, desc) for aid, desc, _ in available_addons])
+    validate_addon_deps(addons, available_addons)
 
     ctx = Context(
         name=name,

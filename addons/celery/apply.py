@@ -2,56 +2,17 @@
 
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 
 import jinja2
 
 from scaffolder.context import Context
-from scaffolder.ui import DIM, RESET, YELLOW, success, warn
+from scaffolder.ui import success
 
 _HERE = Path(__file__).parent
 
 
-def _prompt_add_redis() -> bool:
-    try:
-        raw = (
-            input(
-                f"  {YELLOW}⚠{RESET}  Celery requires Redis, which isn't selected. "
-                f"Add it automatically? {DIM}[Y/n]{RESET}  "
-            )
-            .strip()
-            .lower()
-        )
-    except (EOFError, KeyboardInterrupt):
-        print()
-        sys.exit(0)
-    return raw in ("", "y", "yes")
-
-
 def apply(ctx: Context) -> None:
-    if not ctx.has("redis"):
-        if not sys.stdin.isatty():
-            print(
-                f"\n  {YELLOW}⚠{RESET}  Celery addon requires the redis addon. "
-                f"Add 'redis' to your addons list.\n",
-                file=sys.stderr,
-            )
-            sys.exit(1)
-
-        if _prompt_add_redis():
-            ctx.addons.insert(ctx.addons.index("celery"), "redis")
-
-            import importlib.util
-
-            redis_apply_path = ctx.scaffolder_root / "addons" / "redis" / "apply.py"
-            spec = importlib.util.spec_from_file_location("redis_apply", redis_apply_path)
-            mod = importlib.util.module_from_spec(spec)  # type: ignore[arg-type]
-            spec.loader.exec_module(mod)  # type: ignore[union-attr]
-            mod.apply(ctx)
-        else:
-            warn("Continuing without Redis — set REDIS_URL manually before starting the worker.")
-
     # Create tasks/ subpackage
     tasks_dir = Path("src") / ctx.pkg_name / "tasks"
     tasks_dir.mkdir(parents=True, exist_ok=True)
