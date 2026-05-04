@@ -25,11 +25,13 @@ class DryRunContext(Context):
     def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self.recorded_files = []
+        object.__setattr__(self, "_dry_run", True)
 
     @property
     def dry_run(self) -> bool:  # always True
         return True
 
+    # Recording hooks
     def _record_write(self, path: str, content: str = "") -> None:
         self.recorded_files.append(("create", path, ""))
 
