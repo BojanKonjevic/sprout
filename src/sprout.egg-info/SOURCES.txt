@@ -15,5 +15,6 @@ src/scaffolder/validate.py
 src/sprout.egg-info/PKG-INFO
 src/sprout.egg-info/SOURCES.txt
 src/sprout.egg-info/dependency_links.txt
+src/sprout.egg-info/entry_points.txt
 src/sprout.egg-info/requires.txt
 src/sprout.egg-info/top_level.txt

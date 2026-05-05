@@ -1,0 +1,2 @@
+[console_scripts]
+sprout = scaffolder.main:main

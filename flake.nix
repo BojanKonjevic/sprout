@@ -13,7 +13,7 @@
   }:
     flake-utils.lib.eachDefaultSystem (system: let
       pkgs = nixpkgs.legacyPackages.${system};
-      python = pkgs.python3.withPackages (ps: [ps.jinja2]);
+      python = pkgs.python3;
     in {
       apps.default = {
         type = "app";
@@ -22,7 +22,7 @@
           export UV_PYTHON_DOWNLOADS=never
           export UV_PYTHON="${python}/bin/python3"
           export PATH="${python}/bin:${pkgs.uv}/bin:$PATH"
-          exec python3 "${self}/main.py" "$@"
+          exec uv run --project "${self}" python3 "${self}/main.py" "$@"
         '');
       };
 
@@ -38,6 +38,7 @@
         shellHook = ''
           export UV_PYTHON_DOWNLOADS=never
           export UV_PYTHON="${python}/bin/python3"
+          # Install pip dependencies into .venv
           uv sync --quiet
           export PYTHONPATH="$PWD/src:$(echo $PWD/.venv/lib/python3.*/site-packages)"
         '';
