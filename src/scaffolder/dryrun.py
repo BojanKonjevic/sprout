@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import secrets
 from typing import Any
 
 from scaffolder.context import Context
@@ -33,7 +34,6 @@ class DryRunContext(Context):
     def dry_run(self) -> bool:
         return True
 
-    # Recording hooks
     def _record_write(self, path: str, content: str = "") -> None:
         self.recorded_files.append(("create", path, ""))
 
@@ -62,41 +62,42 @@ def run_dry(ctx: Context) -> None:
         project_dir=ctx.project_dir,
     )
 
-    # 1. Common files (still imperative)
     from scaffolder.main import _load_apply
 
     sr = dry_ctx.scaffolder_root
     _load_apply(sr / "templates" / "_common" / "apply.py")(dry_ctx)
 
-    # 2. Template files (imperative)
-    _load_apply(sr / "templates" / dry_ctx.template / "apply.py")(dry_ctx)
-
-    # 3. Declarative addon contributions (NEW)
     from scaffolder.addons._registry import get_available_addons
+    from scaffolder.assembler import apply_contributions, collect_all
     from scaffolder.templates._load_config import load_template_config
-    from scaffolder.assembler import collect_contributions, apply_contributions
 
     available = get_available_addons()
-    selected = [cfg for cfg in available if cfg.id in dry_ctx.addons]
-    contributions = collect_contributions(selected)
-
     template_config = load_template_config(sr, dry_ctx.template)
+    selected_addon_configs = [cfg for cfg in available if cfg.id in dry_ctx.addons]
+
+    secret_key = secrets.token_hex(32) if dry_ctx.template == "fastapi" else None
+
+    contributions = collect_all(template_config, selected_addon_configs)
+
+    # Build render_vars once — never pass name= explicitly alongside **render_vars
+    render_vars: dict[str, object] = {
+        "name": ctx.name,
+        "pkg_name": ctx.pkg_name,
+        "template": ctx.template,
+        "secret_key": secret_key or "change-me-run-openssl-rand-hex-32",
+        "has_postgres": ctx.template == "fastapi",
+        "has_redis": "redis" in ctx.addons,
+    }
 
     apply_contributions(
         dry_ctx,
         contributions,
         template_config.extension_points,
-        render_vars={
-            "name": ctx.name,
-            "pkg_name": ctx.pkg_name,
-            "template": ctx.template,
-        },
+        render_vars,
     )
 
-    # 4. Generate config files (pyproject.toml / justfile)
-    generate_all(dry_ctx, contributions)
+    generate_all(dry_ctx, template_config, contributions)
 
-    # ---- Display the manifest (unchanged from original) ----
     label = dry_ctx.template
     if dry_ctx.addons:
         label += " + " + ", ".join(dry_ctx.addons)
@@ -119,13 +120,22 @@ def run_dry(ctx: Context) -> None:
     print()
     dry_section("Dependencies (pyproject.toml)")
     dry_section("  runtime")
-    for dep in _base_deps(dry_ctx):
+    for dep in template_config.deps:
         dry_dep(dep)
     for dep in contributions.deps:
         dry_dep(dep, "addon")
     dry_section("  dev")
-    for dep in ["pytest>=8", "pytest-cov", "pytest-asyncio", "httpx", "mypy", "ipython"]:
+    for dep in [
+        "pytest>=8",
+        "pytest-cov",
+        "pytest-asyncio",
+        "httpx",
+        "mypy",
+        "ipython",
+    ]:
         dry_dep(dep)
+    for dep in template_config.dev_deps:
+        dry_dep(dep, "template")
     for dep in contributions.dev_deps:
         dry_dep(dep, "addon")
 
@@ -144,21 +154,3 @@ def run_dry(ctx: Context) -> None:
 
     print()
     print(f"  {DIM}Run without --dry-run to create the project.{RESET}\n")
-
-
-def _base_deps(ctx: Context) -> list[str]:
-    if ctx.template == "fastapi":
-        return [
-            "fastapi",
-            "uvicorn[standard]",
-            "sqlalchemy[asyncio]",
-            "alembic",
-            "asyncpg",
-            "pydantic-settings",
-            "passlib[bcrypt]",
-            "python-jose[cryptography]",
-            "email-validator",
-            "python-multipart",
-            "python-dotenv",
-        ]
-    return ["python-dotenv"]

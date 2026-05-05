@@ -1,4 +1,4 @@
-"""Assembles contributions from addons and applies them to the generated project."""
+"""Assembles contributions from template + addons and applies them."""
 
 from __future__ import annotations
 
@@ -16,12 +16,31 @@ from scaffolder.schema import (
 
 if TYPE_CHECKING:
     from scaffolder.context import Context
-    from scaffolder.schema import AddonConfig, ComposeService, EnvVar, Injection
+    from scaffolder.schema import AddonConfig, ComposeService, EnvVar, Injection, TemplateConfig
 
 
-def collect_contributions(addon_configs: list[AddonConfig]) -> Contributions:
-    """Merge contributions from all selected addons into a single bag."""
+def collect_all(
+    template_config: TemplateConfig,
+    addon_configs: list[AddonConfig],
+) -> Contributions:
+    """Merge contributions from the template and all selected addons."""
     c = Contributions()
+
+    # Templates
+    c.dirs.extend(template_config.dirs)
+    c.files.extend(template_config.files)
+    c.compose_services.extend(template_config.compose_services)
+    c.compose_volumes.extend(template_config.compose_volumes)
+    c.env_vars.extend(template_config.env_vars)
+    c.deps.extend(template_config.deps)
+    c.dev_deps.extend(template_config.dev_deps)
+    # Note: just_recipes are NOT collected here from template_config —
+    # generate_all reads template_cfg.just_recipes directly to avoid duplication.
+    for inj in template_config.injections:
+        inj.addon_id = "template"
+        c.injections.append(inj)
+
+    # Addons
     for addon in addon_configs:
         c.files.extend(addon.files)
         c.compose_services.extend(addon.compose_services)
@@ -33,7 +52,7 @@ def collect_contributions(addon_configs: list[AddonConfig]) -> Contributions:
         for inj in addon.injections:
             inj.addon_id = addon.id
             c.injections.append(inj)
-    # Store the actual addon configs for post_apply hooks
+
     c._addon_configs = addon_configs
     return c
 
@@ -42,43 +61,52 @@ def apply_contributions(
     ctx: Context,
     contributions: Contributions,
     extension_points: dict[str, ExtensionPoint],
-    render_vars: dict[str, str],
+    render_vars: dict[str, object],
 ) -> None:
     """
     Modify the generated project directory in-place according to the contributions.
-    Assumes the template apply functions have already placed all base files.
+    Assumes the common files have already been placed (via _common/apply.py).
     """
     project_dir = ctx.project_dir
 
-    # --- Pre‑render dynamic fields in compose services ---
+    for d in contributions.dirs:
+        dest = d.replace("{{pkg_name}}", str(render_vars["pkg_name"]))
+        ctx.create_dir(dest)
+
+    # Pre-render dynamic fields in compose services
+    pkg_name = str(render_vars["pkg_name"])
     for svc in contributions.compose_services:
         if svc.command and "{{pkg_name}}" in svc.command:
-            svc.command = svc.command.replace("{{pkg_name}}", render_vars["pkg_name"])
+            svc.command = svc.command.replace("{{pkg_name}}", pkg_name)
         if svc.environment:
             svc.environment = {
-                k: v.replace("{{pkg_name}}", render_vars["pkg_name"]) if isinstance(v, str) else v
+                k: v.replace("{{pkg_name}}", pkg_name) if isinstance(v, str) else v
                 for k, v in svc.environment.items()
             }
         if svc.develop_watch:
             for watch in svc.develop_watch:
                 if "path" in watch and isinstance(watch["path"], str):
-                    watch["path"] = watch["path"].replace("{{pkg_name}}", render_vars["pkg_name"])
+                    watch["path"] = watch["path"].replace("{{pkg_name}}", pkg_name)
 
     for fc in contributions.files:
-        dest = fc.dest.replace("{{pkg_name}}", render_vars["pkg_name"])
+        dest = fc.dest.replace("{{pkg_name}}", pkg_name)
         if fc.content is not None:
-            ctx.write_file(dest, fc.content)
+            if fc.template:
+                # Render inline content through Jinja2 using only **render_vars
+                string_env = make_env()
+                rendered = string_env.from_string(fc.content).render(**render_vars)
+                ctx.write_file(dest, rendered)
+            else:
+                ctx.write_file(dest, fc.content)
         elif fc.source is not None:
             src_path = Path(fc.source)
             if not src_path.is_absolute():
                 raise ValueError(f"source path for {fc.dest} is not absolute")
             if fc.template:
                 env = make_env(src_path.parent)
-                content = env.get_template(src_path.name).render(
-                    name=ctx.name,
-                    pkg_name=ctx.pkg_name,
-                    template=ctx.template,
-                )
+                # Use only **render_vars — never mix explicit kwargs with **render_vars
+                # as render_vars already contains "name", "pkg_name", "template", etc.
+                content = env.get_template(src_path.name).render(**render_vars)
                 ctx.write_file(dest, content)
             else:
                 ctx.copy_file(src_path, dest)
@@ -108,9 +136,8 @@ def _apply_injections_rendered(
     project_dir: Path,
     injections: list[Injection],
     extension_points: dict[str, ExtensionPoint],
-    render_vars: dict[str, str],
+    render_vars: dict[str, object],
 ) -> None:
-    """Group and apply injections, rendering file paths with pkg_name."""
     by_point: dict[str, list[str]] = {}
     for inj in injections:
         by_point.setdefault(inj.point, []).append(inj.content)
@@ -119,7 +146,7 @@ def _apply_injections_rendered(
         if point_name not in extension_points:
             continue
         ep = extension_points[point_name]
-        rel_path = ep.file.replace("{{pkg_name}}", render_vars["pkg_name"])
+        rel_path = ep.file.replace("{{pkg_name}}", str(render_vars["pkg_name"]))
         file_path = project_dir / rel_path
         _apply_to_file(file_path, ep, contents)
 
@@ -129,7 +156,6 @@ def _apply_to_file(
     ep: ExtensionPoint,
     contents: list[str],
 ) -> None:
-    """Perform the actual text injection for one extension point."""
     if not file_path.exists():
         return
     text = file_path.read_text(encoding="utf-8")

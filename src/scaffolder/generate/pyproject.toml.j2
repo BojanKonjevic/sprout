@@ -8,22 +8,7 @@ version = "0.1.0"
 description = ""
 requires-python = ">=3.14"
 dependencies = [
-[% if template == "fastapi" %]
-  "fastapi",
-  "uvicorn[standard]",
-  "sqlalchemy[asyncio]",
-  "alembic",
-  "asyncpg",
-  "pydantic-settings",
-  "passlib[bcrypt]",
-  "python-jose[cryptography]",
-  "email-validator",
-  "python-multipart",
-  "python-dotenv",
-[% else %]
-  "python-dotenv",
-[% endif %]
-[% for dep in extra_deps %]
+[% for dep in deps %]
   "(( dep ))",
 [% endfor %]
 ]
@@ -37,7 +22,7 @@ dev = [
   "mypy",
   "ruff>=0.4",
   "ipython",
-[% for dep in extra_dev_deps %]
+[% for dep in dev_deps %]
   "(( dep ))",
 [% endfor %]
 ]
@@ -60,17 +45,14 @@ select = ["E", "F", "I", "UP", "B", "ANN", "SIM"]
 [tool.mypy]
 strict = true
 [% if template == "fastapi" %]
-
 [[tool.mypy.overrides]]
 module = ["jose.*", "passlib.*"]
 ignore_missing_imports = true
 ignore_errors = true
 [% endif %]
 [% if "celery" in addons %]
-
 [[tool.mypy.overrides]]
 module = ["celery.*"]
 ignore_missing_imports = true
 ignore_errors = true
 [% endif %]
-

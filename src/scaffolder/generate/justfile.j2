@@ -16,29 +16,9 @@ fix:
     uv run ruff format .
 check:
     uv run mypy src/
-run:
-    [% if template == "fastapi" -%]uv run uvicorn (( pkg_name )).main:app --reload
-migrate msg="":
-    uv run alembic revision --autogenerate -m "{{msg}}"
-upgrade: wait-db
-    uv run alembic upgrade head
-downgrade:
-    uv run alembic downgrade -1
-wait-db:
-    uv run python scripts/wait_db.py
-db-create:
-    docker compose up -d db
-    just wait-db
-    docker compose exec db createdb -U postgres (( name ))
-    docker compose exec db createdb -U postgres (( name ))_test
-    just upgrade
-db-reset:
-    docker compose exec db dropdb -U postgres --if-exists (( name ))
-    docker compose exec db dropdb -U postgres --if-exists (( name ))_test
-    just db-create
-[% else -%]
-    uv run python -m (( pkg_name ))
-[%- endif %]
+[% for recipe in template_just_recipes %]
+(( recipe ))
+[% endfor %]
 [% for recipe in extra_just_recipes %]
 (( recipe ))
 [% endfor %]

@@ -3,6 +3,7 @@
 
 import importlib.util
 import os
+import secrets
 import shutil
 import sys
 from collections.abc import Callable
@@ -17,7 +18,7 @@ from scaffolder.generate import generate_all
 from scaffolder.git import init_and_commit
 from scaffolder.prompt import TEMPLATES, prompt_addons, prompt_template
 from scaffolder.rollback import scaffold_or_rollback
-from scaffolder.ui import confirm, error, info, step, success
+from scaffolder.ui import confirm, info, success
 
 app = typer.Typer(
     name="jumpstart",
@@ -68,7 +69,6 @@ def scaffold(
 
     template = prompt_template()
 
-    # Load available addons from their new declarative configs
     from scaffolder.addons._registry import get_available_addons
 
     available = get_available_addons()
@@ -99,42 +99,39 @@ def scaffold(
         project_dir.mkdir()
         os.chdir(project_dir)
 
-        # 1. Common base files (.gitignore, .envrc, etc.)
         _load_apply(scaffolder_root / "templates" / "_common" / "apply.py")(ctx)
 
-        # 2. Template‑specific files (fastapi or blank) – still imperative
-        _load_apply(scaffolder_root / "templates" / template / "apply.py")(ctx)
-
-        # 3. Declarative layer – wire in addon contributions
+        from scaffolder.assembler import apply_contributions, collect_all
         from scaffolder.templates._load_config import load_template_config
-        from scaffolder.assembler import collect_contributions, apply_contributions
 
         template_config = load_template_config(scaffolder_root, template)
+        selected_addon_configs = [cfg for cfg in available if cfg.id in addons]
 
-        # Filter to only the addons the user selected
-        selected_configs = [cfg for cfg in available if cfg.id in addons]
+        secret_key = secrets.token_hex(32) if template == "fastapi" else None
 
-        contributions = collect_contributions(selected_configs)
+        contributions = collect_all(template_config, selected_addon_configs)
 
-        # Now apply them (files, injections, compose merging, env vars)
+        # Build render_vars once — never pass name= explicitly alongside **render_vars
+        render_vars: dict[str, object] = {
+            "name": name,
+            "pkg_name": pkg_name,
+            "template": template,
+            "secret_key": secret_key or "change-me-run-openssl-rand-hex-32",
+            "has_postgres": template == "fastapi",
+            "has_redis": "redis" in addons,
+        }
+
         apply_contributions(
             ctx,
             contributions,
             template_config.extension_points,
-            render_vars={
-                "name": name,
-                "pkg_name": pkg_name,
-                "template": template,
-            },
+            render_vars,
         )
 
-        # 4. Generate pyproject.toml & justfile using the collected deps/recipes
-        generate_all(ctx, contributions)
+        generate_all(ctx, template_config, contributions)
 
-        # 5. Git init + initial commit
         init_and_commit(project_dir)
 
-    # Post‑scaffold summary
     print()
     success(
         f"Project '{name}' ready!  ({template}"
@@ -186,10 +183,8 @@ def cmd_list_templates() -> None:
 @app.command("list-addons")
 def cmd_list_addons() -> None:
     """Show available addons."""
-    from scaffolder.ui import CYAN, DIM, RESET
-
-    scaffolder_root = Path(os.environ.get("SCAFFOLDER_ROOT", Path(__file__).parent))
     from scaffolder.addons._registry import get_available_addons
+    from scaffolder.ui import CYAN, DIM, RESET
 
     configs = get_available_addons()
     print()

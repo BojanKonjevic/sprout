@@ -8,8 +8,8 @@ from __future__ import annotations
 
 import sys
 
-from scaffolder.ui import BOLD, CYAN, DIM, GREEN, MAGENTA, RESET, YELLOW, warn
 from scaffolder.schema import AddonConfig
+from scaffolder.ui import BOLD, CYAN, DIM, GREEN, MAGENTA, RESET, YELLOW, warn
 
 TEMPLATES: list[tuple[str, str]] = [
     ("blank", "dev tools only  (pytest, ruff, mypy)"),

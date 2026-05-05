@@ -6,8 +6,8 @@ from pathlib import Path
 
 import typer
 
-from scaffolder.ui import error, info
 from scaffolder.schema import AddonConfig
+from scaffolder.ui import error, info
 
 
 def validate_name(name: str, pkg_name: str) -> None:

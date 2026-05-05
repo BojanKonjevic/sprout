@@ -1,4 +1,5 @@
 from pathlib import Path
+
 from scaffolder.schema import AddonConfig, FileContribution
 
 _HERE = Path(__file__).parent.absolute()
