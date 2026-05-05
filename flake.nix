@@ -22,6 +22,7 @@
           export UV_PYTHON_DOWNLOADS=never
           export UV_PYTHON="${python}/bin/python3"
           export PATH="${python}/bin:${pkgs.uv}/bin:$PATH"
+          export UV_PROJECT_ENVIRONMENT="$HOME/.cache/sprout-venv"
           exec uv run --project "${self}" python3 "${self}/main.py" "$@"
         '');
       };
