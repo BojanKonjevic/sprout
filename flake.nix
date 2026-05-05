@@ -13,7 +13,7 @@
   }:
     flake-utils.lib.eachDefaultSystem (system: let
       pkgs = nixpkgs.legacyPackages.${system};
-      python = pkgs.python3.withPackages (ps: [ps.jinja2 ps.questionary]);
+      python = pkgs.python3.withPackages (ps: [ps.jinja2]);
     in {
       apps.default = {
         type = "app";
