@@ -1,28 +1,31 @@
+set windows-shell := ["cmd", "/C"]
+
 default:
     @just --list
 
 test:
-    pytest -v
+    uv run pytest -v
 cov:
-    pytest --cov=src --cov-report=term-missing
+    uv run pytest --cov=src --cov-report=term-missing
 lint:
-    ruff check .
+    uv run ruff check .
 fmt:
-    ruff format .
+    uv run ruff format .
+fix:
+    uv run ruff check --fix .
+    uv run ruff format .
 check:
-    mypy src/
+    uv run mypy src/
 run:
-    [% if template == "fastapi" -%]uvicorn (( pkg_name )).main:app --reload
+    [% if template == "fastapi" -%]uv run uvicorn (( pkg_name )).main:app --reload
 migrate msg="":
-    alembic revision --autogenerate -m "{{msg}}"
+    uv run alembic revision --autogenerate -m "{{msg}}"
 upgrade: wait-db
-    alembic upgrade head
+    uv run alembic upgrade head
 downgrade:
-    alembic downgrade -1
+    uv run alembic downgrade -1
 wait-db:
-    @echo "Waiting for postgres..."
-    @until docker compose exec -T db pg_isready -U postgres; do sleep 1; done
-    @echo "Postgres is ready."
+    uv run python scripts/wait_db.py
 db-create:
     docker compose up -d db
     just wait-db
@@ -34,7 +37,7 @@ db-reset:
     docker compose exec db dropdb -U postgres --if-exists (( name ))_test
     just db-create
 [% else -%]
-    python -m (( pkg_name ))
+    uv run python -m (( pkg_name ))
 [%- endif %]
 [% for recipe in extra_just_recipes %]
 (( recipe ))

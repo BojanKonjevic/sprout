@@ -142,7 +142,7 @@ def extra_deps() -> list[str]:
 def extra_just_recipes(ctx: Context) -> str:
     return """\
 sentry-test:
-    python -c "from (( pkg_name )).integrations.sentry import init_sentry; import os; init_sentry(); print('Sentry DSN:', os.environ.get('SENTRY_DSN') or 'not set')" # noqa: E501
+    uv run python -c "from (( pkg_name )).integrations.sentry import init_sentry; import os; init_sentry(); print('Sentry DSN:', os.environ.get('SENTRY_DSN') or 'not set')"  # noqa: E501
 sentry-check:
-    python -c "import sentry_sdk; print('sentry-sdk', sentry_sdk.VERSION)"
+    uv run python -c "import sentry_sdk; print('sentry-sdk', sentry_sdk.VERSION)"
 """

@@ -13,7 +13,7 @@
   }:
     flake-utils.lib.eachDefaultSystem (system: let
       pkgs = nixpkgs.legacyPackages.${system};
-      python = pkgs.python3.withPackages (ps: [ps.jinja2]);
+      python = pkgs.python3.withPackages (ps: [ps.jinja2 ps.questionary]);
     in {
       apps.default = {
         type = "app";
@@ -21,7 +21,6 @@
           export SCAFFOLDER_ROOT="${self}"
           export UV_PYTHON_DOWNLOADS=never
           export UV_PYTHON="${python}/bin/python3"
-          # Ensure python3 is available in the script's PATH
           export PATH="${python}/bin:${pkgs.uv}/bin:$PATH"
           exec python3 "${self}/main.py" "$@"
         '');
@@ -39,7 +38,6 @@
         shellHook = ''
           export UV_PYTHON_DOWNLOADS=never
           export UV_PYTHON="${python}/bin/python3"
-          # Install pip dependencies into .venv
           uv sync --quiet
           export PYTHONPATH="$PWD/src:$(echo $PWD/.venv/lib/python3.*/site-packages)"
         '';

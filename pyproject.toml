@@ -7,7 +7,7 @@ name = "sprout"
 version = "0.1.0"
 description = "Python project scaffolder"
 requires-python = ">=3.13"
-dependencies = ["jinja2"]
+dependencies = ["jinja2", "questionary"]
 
 [dependency-groups]
 dev = [

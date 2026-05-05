@@ -16,7 +16,6 @@ def apply(ctx: Context) -> None:
     files = ctx.scaffolder_root / "templates" / "fastapi" / "files"
     pkg_rel = f"src/{ctx.pkg_name}"
 
-    # Create all required directories
     for d in [
         f"{pkg_rel}/api/routes",
         f"{pkg_rel}/core",
@@ -27,10 +26,10 @@ def apply(ctx: Context) -> None:
         "tests/unit",
         "tests/integration",
         "alembic/versions",
+        "scripts",
     ]:
         ctx.create_dir(d)
 
-    # Package init
     ctx.write_file(f"{pkg_rel}/__init__.py", f'"""{ctx.name}"""\n\n__version__ = "0.1.0"\n')
     for subpkg in ["api", "api/routes", "core", "db", "schemas"]:
         ctx.write_file(f"{pkg_rel}/{subpkg}/__init__.py", "")
@@ -42,7 +41,6 @@ def apply(ctx: Context) -> None:
         "#   from .user import User\n",
     )
 
-    # Verbatin copies (no templating)
     verbatim = [
         ("lifecycle.py", f"{pkg_rel}/lifecycle.py"),
         ("exceptions.py", f"{pkg_rel}/exceptions.py"),
@@ -56,14 +54,14 @@ def apply(ctx: Context) -> None:
         ("alembic/script.py.mako", "alembic/script.py.mako"),
         ("tests/test_health.py", "tests/integration/test_health.py"),
         (".env.example", ".env.example"),
+        ("scripts/wait_db.py", "scripts/wait_db.py"),
     ]
     for src_name, dest_rel in verbatim:
         ctx.copy_file(files / src_name, dest_rel)
 
-    # Render templates
     env = make_env(files)
 
-    def _render(src_name: str, dest_rel: str, **extra_vars) -> None:
+    def _render(src_name: str, dest_rel: str, **extra_vars: object) -> None:
         content = env.get_template(src_name).render(
             name=ctx.name, pkg_name=ctx.pkg_name, **extra_vars
         )
@@ -75,8 +73,7 @@ def apply(ctx: Context) -> None:
     _render("alembic/env.py.j2", "alembic/env.py")
     _render("tests/conftest.py.j2", "tests/conftest.py")
 
-    # .env with real secret key – .env.example keeps placeholder
     secret_key = secrets.token_hex(32)
     _render(".env.j2", ".env", secret_key=secret_key)
 
-    success("src/, tests/, alembic/")
+    success("src/, tests/, alembic/, scripts/")

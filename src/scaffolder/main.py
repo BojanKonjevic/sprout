@@ -1,5 +1,6 @@
 import importlib.util
 import os
+import shutil
 import sys
 from collections.abc import Callable
 from pathlib import Path
@@ -10,7 +11,6 @@ from scaffolder.git import init_and_commit
 from scaffolder.prompt import TEMPLATES, prompt_addons, prompt_template
 from scaffolder.rollback import scaffold_or_rollback
 from scaffolder.ui import confirm, error, info, step, success
-from scaffolder.validate import check_preflight, validate_addon_deps, validate_name
 
 USAGE = """\
 Usage:
@@ -36,15 +36,12 @@ def _load_addon_registry(scaffolder_root: Path) -> list[tuple[str, str, list[str
 
 
 def _parse_args() -> tuple[str | None, bool, bool, bool]:
-    """Returns (project_name, dry_run, list_templates, list_addons)."""
     argv = sys.argv[1:]
     dry_run = "--dry-run" in argv
     list_templates = "--list-templates" in argv
     list_addons = "--list-addons" in argv
-
     positional = [a for a in argv if not a.startswith("--")]
     name = positional[0] if positional else None
-
     return name, dry_run, list_templates, list_addons
 
 
@@ -86,6 +83,9 @@ def main() -> None:
         sys.exit(1)
 
     pkg_name = name.replace("-", "_")
+
+    from scaffolder.validate import check_preflight, validate_addon_deps, validate_name
+
     validate_name(name, pkg_name)
 
     if not dry_run:
@@ -140,7 +140,6 @@ def main() -> None:
             _load_apply(addon_apply)(ctx)
 
         generate_all(ctx)
-
         init_and_commit(project_dir)
 
     print()
@@ -148,8 +147,17 @@ def main() -> None:
     print()
     print(f"  cd {name}")
 
-    # Print available just commands
     _print_commands(template, pkg_name, addons)
+
+    # Platform-specific activation note
+    if sys.platform == "win32":
+        print()
+        info("Your environment is managed by uv — no activation needed.")
+        info("Every 'just' command runs through 'uv run' and syncs automatically.")
+    elif not shutil.which("direnv"):
+        print()
+        info("direnv not detected — run 'uv sync' once to set up your environment,")
+        info("or install direnv and run 'direnv allow' for auto-activation on cd.")
 
     if "docker" in addons:
         print()
@@ -169,7 +177,6 @@ def main() -> None:
 
 
 def _print_commands(template: str, pkg_name: str, addons: list[str]) -> None:
-    """Print a short list of available just commands."""
     BOLD = "\033[1m"
     CYAN = "\033[0;36m"
     RESET = "\033[0m"
