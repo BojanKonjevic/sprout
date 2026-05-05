@@ -27,14 +27,6 @@
       };
 
       devShells.default = pkgs.mkShell {
-        packages = with pkgs; [
-          python
-          uv
-          just
-          ruff
-          mypy
-          git
-        ];
         shellHook = ''
           export UV_PYTHON_DOWNLOADS=never
           export UV_PYTHON="${python}/bin/python3"

@@ -366,8 +366,6 @@ nix develop
 python main.py my-project
 ```
 
-The dev shell provides Python 3.14, uv, just, ruff, and mypy.
-
 ---
 
 ## License
