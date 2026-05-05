@@ -4,7 +4,7 @@ import shutil
 import sys
 from collections.abc import Callable
 from pathlib import Path
-from typing import Annotated, Optional
+from typing import Annotated
 
 import typer
 
@@ -15,7 +15,11 @@ from scaffolder.prompt import TEMPLATES, prompt_addons, prompt_template
 from scaffolder.rollback import scaffold_or_rollback
 from scaffolder.ui import confirm, error, info, step, success
 
-app = typer.Typer(add_completion=False, pretty_exceptions_enable=False)
+app = typer.Typer(
+    name="sprout",
+    add_completion=False,
+    pretty_exceptions_enable=False,
+)
 
 
 def _load_apply(path: Path) -> Callable[[Context], None]:

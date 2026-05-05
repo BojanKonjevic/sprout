@@ -20,6 +20,8 @@ TEMPLATE_REQUIRES: dict[str, list[str]] = {
     "fastapi": ["docker"],
 }
 
+_REGISTRY_REQUIRES: dict[str, list[str]] = {}
+
 # ── ANSI helpers ─────────────────────────────────────────────────────────
 
 _HIDE_CURSOR = "\033[?25l"
@@ -289,9 +291,9 @@ def _tui_multi(
 
 
 def _fallback_template() -> str:
-    from scaffolder.ui import CYAN, DIM, RESET, warn
+    from scaffolder.ui import CYAN, DIM, RESET
 
-    print(f"\n  Select a base template:\n")
+    print("\n  Select a base template:\n")
     for i, (name, desc) in enumerate(TEMPLATES, 1):
         print(f"    {CYAN}{i}){RESET} {name:<10} {DIM}—{RESET} {desc}")
     print()
@@ -312,7 +314,7 @@ def _fallback_addons(
     requires_map: dict[str, list[str]],
     always_locked_names: set[str],
 ) -> list[str]:
-    from scaffolder.ui import CYAN, DIM, RESET, warn
+    from scaffolder.ui import CYAN, DIM, RESET
 
     if not items:
         return list(always_locked_names)
