@@ -43,7 +43,7 @@ def scaffold(
     dry_run: Annotated[bool, typer.Option("--dry-run", help="Preview without writing")] = False,
 ) -> None:
     """Scaffold a new Python project from a template."""
-    scaffolder_root = Path(os.environ.get("SCAFFOLDER_ROOT", Path(__file__).parent.parent.parent))
+    scaffolder_root = Path(os.environ.get("SCAFFOLDER_ROOT", Path(__file__).parent))
     pkg_name = name.replace("-", "_")
 
     from scaffolder.validate import check_preflight, validate_addon_deps, validate_name
@@ -153,7 +153,7 @@ def cmd_list_addons() -> None:
     """Show available addons."""
     from scaffolder.ui import CYAN, DIM, RESET
 
-    scaffolder_root = Path(os.environ.get("SCAFFOLDER_ROOT", Path(__file__).parent.parent.parent))
+    scaffolder_root = Path(os.environ.get("SCAFFOLDER_ROOT", Path(__file__).parent))
     addons = _load_addon_registry(scaffolder_root)
     print()
     for addon_id, desc, requires in addons:

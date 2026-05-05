@@ -18,7 +18,6 @@
       apps.default = {
         type = "app";
         program = toString (pkgs.writeShellScript "jumpstart" ''
-          export SCAFFOLDER_ROOT="${self}"
           export UV_PYTHON_DOWNLOADS=never
           export UV_PYTHON="${python}/bin/python3"
           export PATH="${python}/bin:${pkgs.uv}/bin:$PATH"
