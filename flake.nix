@@ -23,7 +23,7 @@
           export UV_PYTHON="${python}/bin/python3"
           export PATH="${python}/bin:${pkgs.uv}/bin:$PATH"
           export UV_PROJECT_ENVIRONMENT="$HOME/.cache/sprout-venv"
-          exec uv run --project "${self}" python3 "${self}/main.py" "$@"
+          exec uv run --no-project --with "jinja2" --with "typer" python3 "${self}/main.py" "$@"
         '');
       };
 
