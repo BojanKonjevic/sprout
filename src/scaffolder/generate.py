@@ -1,60 +1,43 @@
-import importlib.util
-from pathlib import Path
-from typing import Any
+"""Generate pyproject.toml and justfile from template + addon contributions."""
 
-from scaffolder.context import Context
+from __future__ import annotations
+
+from pathlib import Path
+from typing import TYPE_CHECKING
+
 from scaffolder.render import make_env
 from scaffolder.ui import step, success
 
-
-def _collect(ctx: Context) -> dict[str, Any]:
-    deps: list[str] = []
-    dev_deps: list[str] = []
-    just_recipes: list[str] = []
-
-    string_env = make_env()
-    render_vars = {"name": ctx.name, "pkg_name": ctx.pkg_name, "template": ctx.template}
-
-    for addon_id in ctx.addons:
-        addon_apply = ctx.scaffolder_root / "addons" / addon_id / "apply.py"
-        if not addon_apply.exists():
-            continue
-        mod = _load_addon_module(addon_apply)
-
-        if hasattr(mod, "extra_deps"):
-            deps.extend(mod.extra_deps())
-        if hasattr(mod, "extra_dev_deps"):
-            dev_deps.extend(mod.extra_dev_deps())
-        if hasattr(mod, "extra_just_recipes"):
-            raw = mod.extra_just_recipes(ctx)
-            rendered = string_env.from_string(raw).render(**render_vars)
-            just_recipes.append(rendered)
-
-    return {
-        "extra_deps": deps,
-        "extra_dev_deps": dev_deps,
-        "extra_just_recipes": just_recipes,
-    }
+if TYPE_CHECKING:
+    from scaffolder.context import Context
+    from scaffolder.schema import Contributions
 
 
-def _load_addon_module(addon_apply: Path) -> Any:
-    spec = importlib.util.spec_from_file_location("addon_apply", addon_apply)
-    mod = importlib.util.module_from_spec(spec)  # type: ignore[arg-type]
-    spec.loader.exec_module(mod)  # type: ignore[union-attr]
-    return mod
-
-
-def generate_all(ctx: Context) -> None:
+def generate_all(ctx: Context, contributions: Contributions) -> None:
     step("Generating config files")
     env = make_env(ctx.scaffolder_root / "generate")
-    contributions = _collect(ctx)
 
-    vars: dict[str, Any] = {
+    # Render just recipes that still contain custom delimiters (( pkg_name ))
+    string_env = make_env()  # uses default (( )) delimiters
+    rendered_recipes = []
+    for raw in contributions.just_recipes:
+        rendered_recipes.append(
+            string_env.from_string(raw).render(
+                name=ctx.name,
+                pkg_name=ctx.pkg_name,
+                template=ctx.template,
+                addons=ctx.addons,
+            )
+        )
+
+    vars: dict = {
         "name": ctx.name,
         "pkg_name": ctx.pkg_name,
         "template": ctx.template,
         "addons": ctx.addons,
-        **contributions,
+        "extra_deps": contributions.deps,
+        "extra_dev_deps": contributions.dev_deps,
+        "extra_just_recipes": rendered_recipes,
     }
 
     for template_name, dest_rel in [

@@ -1,9 +1,11 @@
-"""Dry-run mode — faithful preview by running apply functions with a recording context."""
+"""Dry‑run mode – faithful preview by running apply functions with a recording context."""
+
+from __future__ import annotations
 
 from typing import Any
 
 from scaffolder.context import Context
-from scaffolder.generate import _collect, generate_all
+from scaffolder.generate import generate_all
 from scaffolder.ui import (
     BOLD,
     DIM,
@@ -23,14 +25,12 @@ class DryRunContext(Context):
     recorded_files: list[tuple[str, str, str]]  # (action, path, details)
 
     def __init__(self, **kwargs: Any) -> None:
-        # Let the dataclass init do its thing (including setting _dry_run to False)
         super().__init__(**kwargs)
         self.recorded_files = []
-        # Force dry_run to be True by setting the private attribute directly
         object.__setattr__(self, "_dry_run", True)
 
     @property
-    def dry_run(self) -> bool:  # always True
+    def dry_run(self) -> bool:
         return True
 
     # Recording hooks
@@ -51,38 +51,52 @@ class DryRunContext(Context):
         self.recorded_files.append((action, path, description))
 
 
-def run_dry(ctx_template: Context) -> None:
+def run_dry(ctx: Context) -> None:
     """Scaffold with a DryRunContext and display the resulting manifest."""
     dry_ctx = DryRunContext(
-        name=ctx_template.name,
-        pkg_name=ctx_template.pkg_name,
-        template=ctx_template.template,
-        addons=ctx_template.addons,
-        scaffolder_root=ctx_template.scaffolder_root,
-        project_dir=ctx_template.project_dir,
+        name=ctx.name,
+        pkg_name=ctx.pkg_name,
+        template=ctx.template,
+        addons=ctx.addons,
+        scaffolder_root=ctx.scaffolder_root,
+        project_dir=ctx.project_dir,
     )
 
-    # Import apply loaders (private helpers from main)
+    # 1. Common files (still imperative)
     from scaffolder.main import _load_apply
 
-    # Run common, template, and addon applies – exactly as a real scaffold would
     sr = dry_ctx.scaffolder_root
     _load_apply(sr / "templates" / "_common" / "apply.py")(dry_ctx)
+
+    # 2. Template files (imperative)
     _load_apply(sr / "templates" / dry_ctx.template / "apply.py")(dry_ctx)
-    for addon_id in dry_ctx.addons:
-        addon_apply = sr / "addons" / addon_id / "apply.py"
-        if addon_apply.exists():
-            _load_apply(addon_apply)(dry_ctx)
 
-    # Generate config files (pyproject.toml, justfile)
-    generate_all(dry_ctx)
+    # 3. Declarative addon contributions (NEW)
+    from scaffolder.addons._registry import get_available_addons
+    from scaffolder.templates._load_config import load_template_config
+    from scaffolder.assembler import collect_contributions, apply_contributions
 
-    # Collect extra deps / just recipes
-    contributions = _collect(dry_ctx)
-    base_deps = _base_deps(dry_ctx)
+    available = get_available_addons()
+    selected = [cfg for cfg in available if cfg.id in dry_ctx.addons]
+    contributions = collect_contributions(selected)
 
-    # ── Display the manifest ───────────────────────────────────────────
+    template_config = load_template_config(sr, dry_ctx.template)
 
+    apply_contributions(
+        dry_ctx,
+        contributions,
+        template_config.extension_points,
+        render_vars={
+            "name": ctx.name,
+            "pkg_name": ctx.pkg_name,
+            "template": ctx.template,
+        },
+    )
+
+    # 4. Generate config files (pyproject.toml / justfile)
+    generate_all(dry_ctx, contributions)
+
+    # ---- Display the manifest (unchanged from original) ----
     label = dry_ctx.template
     if dry_ctx.addons:
         label += " + " + ", ".join(dry_ctx.addons)
@@ -105,14 +119,14 @@ def run_dry(ctx_template: Context) -> None:
     print()
     dry_section("Dependencies (pyproject.toml)")
     dry_section("  runtime")
-    for dep in base_deps:
+    for dep in _base_deps(dry_ctx):
         dry_dep(dep)
-    for dep in contributions["extra_deps"]:
+    for dep in contributions.deps:
         dry_dep(dep, "addon")
     dry_section("  dev")
     for dep in ["pytest>=8", "pytest-cov", "pytest-asyncio", "httpx", "mypy", "ipython"]:
         dry_dep(dep)
-    for dep in contributions["extra_dev_deps"]:
+    for dep in contributions.dev_deps:
         dry_dep(dep, "addon")
 
     dry_header("Generated config files")

@@ -1,4 +1,3 @@
-# src/scaffolder/prompt.py
 """Interactive prompt – arrow keys, space to toggle, enter to confirm.
 
 Works on Unix (termios) and Windows (msvcrt). Falls back to number
@@ -10,6 +9,7 @@ from __future__ import annotations
 import sys
 
 from scaffolder.ui import BOLD, CYAN, DIM, GREEN, MAGENTA, RESET, YELLOW, warn
+from scaffolder.schema import AddonConfig
 
 TEMPLATES: list[tuple[str, str]] = [
     ("blank", "dev tools only  (pytest, ruff, mypy)"),
@@ -367,15 +367,17 @@ def prompt_template() -> str:
     return _fallback_template()
 
 
-def prompt_addons(available: list[tuple[str, str, list[str]]], template: str = "") -> list[str]:
+def prompt_addons(available: list[AddonConfig], template: str = "") -> list[str]:
     if not available:
         return []
 
-    items = [(aid, desc) for aid, desc, _ in available]
-    requires_map = {aid: reqs for aid, _, reqs in available}
-    name_to_idx = {aid: i for i, (aid, _) in enumerate(items)}
+    items = [(cfg.id, cfg.description) for cfg in available]
+    requires_map = {cfg.id: cfg.requires for cfg in available}
+    name_to_idx = {cfg.id: i for i, cfg in enumerate(available)}
 
     always_locked: set[int] = set()
+    # TEMPLATE_REQUIRES is still needed; we'll load template config the same way.
+    # For now, keep the dict.
     for req in TEMPLATE_REQUIRES.get(template, []):
         if req in name_to_idx:
             always_locked.add(name_to_idx[req])

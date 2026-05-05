@@ -1,4 +1,3 @@
-# src/scaffolder/render.py
 """Central Jinja2 environment factory.
 
 All templates and addons use make_env() so the custom delimiters

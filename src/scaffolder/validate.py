@@ -1,4 +1,3 @@
-# src/scaffolder/validate.py
 import re
 import shutil
 import subprocess
@@ -8,6 +7,7 @@ from pathlib import Path
 import typer
 
 from scaffolder.ui import error, info
+from scaffolder.schema import AddonConfig
 
 
 def validate_name(name: str, pkg_name: str) -> None:
@@ -67,8 +67,8 @@ def _check_git() -> list[str]:
     return []
 
 
-def validate_addon_deps(addons: list[str], available: list[tuple[str, str, list[str]]]) -> None:
-    requires_map = {aid: reqs for aid, _, reqs in available}
+def validate_addon_deps(addons: list[str], available: list[AddonConfig]) -> None:
+    requires_map = {cfg.id: cfg.requires for cfg in available}
     for addon in addons:
         for req in requires_map.get(addon, []):
             if req not in addons:

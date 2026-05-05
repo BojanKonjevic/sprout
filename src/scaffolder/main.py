@@ -1,3 +1,6 @@
+#!/usr/bin/env python3
+"""jumpstart CLI – scaffold Python projects with optional addons."""
+
 import importlib.util
 import os
 import shutil
@@ -24,18 +27,11 @@ app = typer.Typer(
 
 
 def _load_apply(path: Path) -> Callable[[Context], None]:
+    """Import and return the apply() function from an old‑style apply.py file."""
     spec = importlib.util.spec_from_file_location("apply", path)
     mod = importlib.util.module_from_spec(spec)  # type: ignore[arg-type]
     spec.loader.exec_module(mod)  # type: ignore[union-attr]
     return mod.apply  # type: ignore[no-any-return]
-
-
-def _load_addon_registry(scaffolder_root: Path) -> list[tuple[str, str, list[str]]]:
-    registry_path = scaffolder_root / "addons" / "_registry.py"
-    spec = importlib.util.spec_from_file_location("_registry", registry_path)
-    mod = importlib.util.module_from_spec(spec)  # type: ignore[arg-type]
-    spec.loader.exec_module(mod)  # type: ignore[union-attr]
-    return mod.ADDONS  # type: ignore[no-any-return]
 
 
 @app.callback(invoke_without_command=True)
@@ -71,9 +67,13 @@ def scaffold(
         check_preflight()
 
     template = prompt_template()
-    available_addons = _load_addon_registry(scaffolder_root)
-    addons = prompt_addons(available_addons, template)
-    validate_addon_deps(addons, available_addons)
+
+    # Load available addons from their new declarative configs
+    from scaffolder.addons._registry import get_available_addons
+
+    available = get_available_addons()
+    addons = prompt_addons(available, template)
+    validate_addon_deps(addons, available)
 
     ctx = Context(
         name=name,
@@ -85,17 +85,9 @@ def scaffold(
     )
 
     if dry_run:
-        from scaffolder.dryrun import DryRunContext, run_dry
+        from scaffolder.dryrun import run_dry
 
-        dry_ctx = DryRunContext(
-            name=name,
-            pkg_name=pkg_name,
-            template=template,
-            addons=addons,
-            scaffolder_root=scaffolder_root,
-            project_dir=Path.cwd() / name,
-        )
-        run_dry(dry_ctx)
+        run_dry(ctx)
         return
 
     if not confirm(ctx):
@@ -107,22 +99,48 @@ def scaffold(
         project_dir.mkdir()
         os.chdir(project_dir)
 
+        # 1. Common base files (.gitignore, .envrc, etc.)
         _load_apply(scaffolder_root / "templates" / "_common" / "apply.py")(ctx)
+
+        # 2. Template‑specific files (fastapi or blank) – still imperative
         _load_apply(scaffolder_root / "templates" / template / "apply.py")(ctx)
 
-        for addon_id in addons:
-            addon_apply = scaffolder_root / "addons" / addon_id / "apply.py"
-            if not addon_apply.exists():
-                error(f"Addon '{addon_id}' has no apply.py — skipping.")
-                continue
-            step(f"Applying addon: {addon_id}")
-            _load_apply(addon_apply)(ctx)
+        # 3. Declarative layer – wire in addon contributions
+        from scaffolder.templates._load_config import load_template_config
+        from scaffolder.assembler import collect_contributions, apply_contributions
 
-        generate_all(ctx)
+        template_config = load_template_config(scaffolder_root, template)
+
+        # Filter to only the addons the user selected
+        selected_configs = [cfg for cfg in available if cfg.id in addons]
+
+        contributions = collect_contributions(selected_configs)
+
+        # Now apply them (files, injections, compose merging, env vars)
+        apply_contributions(
+            ctx,
+            contributions,
+            template_config.extension_points,
+            render_vars={
+                "name": name,
+                "pkg_name": pkg_name,
+                "template": template,
+            },
+        )
+
+        # 4. Generate pyproject.toml & justfile using the collected deps/recipes
+        generate_all(ctx, contributions)
+
+        # 5. Git init + initial commit
         init_and_commit(project_dir)
 
+    # Post‑scaffold summary
     print()
-    success(f"Project '{name}' ready!  ({template}{' + ' + ', '.join(addons) if addons else ''})")
+    success(
+        f"Project '{name}' ready!  ({template}"
+        + (" + " + ", ".join(addons) if addons else "")
+        + ")"
+    )
     print()
     print(f"  cd {name}")
 
@@ -171,11 +189,13 @@ def cmd_list_addons() -> None:
     from scaffolder.ui import CYAN, DIM, RESET
 
     scaffolder_root = Path(os.environ.get("SCAFFOLDER_ROOT", Path(__file__).parent))
-    addons = _load_addon_registry(scaffolder_root)
+    from scaffolder.addons._registry import get_available_addons
+
+    configs = get_available_addons()
     print()
-    for addon_id, desc, requires in addons:
-        req_suffix = f"  {DIM}requires: {', '.join(requires)}{RESET}" if requires else ""
-        print(f"  {CYAN}{addon_id:<20}{RESET}  {DIM}{desc}{RESET}{req_suffix}")
+    for cfg in configs:
+        req_suffix = f"  {DIM}requires: {', '.join(cfg.requires)}{RESET}" if cfg.requires else ""
+        print(f"  {CYAN}{cfg.id:<20}{RESET}  {DIM}{cfg.description}{RESET}{req_suffix}")
     print()
 
 
