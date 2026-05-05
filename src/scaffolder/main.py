@@ -4,6 +4,9 @@ import shutil
 import sys
 from collections.abc import Callable
 from pathlib import Path
+from typing import Annotated, Optional
+
+import typer
 
 from scaffolder.context import Context
 from scaffolder.generate import generate_all
@@ -12,12 +15,7 @@ from scaffolder.prompt import TEMPLATES, prompt_addons, prompt_template
 from scaffolder.rollback import scaffold_or_rollback
 from scaffolder.ui import confirm, error, info, step, success
 
-USAGE = """\
-Usage:
-  sprout <project-name> [--dry-run]
-  sprout --list-templates
-  sprout --list-addons
-"""
+app = typer.Typer(add_completion=False, pretty_exceptions_enable=False)
 
 
 def _load_apply(path: Path) -> Callable[[Context], None]:
@@ -35,53 +33,13 @@ def _load_addon_registry(scaffolder_root: Path) -> list[tuple[str, str, list[str
     return mod.ADDONS  # type: ignore[no-any-return]
 
 
-def _parse_args() -> tuple[str | None, bool, bool, bool]:
-    argv = sys.argv[1:]
-    dry_run = "--dry-run" in argv
-    list_templates = "--list-templates" in argv
-    list_addons = "--list-addons" in argv
-    positional = [a for a in argv if not a.startswith("--")]
-    name = positional[0] if positional else None
-    return name, dry_run, list_templates, list_addons
-
-
-def _cmd_list_templates() -> None:
-    from scaffolder.ui import CYAN, DIM, RESET
-
-    print()
-    for name, desc in TEMPLATES:
-        print(f"  {CYAN}{name:<12}{RESET}  {DIM}{desc}{RESET}")
-    print()
-
-
-def _cmd_list_addons(scaffolder_root: Path) -> None:
-    from scaffolder.ui import CYAN, DIM, RESET
-
-    addons = _load_addon_registry(scaffolder_root)
-    print()
-    for addon_id, desc, requires in addons:
-        req_suffix = f"  {DIM}requires: {', '.join(requires)}{RESET}" if requires else ""
-        print(f"  {CYAN}{addon_id:<20}{RESET}  {DIM}{desc}{RESET}{req_suffix}")
-    print()
-
-
-def main() -> None:
-    name, dry_run, list_templates, list_addons = _parse_args()
-
+@app.command()
+def scaffold(
+    name: Annotated[str, typer.Argument(help="Project name to scaffold")],
+    dry_run: Annotated[bool, typer.Option("--dry-run", help="Preview without writing")] = False,
+) -> None:
+    """Scaffold a new Python project from a template."""
     scaffolder_root = Path(os.environ.get("SCAFFOLDER_ROOT", Path(__file__).parent.parent.parent))
-
-    if list_templates:
-        _cmd_list_templates()
-        return
-
-    if list_addons:
-        _cmd_list_addons(scaffolder_root)
-        return
-
-    if not name:
-        print(USAGE)
-        sys.exit(1)
-
     pkg_name = name.replace("-", "_")
 
     from scaffolder.validate import check_preflight, validate_addon_deps, validate_name
@@ -121,7 +79,7 @@ def main() -> None:
 
     if not confirm(ctx):
         print("\n  \033[0;33mAborted.\033[0m\n")
-        sys.exit(0)
+        raise typer.Exit(0)
 
     project_dir = ctx.project_dir
     with scaffold_or_rollback(project_dir):
@@ -149,7 +107,6 @@ def main() -> None:
 
     _print_commands(template, pkg_name, addons)
 
-    # Platform-specific activation note
     if sys.platform == "win32":
         print()
         info("Your environment is managed by uv — no activation needed.")
@@ -174,6 +131,35 @@ def main() -> None:
         print()
         info("GitHub Actions CI is set up at .github/workflows/ci.yml")
         print("    Push to GitHub and it will lint, type-check, and test automatically.")
+
+
+@app.command("list-templates")
+def cmd_list_templates() -> None:
+    """Show available project templates."""
+    from scaffolder.ui import CYAN, DIM, RESET
+
+    print()
+    for name, desc in TEMPLATES:
+        print(f"  {CYAN}{name:<12}{RESET}  {DIM}{desc}{RESET}")
+    print()
+
+
+@app.command("list-addons")
+def cmd_list_addons() -> None:
+    """Show available addons."""
+    from scaffolder.ui import CYAN, DIM, RESET
+
+    scaffolder_root = Path(os.environ.get("SCAFFOLDER_ROOT", Path(__file__).parent.parent.parent))
+    addons = _load_addon_registry(scaffolder_root)
+    print()
+    for addon_id, desc, requires in addons:
+        req_suffix = f"  {DIM}requires: {', '.join(requires)}{RESET}" if requires else ""
+        print(f"  {CYAN}{addon_id:<20}{RESET}  {DIM}{desc}{RESET}{req_suffix}")
+    print()
+
+
+def main() -> None:
+    app()
 
 
 def _print_commands(template: str, pkg_name: str, addons: list[str]) -> None:

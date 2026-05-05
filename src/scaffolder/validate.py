@@ -1,41 +1,33 @@
+# src/scaffolder/validate.py
 import re
 import shutil
 import subprocess
 import sys
 from pathlib import Path
 
-from scaffolder.ui import error, info
+import typer
 
-# ---------------------------------------------------------------------------
-# Name validation
-# ---------------------------------------------------------------------------
+from scaffolder.ui import error, info
 
 
 def validate_name(name: str, pkg_name: str) -> None:
     if Path(name).exists():
         error(f"Directory '{name}' already exists.")
-        sys.exit(1)
+        raise typer.Exit(1)
 
     if not re.match(r"^[a-zA-Z][a-zA-Z0-9_-]*$", name):
         error(f"Invalid project name '{name}'.")
         info("Must start with a letter; only letters, numbers, hyphens, and underscores allowed.")
-        sys.exit(1)
+        raise typer.Exit(1)
 
     if pkg_name in sys.stdlib_module_names:
         error(f"'{pkg_name}' shadows a Python stdlib module.")
         info(f"Suggestion: '{name}-app'  or  'my-{name}'")
-        sys.exit(1)
-
-
-# ---------------------------------------------------------------------------
-# Preflight checks — run before touching the filesystem
-# ---------------------------------------------------------------------------
+        raise typer.Exit(1)
 
 
 def check_preflight() -> None:
-    """Check all required tools are present. Prints all failures at once."""
     failures: list[str] = []
-
     failures += _check_uv()
     failures += _check_git()
 
@@ -44,7 +36,7 @@ def check_preflight() -> None:
         for msg in failures:
             error(msg)
         print()
-        sys.exit(1)
+        raise typer.Exit(1)
 
 
 def _check_uv() -> list[str]:
@@ -53,7 +45,6 @@ def _check_uv() -> list[str]:
             "'uv' is not installed or not in PATH.\n"
             "     Install: curl -LsSf https://astral.sh/uv/install.sh | sh"
         ]
-
     try:
         out = subprocess.run(
             ["uv", "--version"], capture_output=True, text=True, check=True
@@ -65,7 +56,6 @@ def _check_uv() -> list[str]:
                 return [f"uv {parts[1]} is too old (need >= 0.4).\n     Upgrade: uv self update"]
     except (subprocess.CalledProcessError, ValueError):
         pass
-
     return []
 
 
@@ -77,24 +67,10 @@ def _check_git() -> list[str]:
     return []
 
 
-def validate_addon_deps(
-    selected: list[str],
-    available: list[tuple[str, str, list[str]]],
-) -> None:
-    """Fail fast if any selected addon is missing a required dependency."""
-    requires_map = {addon_id: reqs for addon_id, _, reqs in available}
-    errors: list[str] = []
-
-    for addon_id in selected:
-        for req in requires_map.get(addon_id, []):
-            if req not in selected:
-                errors.append(
-                    f"Addon '{addon_id}' requires '{req}' — add it or remove '{addon_id}'."
-                )
-
-    if errors:
-        print()
-        for msg in errors:
-            error(msg)
-        print()
-        sys.exit(1)
+def validate_addon_deps(addons: list[str], available: list[tuple[str, str, list[str]]]) -> None:
+    requires_map = {aid: reqs for aid, _, reqs in available}
+    for addon in addons:
+        for req in requires_map.get(addon, []):
+            if req not in addons:
+                error(f"Addon '{addon}' requires '{req}', but it wasn't selected.")
+                raise typer.Exit(1)

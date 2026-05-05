@@ -7,7 +7,7 @@ name = "sprout"
 version = "0.1.0"
 description = "Python project scaffolder"
 requires-python = ">=3.13"
-dependencies = ["jinja2"]
+dependencies = ["jinja2", "typer>=0.12"]
 
 [dependency-groups]
 dev = [
@@ -31,3 +31,6 @@ select = ["E", "F", "I", "UP", "B", "SIM"]
 
 [tool.mypy]
 strict = true
+
+[project.scripts]
+sprout = "scaffolder.main:main"

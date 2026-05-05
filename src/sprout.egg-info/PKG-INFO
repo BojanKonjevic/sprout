@@ -4,3 +4,4 @@ Version: 0.1.0
 Summary: Python project scaffolder
 Requires-Python: >=3.13
 Requires-Dist: jinja2
+Requires-Dist: typer>=0.12
