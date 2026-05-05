@@ -1,4 +1,4 @@
-# sprout
+# jumpstart
 
 A Python project scaffolder (the tool itself uses Nix for development, but the projects it generates are plain Python + uv).  
 Generates a new project from a template with optional addons, then drops you into a working dev shell.
@@ -13,20 +13,20 @@ For the `fastapi` template you will also need **Docker**.
 
 ## Usage
 
-Clone the repository and install sprout:
+Clone the repository and install jumpstart:
 
 ```bash
-git clone https://github.com/bojankonjevic/sprout.git
-cd sprout
+git clone https://github.com/bojankonjevic/jumpstart.git
+cd jumpstart
 uv sync
 
 ## Options
 
 ```
-sprout <project-name>       scaffold a new project
-sprout <project-name> --dry-run   preview what would be created
-sprout --list-templates     show available templates
-sprout --list-addons        show available addons
+jumpstart <project-name>       scaffold a new project
+jumpstart <project-name> --dry-run   preview what would be created
+jumpstart --list-templates     show available templates
+jumpstart --list-addons        show available addons
 ```
 
 ## Templates

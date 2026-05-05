@@ -16,7 +16,7 @@ from scaffolder.rollback import scaffold_or_rollback
 from scaffolder.ui import confirm, error, info, step, success
 
 app = typer.Typer(
-    name="sprout",
+    name="jumpstart",
     add_completion=False,
     pretty_exceptions_enable=False,
 )

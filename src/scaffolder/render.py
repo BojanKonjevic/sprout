@@ -11,7 +11,7 @@ import jinja2
 
 
 def make_env(loader_path: Path | None = None) -> jinja2.Environment:
-    """Return a Jinja2 Environment with sprout's custom delimiters.
+    """Return a Jinja2 Environment with jumpstart's custom delimiters.
 
     Pass loader_path to load templates from a directory.
     Omit it (or pass None) when rendering strings directly.

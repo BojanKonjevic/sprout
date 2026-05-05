@@ -1,5 +1,5 @@
 {
-  description = "sprout — Python project scaffolder";
+  description = "jumpstart — Python project scaffolder";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -17,12 +17,12 @@
     in {
       apps.default = {
         type = "app";
-        program = toString (pkgs.writeShellScript "sprout" ''
+        program = toString (pkgs.writeShellScript "jumpstart" ''
           export SCAFFOLDER_ROOT="${self}"
           export UV_PYTHON_DOWNLOADS=never
           export UV_PYTHON="${python}/bin/python3"
           export PATH="${python}/bin:${pkgs.uv}/bin:$PATH"
-          export UV_PROJECT_ENVIRONMENT="$HOME/.cache/sprout-venv"
+          export UV_PROJECT_ENVIRONMENT="$HOME/.cache/jumpstart-venv"
           exec uv run --no-project --with "jinja2" --with "typer" python3 "${self}/main.py" "$@"
         '');
       };

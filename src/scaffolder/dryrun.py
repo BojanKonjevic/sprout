@@ -124,7 +124,7 @@ def run_dry(ctx_template: Context) -> None:
         "direnv allow",
         "git init",
         "git add .",
-        'git commit -m "init: scaffold from sprout"',
+        'git commit -m "init: scaffold from jumpstart"',
     ]:
         dry_cmd(cmd)
 

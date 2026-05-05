@@ -3,9 +3,9 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "sprout"
+name = "jumpstart-cli"
 version = "0.1.0"
-description = "Python project scaffolder"
+description = "Scaffold your next Python project with one command"
 requires-python = ">=3.13"
 dependencies = ["jinja2", "typer>=0.12"]
 
@@ -33,4 +33,5 @@ select = ["E", "F", "I", "UP", "B", "SIM"]
 strict = true
 
 [project.scripts]
-sprout = "scaffolder.main:main"
+jumpstart = "scaffolder.main:main"
+js = "scaffolder.main:main"
