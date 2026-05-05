@@ -1,12 +1,4 @@
 # Auto-activate the project environment
-# NixOS: make sure the C++ standard library can be found by greenlet
-if [[ -f /etc/NIXOS ]]; then
-  if [[ -n "${NIX_CC_WRAPPER_TARGET_HOST:-}" ]]; then
-    export LD_LIBRARY_PATH="${NIX_CC_WRAPPER_TARGET_HOST}/lib:${LD_LIBRARY_PATH}"
-  else
-    export LD_LIBRARY_PATH="/run/current-system/sw/lib:${LD_LIBRARY_PATH}"
-  fi
-fi
 uv sync --python-preference only-system --quiet
 source .venv/bin/activate
 export PYTHONPATH="$PWD/src"
