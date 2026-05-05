@@ -54,7 +54,7 @@ def _check_uv() -> list[str]:
             major, minor, *_ = (int(x) for x in parts[1].split("."))
             if (major, minor) < (0, 4):
                 return [f"uv {parts[1]} is too old (need >= 0.4).\n     Upgrade: uv self update"]
-    except (subprocess.CalledProcessError, ValueError):
+    except subprocess.CalledProcessError, ValueError:
         pass
     return []
 

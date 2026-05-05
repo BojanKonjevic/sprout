@@ -300,7 +300,7 @@ def _fallback_template() -> str:
     while True:
         try:
             choice = input("  Template [1/2]: ").strip().lower()
-        except (EOFError, KeyboardInterrupt):
+        except EOFError, KeyboardInterrupt:
             print()
             sys.exit(0)
         for key, (name, _) in enumerate(TEMPLATES, 1):
@@ -328,7 +328,7 @@ def _fallback_addons(
     while True:
         try:
             raw = input("  Addons [e.g. 1 3, or leave blank]: ").strip()
-        except (EOFError, KeyboardInterrupt):
+        except EOFError, KeyboardInterrupt:
             print()
             sys.exit(0)
 

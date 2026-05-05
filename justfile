@@ -3,7 +3,13 @@ lint:
 fmt:
     ruff format .
 check:
-    mypy src/
+    uv run mypy src/
 fix:
     ruff check --fix .
     ruff format .
+publish:
+    rm -f dist/*.tar.gz dist/*.whl
+    uv build
+    uv publish
+    uv tool install --reinstall jumpstart-cli
+

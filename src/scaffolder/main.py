@@ -3,6 +3,7 @@ import os
 import shutil
 import sys
 from collections.abc import Callable
+from importlib.metadata import version as get_version
 from pathlib import Path
 from typing import Annotated
 
@@ -35,6 +36,22 @@ def _load_addon_registry(scaffolder_root: Path) -> list[tuple[str, str, list[str
     mod = importlib.util.module_from_spec(spec)  # type: ignore[arg-type]
     spec.loader.exec_module(mod)  # type: ignore[union-attr]
     return mod.ADDONS  # type: ignore[no-any-return]
+
+
+@app.callback(invoke_without_command=True)
+def main_callback(
+    ctx: typer.Context,
+    version: Annotated[
+        bool,
+        typer.Option("--version", help="Show the version and exit"),
+    ] = False,
+) -> None:
+    if version:
+        print(get_version("jumpstart-cli"))
+        raise typer.Exit()
+    if ctx.invoked_subcommand is None:
+        print(app.get_help(ctx))  # type: ignore[attr-defined]
+        raise typer.Exit()
 
 
 @app.command()

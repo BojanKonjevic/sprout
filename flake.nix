@@ -13,7 +13,7 @@
   }:
     flake-utils.lib.eachDefaultSystem (system: let
       pkgs = nixpkgs.legacyPackages.${system};
-      python = pkgs.python3;
+      python = pkgs.python314;
     in {
       apps.default = {
         type = "app";
@@ -22,7 +22,7 @@
           export UV_PYTHON="${python}/bin/python3"
           export PATH="${python}/bin:${pkgs.uv}/bin:$PATH"
           export UV_PROJECT_ENVIRONMENT="$HOME/.cache/jumpstart-venv"
-          exec uv run --no-project --with "jinja2" --with "typer" python3 "${self}/main.py" "$@"
+          exec uv run --no-project --with "jinja2" --with "typer" python314 "${self}/main.py" "$@"
         '');
       };
 

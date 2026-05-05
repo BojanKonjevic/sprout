@@ -115,7 +115,7 @@ def confirm(ctx: object) -> bool:
 
     try:
         raw = input(f"  Proceed? {DIM}[Y/n]{RESET}  ").strip().lower()
-    except (EOFError, KeyboardInterrupt):
+    except EOFError, KeyboardInterrupt:
         print()
         return False
 
@@ -144,7 +144,7 @@ class _Spinner:
             sys.stdout.flush()
             time.sleep(self._INTERVAL)
 
-    def __enter__(self) -> "_Spinner":
+    def __enter__(self) -> _Spinner:
         if self._tty:
             self._thread.start()
         else:
