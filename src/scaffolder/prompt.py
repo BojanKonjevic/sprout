@@ -98,7 +98,11 @@ _LOCKED = f"{YELLOW}[~]{RESET}"
 # ── Single selection (template) ───────────────────────────────────────────────
 
 
-def _render_single(items: list[tuple[str, str]], cursor: int) -> int:
+def _render_single(
+    items: list[tuple[str, str]],
+    cursor: int,
+    default_name: str | None = None,
+) -> int:
     lines = 0
     for i, (name, desc) in enumerate(items):
         if i == cursor:
@@ -107,7 +111,8 @@ def _render_single(items: list[tuple[str, str]], cursor: int) -> int:
         else:
             prefix = f"  {_SPACER}  "
             label = name
-        sys.stdout.write(f"{prefix}{label:<12}{DIM}  {desc}{RESET}\n")
+        default_marker = f"  {DIM}(default){RESET}" if name == default_name else ""
+        sys.stdout.write(f"{prefix}{label:<12}{DIM}  {desc}{RESET}{default_marker}\n")
         lines += 1
     sys.stdout.write(f"\n  {DIM}↑↓ move · space / enter select{RESET}\n")
     lines += 2
@@ -115,13 +120,24 @@ def _render_single(items: list[tuple[str, str]], cursor: int) -> int:
     return lines
 
 
-def _tui_single(prompt: str, items: list[tuple[str, str]]) -> str:
+def _tui_single(
+    prompt: str,
+    items: list[tuple[str, str]],
+    default: str | None = None,
+) -> str:
+    # Start cursor at the default template if one is configured.
+    cursor = 0
+    if default is not None:
+        for i, (name, _) in enumerate(items):
+            if name == default:
+                cursor = i
+                break
+
     print(f"\n  {BOLD}{prompt}{RESET}\n")
     sys.stdout.write(_HIDE_CURSOR)
 
-    cursor = 0
     n_items = len(items)
-    rendered = _render_single(items, cursor)
+    rendered = _render_single(items, cursor, default_name=default)
 
     try:
         while True:
@@ -138,7 +154,7 @@ def _tui_single(prompt: str, items: list[tuple[str, str]]) -> str:
                 sys.exit(0)
 
             _clear_lines(rendered)
-            rendered = _render_single(items, cursor)
+            rendered = _render_single(items, cursor, default_name=default)
     finally:
         sys.stdout.write(_SHOW_CURSOR)
         sys.stdout.flush()
@@ -158,8 +174,10 @@ def _render_multi(
     selected: set[int],
     locked: set[int] | None = None,
     flash: str = "",
+    default_selected: set[int] | None = None,
 ) -> int:
     locked = locked or set()
+    default_selected = default_selected or set()
     lines = 0
     for i, (name, desc) in enumerate(items):
         if i in locked:
@@ -182,7 +200,17 @@ def _render_multi(
             if reqs and i not in locked
             else ""
         )
-        sys.stdout.write(f"{prefix}{tick} {label:<18}{DIM}  {desc}{RESET}{extra}\n")
+        # Show a dim "(default)" hint only on items that are pre-selected from
+        # config but not locked by the template — so the user knows why it's
+        # already checked without being told it's mandatory.
+        default_hint = (
+            f"  {DIM}(default){RESET}"
+            if i in default_selected and i not in locked
+            else ""
+        )
+        sys.stdout.write(
+            f"{prefix}{tick} {label:<18}{DIM}  {desc}{RESET}{extra}{default_hint}\n"
+        )
         lines += 1
 
     if flash:
@@ -203,13 +231,17 @@ def _tui_multi(
     items: list[tuple[str, str]],
     requires_map: dict[str, list[str]],
     always_locked: set[int],
+    default_selected: set[int] | None = None,
 ) -> list[str]:
     print(f"\n  {BOLD}{prompt}{RESET}\n")
     sys.stdout.write(_HIDE_CURSOR)
 
     cursor = 0
     n_items = len(items)
+    # Start with always_locked plus any config defaults.
     selected: set[int] = set(always_locked)
+    if default_selected:
+        selected |= default_selected
     name_to_idx = {name: i for i, (name, _) in enumerate(items)}
 
     global _REGISTRY_REQUIRES
@@ -226,7 +258,9 @@ def _tui_multi(
 
     flash = ""
     locked = _compute_locked()
-    rendered = _render_multi(items, cursor, selected, locked, flash)
+    rendered = _render_multi(
+        items, cursor, selected, locked, flash, default_selected=default_selected
+    )
 
     try:
         while True:
@@ -272,7 +306,14 @@ def _tui_multi(
 
             locked = _compute_locked()
             _clear_lines(rendered)
-            rendered = _render_multi(items, cursor, selected, locked, flash)
+            rendered = _render_multi(
+                items,
+                cursor,
+                selected,
+                locked,
+                flash,
+                default_selected=default_selected,
+            )
     finally:
         sys.stdout.write(_SHOW_CURSOR)
         sys.stdout.flush()
@@ -291,50 +332,91 @@ def _tui_multi(
 # ── Fallback (non-tty) ────────────────────────────────────────────────────────
 
 
-def _fallback_template() -> str:
+def _fallback_template(default: str | None = None) -> str:
     print("\n  Select a base template:\n")
     for i, (name, desc) in enumerate(TEMPLATES, 1):
-        print(f"    {CYAN}{i}){RESET} {name:<10} {DIM}—{RESET} {desc}")
+        marker = f"  {DIM}(default){RESET}" if name == default else ""
+        print(f"    {CYAN}{i}){RESET} {name:<10} {DIM}—{RESET} {desc}{marker}")
     print()
+
+    hint = "/".join(str(k) for k in range(1, len(TEMPLATES) + 1))
+    if default is not None:
+        hint += f", or enter for {default}"
+
     while True:
         try:
-            choice = input("  Template [1/2]: ").strip().lower()
+            choice = input(f"  Template [{hint}]: ").strip().lower()
         except EOFError, KeyboardInterrupt:
             print()
             sys.exit(0)
+
+        if not choice and default is not None:
+            return default
+
         for key, (name, _) in enumerate(TEMPLATES, 1):
             if choice in (str(key), name):
                 return name
-        warn("Please enter 1 or 2.")
+        warn("Please enter a number or template name.")
 
 
 def _fallback_addons(
     items: list[tuple[str, str]],
     requires_map: dict[str, list[str]],
     always_locked_names: set[str],
+    default_addon_names: set[str] | None = None,
 ) -> list[str]:
     if not items:
         return list(always_locked_names)
 
+    default_addon_names = default_addon_names or set()
+    has_defaults = bool(default_addon_names - always_locked_names)
+
     print(
-        f"\n  Select addons: {DIM}(space-separated numbers, or enter to skip){RESET}\n"
+        f"\n  Select addons: {DIM}("
+        + (
+            "enter for defaults"
+            if has_defaults
+            else "space-separated numbers, or enter to skip"
+        )
+        + f"){RESET}\n"
     )
     for i, (addon_id, desc) in enumerate(items, 1):
-        locked = " (required)" if addon_id in always_locked_names else ""
-        print(f"    {CYAN}{i}){RESET} {addon_id:<18} {DIM}—{RESET} {desc}{locked}")
+        locked_mark = (
+            f" {DIM}(required){RESET}" if addon_id in always_locked_names else ""
+        )
+        default_mark = (
+            f" {DIM}(default){RESET}"
+            if addon_id in default_addon_names and addon_id not in always_locked_names
+            else ""
+        )
+        print(
+            f"    {CYAN}{i}){RESET} {addon_id:<18} {DIM}—{RESET} {desc}{locked_mark}{default_mark}"
+        )
     print()
+
+    # Build the default selection list: locked first, then config defaults.
+    def _build_defaults() -> list[str]:
+        result: list[str] = list(always_locked_names)
+        for name in default_addon_names:
+            if name not in result:
+                result.append(name)
+        return result
 
     while True:
         try:
-            raw = input("  Addons [e.g. 1 3, or leave blank]: ").strip()
+            raw = input(
+                "  Addons [e.g. 1 3"
+                + (", or enter for defaults" if has_defaults else ", or leave blank")
+                + "]: "
+            ).strip()
         except EOFError, KeyboardInterrupt:
             print()
             sys.exit(0)
 
-        selected: list[str] = list(always_locked_names)
         if not raw:
-            return selected
+            return _build_defaults()
 
+        selected: list[str] = list(always_locked_names)
         valid = True
         for token in raw.split():
             if not token.isdigit():
@@ -360,13 +442,17 @@ def _fallback_addons(
 # ── Public API ────────────────────────────────────────────────────────────────
 
 
-def prompt_template() -> str:
+def prompt_template(default: str | None = None) -> str:
     if _tty_available():
-        return _tui_single("Select a base template:", TEMPLATES)
-    return _fallback_template()
+        return _tui_single("Select a base template:", TEMPLATES, default=default)
+    return _fallback_template(default=default)
 
 
-def prompt_addons(available: list[AddonConfig], template: str = "") -> list[str]:
+def prompt_addons(
+    available: list[AddonConfig],
+    template: str = "",
+    default_addons: list[str] | None = None,
+) -> list[str]:
     if not available:
         return []
 
@@ -379,6 +465,33 @@ def prompt_addons(available: list[AddonConfig], template: str = "") -> list[str]
         if req in name_to_idx:
             always_locked.add(name_to_idx[req])
 
+    # Resolve config defaults → indices, then auto-select their direct requirements
+    # (matching the same one-level resolution the TUI does on manual toggle).
+    default_selected: set[int] = set()
+    if default_addons:
+        for addon_id in default_addons:
+            if addon_id in name_to_idx:
+                default_selected.add(name_to_idx[addon_id])
+        # One-level requirement resolution so e.g. celery→redis is pre-filled.
+        for idx in list(default_selected):
+            for req in requires_map.get(items[idx][0], []):
+                if req in name_to_idx:
+                    default_selected.add(name_to_idx[req])
+
     if _tty_available():
-        return _tui_multi("Select addons:", items, requires_map, always_locked)
-    return _fallback_addons(items, requires_map, {items[i][0] for i in always_locked})
+        return _tui_multi(
+            "Select addons:",
+            items,
+            requires_map,
+            always_locked,
+            default_selected=default_selected,
+        )
+
+    always_locked_names = {items[i][0] for i in always_locked}
+    default_addon_names = {items[i][0] for i in default_selected}
+    return _fallback_addons(
+        items,
+        requires_map,
+        always_locked_names,
+        default_addon_names=default_addon_names,
+    )

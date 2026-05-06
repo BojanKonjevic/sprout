@@ -13,6 +13,7 @@ from typing import Annotated
 
 import typer
 
+from scaffolder.config import load_config
 from scaffolder.context import Context
 from scaffolder.generate import generate_all
 from scaffolder.git import init_and_commit
@@ -51,12 +52,14 @@ def _scaffold(
     if not dry_run:
         check_preflight()
 
-    template = prompt_template()
+    cfg = load_config()
+
+    template = prompt_template(default=cfg.default_template)
 
     from scaffolder.addons._registry import get_available_addons
 
     available = get_available_addons()
-    addons = prompt_addons(available, template)
+    addons = prompt_addons(available, template, default_addons=cfg.default_addons)
     validate_addon_deps(addons, available)
 
     ctx = Context(
@@ -89,7 +92,7 @@ def _scaffold(
         from scaffolder.templates._load_config import load_template_config
 
         template_config = load_template_config(scaffolder_root, template)
-        selected_addon_configs = [cfg for cfg in available if cfg.id in addons]
+        selected_addon_configs = [a for a in available if a.id in addons]
 
         secret_key = secrets.token_hex(32) if template == "fastapi" else None
 
@@ -179,10 +182,46 @@ def cmd_list_addons() -> None:
     print()
 
 
+@app.command("config")
+def cmd_config() -> None:
+    """Show the config file path and current settings."""
+    from scaffolder.config import config_path, load_config
+    from scaffolder.ui import BOLD, CYAN, DIM, GREEN, RESET
+
+    path = config_path()
+    cfg = load_config()
+
+    print(f"\n  {BOLD}Config file:{RESET}  {CYAN}{path}{RESET}")
+    if path.exists():
+        print(f"  {GREEN}✓{RESET}  {DIM}file exists{RESET}")
+    else:
+        print(f"  {DIM}file does not exist — using built-in defaults{RESET}")
+
+    print()
+    template_val = (
+        f"{cfg.default_template}" if cfg.default_template else f"{DIM}not set{RESET}"
+    )
+    addons_val = (
+        ", ".join(cfg.default_addons) if cfg.default_addons else f"{DIM}not set{RESET}"
+    )
+    print(f"  default_template  =  {template_val}")
+    print(f"  default_addons    =  {addons_val}")
+
+    if not path.exists():
+        print()
+        print(f"  {DIM}Create the file to set your own defaults.  Example:{RESET}")
+        print()
+        print(f'  {DIM}  default_template = "fastapi"{RESET}')
+        print(f'  {DIM}  default_addons = ["docker", "github-actions"]{RESET}')
+
+    print()
+
+
 def main() -> None:
     if len(sys.argv) == 1 or (
         len(sys.argv) > 1
-        and sys.argv[1] not in {"list-templates", "list-addons", "--version", "--help"}
+        and sys.argv[1]
+        not in {"list-templates", "list-addons", "config", "--version", "--help"}
         and not sys.argv[1].startswith("-")
     ):
         import argparse
