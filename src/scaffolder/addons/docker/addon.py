@@ -25,7 +25,7 @@ config = AddonConfig(
         ),
     ],
     just_recipes=[
-        "docker-up:\n    docker compose up --build",
-        "docker-down:\n    docker compose down",
+        "# build and start all services\ndocker-up:\n    docker compose up --build",
+        "# stop all services\ndocker-down:\n    docker compose down",
     ],
 )

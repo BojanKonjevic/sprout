@@ -28,4 +28,5 @@ def make_env(loader_path: Path | None = None) -> jinja2.Environment:
         variable_end_string="))",
         block_start_string="[%",
         block_end_string="%]",
+        line_comment_prefix=None,
     )

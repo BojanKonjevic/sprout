@@ -141,7 +141,7 @@ def scaffold(
     print()
     print(f"  cd {name}")
 
-    _print_commands(template, pkg_name, addons)
+    _print_commands_from_just(project_dir)
 
     if sys.platform == "win32":
         print()
@@ -151,17 +151,6 @@ def scaffold(
         print()
         info("direnv not detected — run 'uv sync' once to set up your environment,")
         info("or install direnv and run 'direnv allow' for auto-activation on cd.")
-
-    if "docker" in addons:
-        print()
-        info("Docker:")
-        print("    just docker-up    # build + start all services")
-        print("    just docker-down  # stop")
-
-    if "redis" in addons:
-        print()
-        info("Redis:")
-        print("    just redis-up     # start redis via compose")
 
     if "github-actions" in addons:
         print()
@@ -198,43 +187,11 @@ def main() -> None:
     app()
 
 
-def _print_commands(template: str, pkg_name: str, addons: list[str]) -> None:
-    BOLD = "\033[1m"
-    CYAN = "\033[0;36m"
-    RESET = "\033[0m"
+def _print_commands_from_just(project_dir: Path) -> None:
+    import shutil
+    import subprocess
 
-    def cmd(label: str, desc: str) -> None:
-        print(f"  {CYAN}{label:<26}{RESET} {desc}")
-
+    if not shutil.which("just"):
+        return
     print()
-    print(f"  {BOLD}Available commands:{RESET}")
-    print()
-    cmd("just test", "run tests")
-    cmd("just cov", "coverage report")
-    cmd("just lint", "ruff check")
-    cmd("just fmt", "ruff format")
-    cmd("just check", "mypy")
-
-    if template == "fastapi":
-        cmd("just run", "start dev server (--reload)")
-        cmd('just migrate "msg"', "generate migration")
-        cmd("just upgrade", "apply migrations")
-        cmd("just downgrade", "roll back one step")
-        cmd("just db-create", "start db + create databases + migrate")
-        cmd("just db-reset", "drop + recreate databases")
-    else:
-        cmd("just run", "run the app")
-
-    for addon_id in addons:
-        if addon_id in ("docker", "redis"):
-            cmd(f"just {addon_id}-up", f"start {addon_id} (compose)")
-            cmd(f"just {addon_id}-down", f"stop {addon_id} (compose)")
-        if addon_id == "celery":
-            cmd("just celery-up", "start celery worker + beat")
-            cmd("just celery-down", "stop celery")
-            cmd("just celery-flower", "flower monitoring UI")
-            cmd("just celery-logs", "tail worker logs")
-        if addon_id == "sentry":
-            cmd("just sentry-check", "verify SDK version")
-            cmd("just sentry-test", "check DSN is set")
-    print()
+    subprocess.run(["just", "--list"], cwd=project_dir)

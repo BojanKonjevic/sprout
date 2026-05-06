@@ -153,13 +153,13 @@ config = TemplateConfig(
     ],
     dev_deps=[],
     just_recipes=[
-        "run:\n    uv run uvicorn (( pkg_name )).main:app --reload",
-        'migrate msg="":\n    uv run alembic revision --autogenerate -m "{{msg}}"',
-        "upgrade: wait-db\n    uv run alembic upgrade head",
-        "downgrade:\n    uv run alembic downgrade -1",
-        "wait-db:\n    uv run python scripts/wait_db.py",
-        "db-create:\n    docker compose up -d db\n    just wait-db\n    docker compose exec db createdb -U postgres (( name ))\n    docker compose exec db createdb -U postgres (( name ))_test\n    just upgrade",
-        "db-reset:\n    docker compose exec db dropdb -U postgres --if-exists (( name ))\n    docker compose exec db dropdb -U postgres --if-exists (( name ))_test\n    just db-create",
+        "# start dev server with auto-reload\nrun:\n    uv run uvicorn (( pkg_name )).main:app --reload",
+        '# generate a new alembic migration\nmigrate msg="":\n    uv run alembic revision --autogenerate -m "{{msg}}"',
+        "# apply all pending migrations\nupgrade: wait-db\n    uv run alembic upgrade head",
+        "# roll back one migration\ndowngrade:\n    uv run alembic downgrade -1",
+        "# wait until postgres is ready\nwait-db:\n    uv run python scripts/wait_db.py",
+        "# start db container, create databases, run migrations\ndb-create:\n    docker compose up -d db\n    just wait-db\n    docker compose exec db createdb -U postgres (( name ))\n    docker compose exec db createdb -U postgres (( name ))_test\n    just upgrade",
+        "# drop and recreate both databases\ndb-reset:\n    docker compose exec db dropdb -U postgres --if-exists (( name ))\n    docker compose exec db dropdb -U postgres --if-exists (( name ))_test\n    just db-create",
     ],
     env_vars=[
         EnvVar(

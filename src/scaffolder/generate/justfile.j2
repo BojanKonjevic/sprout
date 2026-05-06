@@ -3,17 +3,23 @@ set windows-shell := ["cmd", "/C"]
 default:
     @just --list
 
+# run tests
 test:
     uv run pytest -v
+# run tests with coverage report
 cov:
     uv run pytest --cov=src --cov-report=term-missing
+# lint with ruff
 lint:
     uv run ruff check .
+# format with ruff
 fmt:
     uv run ruff format .
+# lint --fix + format
 fix:
     uv run ruff check --fix .
     uv run ruff format .
+# type-check with mypy
 check:
     uv run mypy src/
 [% for recipe in template_just_recipes %]

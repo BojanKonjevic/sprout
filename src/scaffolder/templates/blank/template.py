@@ -46,6 +46,6 @@ config = TemplateConfig(
     deps=["python-dotenv"],
     dev_deps=[],
     just_recipes=[
-        "run:\n    uv run python -m (( pkg_name ))",
+        "# run the app\nrun:\n    uv run python -m (( pkg_name ))",
     ],
 )
