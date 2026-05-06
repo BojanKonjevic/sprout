@@ -33,6 +33,12 @@ config = AddonConfig(
             ports=["6379:6379"],
             volumes=["redis-data:/data"],
             command="redis-server --appendonly yes",
+            healthcheck={
+                "test": ["CMD", "redis-cli", "ping"],
+                "interval": "1s",
+                "timeout": "3s",
+                "retries": 5,
+            },
         )
     ],
     compose_volumes=["redis-data"],

@@ -31,7 +31,9 @@ config = AddonConfig(
             command="celery -A {{pkg_name}}.tasks.celery_app worker --loglevel=info",
             env_file=[".env"],
             environment={"REDIS_URL": "redis://redis:6379/0"},
-            depends_on=["redis"],
+            depends_on={
+                "redis": {"condition": "service_healthy"},
+            },
             develop_watch=[{"action": "sync", "path": "./src", "target": "/app/src"}],
         ),
         ComposeService(
@@ -40,7 +42,9 @@ config = AddonConfig(
             command="celery -A {{pkg_name}}.tasks.celery_app beat --loglevel=info",
             env_file=[".env"],
             environment={"REDIS_URL": "redis://redis:6379/0"},
-            depends_on=["redis"],
+            depends_on={
+                "redis": {"condition": "service_healthy"},
+            },
             develop_watch=[{"action": "sync", "path": "./src", "target": "/app/src"}],
         ),
     ],

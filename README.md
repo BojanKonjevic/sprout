@@ -3,7 +3,7 @@
 A CLI that scaffolds a new Python project from a template with optional addons — sets up the package structure, dev tooling, config files, and an initial git commit, then tells you what to run next.
 
 ```
-jumpstart my-api
+jumpstart my-project
 ```
 
 ---
@@ -327,7 +327,7 @@ All generated projects come with a `justfile`. Run `just` with no arguments to l
 Pass `--dry-run` to preview everything that would happen without touching disk:
 
 ```
-jumpstart my-api --dry-run
+jumpstart my-project --dry-run
 ```
 
 Output shows every file that would be created or modified, every dependency that would be added to `pyproject.toml`, every `just` recipe, and every git command — then exits without writing anything.

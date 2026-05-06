@@ -219,6 +219,8 @@ def _merge_compose_services(project_dir: Path, services: list[ComposeService]) -
             block["depends_on"] = svc.depends_on
         if svc.develop_watch:
             block.setdefault("develop", {})["watch"] = svc.develop_watch  # type: ignore[index]
+        if svc.healthcheck:
+            block["healthcheck"] = svc.healthcheck
         existing[svc.name] = block
 
     compose_path.write_text(

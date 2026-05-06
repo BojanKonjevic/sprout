@@ -9,12 +9,18 @@ WORKDIR /app
 
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
+RUN addgroup --system app && adduser --system --ingroup app app
+
 COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev --no-install-project
 
 COPY src/ ./src/
 
 RUN uv sync --frozen --no-dev
+
+RUN chown -R app:app /app
+
+USER app
 
 ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONPATH="/app/src"

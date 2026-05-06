@@ -33,8 +33,9 @@ class ComposeService:
     environment: dict[str, str] = field(default_factory=dict)
     env_file: list[str] = field(default_factory=list)
     command: str | None = None
-    depends_on: list[str] = field(default_factory=list)
+    depends_on: list[str] | dict[str, dict[str, str]] = field(default_factory=list)
     develop_watch: list[dict[str, object]] = field(default_factory=list)
+    healthcheck: dict[str, object] | None = None
 
 
 @dataclass
