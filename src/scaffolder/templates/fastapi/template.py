@@ -11,19 +11,19 @@ config = TemplateConfig(
     extension_points={
         "settings_fields": ExtensionPoint(
             file="src/{{pkg_name}}/settings.py",
-            sentinel="    # [jumpstart: settings_fields]",
+            sentinel="    # [zenit: settings_fields]",
         ),
         "lifespan_startup": ExtensionPoint(
             file="src/{{pkg_name}}/lifecycle.py",
-            sentinel="    # [jumpstart: lifespan_startup]",
+            sentinel="    # [zenit: lifespan_startup]",
         ),
         "lifespan_shutdown": ExtensionPoint(
             file="src/{{pkg_name}}/lifecycle.py",
-            sentinel="    # [jumpstart: lifespan_shutdown]",
+            sentinel="    # [zenit: lifespan_shutdown]",
         ),
         "env_vars": ExtensionPoint(
             file=".env",
-            sentinel="# [jumpstart: env_vars]",
+            sentinel="# [zenit: env_vars]",
         ),
     },
     dirs=[

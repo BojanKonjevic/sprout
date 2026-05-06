@@ -3,7 +3,7 @@ lint:
 fmt:
     ruff format .
 check:
-    uv run mypy src/
+    uv run python -m mypy src/
 fix:
     ruff check --fix .
     ruff format .
@@ -11,5 +11,5 @@ publish:
     rm -f dist/*.tar.gz dist/*.whl
     uv build
     uv publish
-    uv tool install --reinstall jumpstart-cli
+    uv tool install --reinstall zenit
 

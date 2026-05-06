@@ -11,11 +11,11 @@ config = TemplateConfig(
     extension_points={
         "main_startup": ExtensionPoint(
             file="src/{{pkg_name}}/main.py",
-            sentinel="    # [jumpstart: main_startup]",
+            sentinel="    # [zenit: main_startup]",
         ),
         "env_vars": ExtensionPoint(
             file=".env",
-            sentinel="# [jumpstart: env_vars]",
+            sentinel="# [zenit: env_vars]",
         ),
     },
     dirs=[

@@ -151,7 +151,7 @@ def run_dry(ctx: Context) -> None:
         "direnv allow",
         "git init",
         "git add .",
-        'git commit -m "init: scaffold from jumpstart"',
+        'git commit -m "init: scaffold from zenit"',
     ]:
         dry_cmd(cmd)
 

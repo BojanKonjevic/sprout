@@ -147,7 +147,7 @@ class TestBlankTemplate:
             text=True,
         )
         assert result.returncode == 0
-        assert "init: scaffold from jumpstart" in result.stdout
+        assert "init: scaffold from zenit" in result.stdout
 
     def test_no_duplicate_recipes_in_justfile(self, tmp_path):
         project_dir = _scaffold(tmp_path, "myapp", "blank", [])

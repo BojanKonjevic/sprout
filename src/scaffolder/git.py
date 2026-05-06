@@ -18,8 +18,8 @@ def init_and_commit(project_dir: Path) -> None:
         try:
             run("git", "config", "user.email")
         except subprocess.CalledProcessError:
-            run("git", "config", "user.email", "jumpstart@localhost")
-            run("git", "config", "user.name", "jumpstart")
+            run("git", "config", "user.email", "zenit@localhost")
+            run("git", "config", "user.name", "zenit")
 
         run("git", "add", ".")
-        run("git", "commit", "-m", "init: scaffold from jumpstart")
+        run("git", "commit", "-m", "init: scaffold from zenit")

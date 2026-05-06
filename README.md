@@ -1,9 +1,9 @@
-# jumpstart
+# zenit
 
 A CLI that scaffolds a new Python project from a template with optional addons — sets up the package structure, dev tooling, config files, and an initial git commit, then tells you what to run next.
 
 ```
-jumpstart my-project
+zenit my-project
 ```
 
 ---
@@ -41,11 +41,11 @@ The `fastapi` template additionally needs **Docker** running locally.
 # Install uv if you haven't
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# Install jumpstart
-uv tool install jumpstart-cli
+# Install zenit
+uv tool install zenit
 
 # Or run without installing
-uvx jumpstart-cli my-project
+uvx zenit my-project
 ```
 
 **direnv** (recommended):
@@ -61,7 +61,7 @@ eval "$(direnv hook zsh)"   # or bash
 
 ```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh
-uv tool install jumpstart-cli
+uv tool install zenit
 ```
 
 **direnv**:
@@ -83,12 +83,12 @@ eval "$(direnv hook bash)"   # or zsh
 
 ### NixOS
 
-NixOS does not allow uv to download or manage its own Python binaries — `UV_PYTHON_DOWNLOADS` must be set to `never` and uv must use the system Python. jumpstart handles this for you when run via the Nix flake, but you need Python 3.14+ available in your environment first.
+NixOS does not allow uv to download or manage its own Python binaries — `UV_PYTHON_DOWNLOADS` must be set to `never` and uv must use the system Python. zenit handles this for you when run via the Nix flake, but you need Python 3.14+ available in your environment first.
 
 **Option A — run directly from the flake (recommended):**
 
 ```bash
-nix run github:BojanKonjevic/jumpstart -- my-project
+nix run github:BojanKonjevic/zenit -- my-project
 ```
 
 This uses the bundled flake which sets `UV_PYTHON_DOWNLOADS=never` and points uv at the Nix-provided Python 3.14 automatically.
@@ -98,13 +98,13 @@ This uses the bundled flake which sets `UV_PYTHON_DOWNLOADS=never` and points uv
 ```bash
 # Make sure python3.14 is in your PATH (via nix-shell, home-manager, etc.)
 # Then:
-UV_PYTHON_DOWNLOADS=never uv tool install jumpstart-cli
-UV_PYTHON_DOWNLOADS=never jumpstart my-project
+UV_PYTHON_DOWNLOADS=never uv tool install zenit
+UV_PYTHON_DOWNLOADS=never zenit my-project
 ```
 
 **Generated projects on NixOS:**
 
-When jumpstart detects it's running on NixOS (by checking `/etc/NIXOS`), it generates a `.envrc` that uses `use nix shell.nix` instead of uv's own environment management, and writes a `shell.nix` that provides the correct `LD_LIBRARY_PATH` for compiled wheels like greenlet. So the generated project will also work correctly on NixOS.
+When zenit detects it's running on NixOS (by checking `/etc/NIXOS`), it generates a `.envrc` that uses `use nix shell.nix` instead of uv's own environment management, and writes a `shell.nix` that provides the correct `LD_LIBRARY_PATH` for compiled wheels like greenlet. So the generated project will also work correctly on NixOS.
 
 **direnv on NixOS** — add to your `configuration.nix`:
 ```nix
@@ -127,8 +127,8 @@ Windows is supported. The generated `justfile` uses `cmd` as the shell, and all 
 # Install uv
 powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
 
-# Install jumpstart
-uv tool install jumpstart-cli
+# Install zenit
+uv tool install zenit
 ```
 
 **direnv on Windows** — direnv does not have an official Windows build. Your options:
@@ -137,18 +137,18 @@ uv tool install jumpstart-cli
 2. **Use WSL2** — install direnv inside WSL2 as per the Linux instructions above.
 3. **Use `scoop`** — a community-maintained build exists: `scoop install direnv` (not officially supported).
 
-jumpstart will copy `.envrc` regardless, but will warn you if direnv is not found rather than failing.
+zenit will copy `.envrc` regardless, but will warn you if direnv is not found rather than failing.
 
 ---
 
 ## Usage
 
 ```
-jumpstart <project-name>            scaffold a new project
-jumpstart <project-name> --dry-run  preview what would be created (nothing is written)
-jumpstart list-templates            show available templates
-jumpstart list-addons               show available addons
-jumpstart --version
+zenit <project-name>            scaffold a new project
+zenit <project-name> --dry-run  preview what would be created (nothing is written)
+zenit list-templates            show available templates
+zenit list-addons               show available addons
+zenit --version
 ```
 
 The interactive prompt uses arrow keys and space to select. If stdin is not a tty (e.g. piped input or CI), it falls back to numbered selection.
@@ -327,7 +327,7 @@ All generated projects come with a `justfile`. Run `just` with no arguments to l
 Pass `--dry-run` to preview everything that would happen without touching disk:
 
 ```
-jumpstart my-project --dry-run
+zenit my-project --dry-run
 ```
 
 Output shows every file that would be created or modified, every dependency that would be added to `pyproject.toml`, every `just` recipe, and every git command — then exits without writing anything.
@@ -349,11 +349,11 @@ The `fastapi` template lays out the security plumbing but stops short of generat
 
 ## Running from source
 
-If you want to hack on jumpstart itself:
+If you want to hack on zenit itself:
 
 ```bash
-git clone https://github.com/BojanKonjevic/jumpstart.git
-cd jumpstart
+git clone https://github.com/BojanKonjevic/zenit.git
+cd zenit
 uv sync
 uv run python main.py my-project
 ```

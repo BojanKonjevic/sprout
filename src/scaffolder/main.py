@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""jumpstart CLI — scaffold Python projects from a template with optional addons."""
+"""zenit — scaffold Python projects from a template with optional addons."""
 
 import importlib.util
 import os
@@ -21,7 +21,7 @@ from scaffolder.rollback import scaffold_or_rollback
 from scaffolder.ui import confirm, info, success
 
 app = typer.Typer(
-    name="jumpstart",
+    name="zenit",
     add_completion=False,
     pretty_exceptions_enable=False,
     invoke_without_command=True,
@@ -148,7 +148,7 @@ def main_callback(
     ] = False,
 ) -> None:
     if version:
-        print(get_version("jumpstart-cli"))
+        print(get_version("zenit"))
         raise typer.Exit()
 
 

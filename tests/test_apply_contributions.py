@@ -413,7 +413,7 @@ def test_multiple_compose_services_merged(tmp_path):
 def test_env_var_appended_after_sentinel(tmp_path):
     ctx = _ctx(tmp_path)
     env_path = ctx.project_dir / ".env"
-    env_path.write_text("DEBUG=false\n# [jumpstart: env_vars]\n")
+    env_path.write_text("DEBUG=false\n# [zenit: env_vars]\n")
 
     contributions = Contributions(
         env_vars=[EnvVar(key="REDIS_URL", default="redis://localhost:6379/0")]
@@ -427,7 +427,7 @@ def test_env_var_appended_after_sentinel(tmp_path):
 def test_env_var_with_comment(tmp_path):
     ctx = _ctx(tmp_path)
     env_path = ctx.project_dir / ".env"
-    env_path.write_text("# [jumpstart: env_vars]\n")
+    env_path.write_text("# [zenit: env_vars]\n")
 
     contributions = Contributions(
         env_vars=[EnvVar(key="SENTRY_DSN", default="", comment="Get from sentry.io")]
@@ -442,7 +442,7 @@ def test_env_var_with_comment(tmp_path):
 def test_env_var_not_duplicated_if_already_present(tmp_path):
     ctx = _ctx(tmp_path)
     env_path = ctx.project_dir / ".env"
-    env_path.write_text("REDIS_URL=redis://localhost:6379/0\n# [jumpstart: env_vars]\n")
+    env_path.write_text("REDIS_URL=redis://localhost:6379/0\n# [zenit: env_vars]\n")
 
     contributions = Contributions(
         env_vars=[EnvVar(key="REDIS_URL", default="redis://localhost:6379/0")]
@@ -469,7 +469,7 @@ def test_env_skipped_when_sentinel_missing(tmp_path):
 def test_env_example_also_patched(tmp_path):
     ctx = _ctx(tmp_path)
     for fname in (".env", ".env.example"):
-        (ctx.project_dir / fname).write_text("# [jumpstart: env_vars]\n")
+        (ctx.project_dir / fname).write_text("# [zenit: env_vars]\n")
 
     contributions = Contributions(
         env_vars=[EnvVar(key="REDIS_URL", default="redis://localhost:6379/0")]
@@ -571,7 +571,7 @@ def test_apply_to_file_noop_when_sentinel_absent(tmp_path):
 
 def test_merge_env_vars_multiple_keys(tmp_path):
     env_path = tmp_path / ".env"
-    env_path.write_text("X=1\n# [jumpstart: env_vars]\n")
+    env_path.write_text("X=1\n# [zenit: env_vars]\n")
     _merge_env_vars(
         env_path,
         [

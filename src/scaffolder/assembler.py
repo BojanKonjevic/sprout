@@ -246,8 +246,8 @@ def _merge_compose_volumes(project_dir: Path, volumes: list[str]) -> None:
 
 
 def _merge_env_vars(env_path: Path, env_vars: list[EnvVar]) -> None:
-    """Append missing env vars after the ``# [jumpstart: env_vars]`` sentinel."""
-    sentinel = "# [jumpstart: env_vars]"
+    """Append missing env vars after the ``# [zenit: env_vars]`` sentinel."""
+    sentinel = "# [zenit: env_vars]"
     text = env_path.read_text(encoding="utf-8")
     if sentinel not in text:
         return

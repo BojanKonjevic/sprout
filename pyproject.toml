@@ -3,8 +3,8 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "jumpstart-cli"
-version = "1.0.7"
+name = "zenit"
+version = "1.0.0"
 description = "Scaffold your next Python project with one command"
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -24,13 +24,13 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/BojanKonjevic/jumpstart"
-Repository = "https://github.com/BojanKonjevic/jumpstart"
-Issues = "https://github.com/BojanKonjevic/jumpstart/issues"
+Homepage = "https://github.com/BojanKonjevic/zenit"
+Repository = "https://github.com/BojanKonjevic/zenit"
+Issues = "https://github.com/BojanKonjevic/zenit/issues"
 
 [project.scripts]
-jumpstart = "scaffolder.main:main"
-js = "scaffolder.main:main"
+zenit = "scaffolder.main:main"
+zn = "scaffolder.main:main"
 
 [dependency-groups]
 dev = [

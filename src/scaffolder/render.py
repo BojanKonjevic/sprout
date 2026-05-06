@@ -20,7 +20,7 @@ import jinja2
 
 
 def make_env(loader_path: Path | None = None) -> jinja2.Environment:
-    """Return a Jinja2 Environment with jumpstart's custom delimiters.
+    """Return a Jinja2 Environment with zenit's custom delimiters.
 
     Parameters
     ----------
