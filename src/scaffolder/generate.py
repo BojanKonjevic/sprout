@@ -13,8 +13,12 @@ if TYPE_CHECKING:
 
 
 def _recipe_name(recipe: str) -> str:
-    """Return the bare name of a just recipe (text before the first colon)."""
-    return recipe.strip().split("\n")[0].split(":")[0].strip()
+    """Return the bare name of a just recipe (text before the first colon),
+    skipping any leading comment lines."""
+    for line in recipe.strip().splitlines():
+        if not line.startswith("#"):
+            return line.split(":")[0].strip().split()[0]
+    return ""
 
 
 def generate_all(
