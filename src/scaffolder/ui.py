@@ -115,7 +115,7 @@ def confirm(ctx: object) -> bool:
 
     try:
         raw = input(f"  Proceed? {DIM}[Y/n]{RESET}  ").strip().lower()
-    except (EOFError, KeyboardInterrupt):
+    except EOFError, KeyboardInterrupt:
         print()
         return False
 

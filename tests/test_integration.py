@@ -56,7 +56,9 @@ def _scaffold(tmp_path: Path, name: str, template: str, addons: list[str]) -> Pa
     }
 
     contributions = collect_all(template_config, selected_addon_configs)
-    apply_contributions(ctx, contributions, template_config.extension_points, render_vars)
+    apply_contributions(
+        ctx, contributions, template_config.extension_points, render_vars
+    )
     generate_all(ctx, template_config, contributions)
     init_and_commit(project_dir)
 
@@ -128,7 +130,9 @@ class TestBlankTemplate:
         assert (project_dir / "src" / "my_app" / "__init__.py").exists()
         justfile = (project_dir / "justfile").read_text()
         assert "my_app" in justfile
-        assert "my-app" not in justfile.split("my-app")[0]  # name in metadata ok, not in commands
+        assert (
+            "my-app" not in justfile.split("my-app")[0]
+        )  # name in metadata ok, not in commands
 
     def test_git_repo_initialised(self, tmp_path):
         project_dir = _scaffold(tmp_path, "myapp", "blank", [])
@@ -151,7 +155,10 @@ class TestBlankTemplate:
         recipe_lines = [
             line.split(":")[0].strip()
             for line in justfile.splitlines()
-            if line and not line[0].isspace() and ":" in line and not line.startswith("#")
+            if line
+            and not line[0].isspace()
+            and ":" in line
+            and not line.startswith("#")
         ]
         assert len(recipe_lines) == len(set(recipe_lines)), (
             f"Duplicate recipes found: {[r for r in recipe_lines if recipe_lines.count(r) > 1]}"
@@ -186,7 +193,10 @@ class TestBlankWithDocker:
         recipe_lines = [
             line.split(":")[0].strip()
             for line in justfile.splitlines()
-            if line and not line[0].isspace() and ":" in line and not line.startswith("#")
+            if line
+            and not line[0].isspace()
+            and ":" in line
+            and not line.startswith("#")
         ]
         assert len(recipe_lines) == len(set(recipe_lines))
 
@@ -245,7 +255,14 @@ class TestFastapiTemplate:
     def test_fastapi_recipes_in_justfile(self, tmp_path):
         project_dir = _scaffold(tmp_path, "myapi", "fastapi", ["docker"])
         justfile = (project_dir / "justfile").read_text()
-        for recipe in ["run:", "migrate", "upgrade:", "downgrade:", "db-create:", "db-reset:"]:
+        for recipe in [
+            "run:",
+            "migrate",
+            "upgrade:",
+            "downgrade:",
+            "db-create:",
+            "db-reset:",
+        ]:
             assert recipe in justfile, f"missing recipe: {recipe}"
 
     def test_compose_yml_has_db_service(self, tmp_path):
@@ -260,7 +277,10 @@ class TestFastapiTemplate:
         recipe_lines = [
             line.split(":")[0].strip()
             for line in justfile.splitlines()
-            if line and not line[0].isspace() and ":" in line and not line.startswith("#")
+            if line
+            and not line[0].isspace()
+            and ":" in line
+            and not line.startswith("#")
         ]
         assert len(recipe_lines) == len(set(recipe_lines))
 
@@ -352,7 +372,10 @@ class TestFastapiAllAddons:
         recipe_lines = [
             line.split(":")[0].strip()
             for line in justfile.splitlines()
-            if line and not line[0].isspace() and ":" in line and not line.startswith("#")
+            if line
+            and not line[0].isspace()
+            and ":" in line
+            and not line.startswith("#")
         ]
         assert len(recipe_lines) == len(set(recipe_lines)), (
             f"Duplicate recipes: {[r for r in recipe_lines if recipe_lines.count(r) > 1]}"

@@ -22,7 +22,9 @@ class ExitAssertion:
         exc_tb: object,
     ) -> bool:
         if exc_type is None:
-            raise AssertionError("Expected a typer.Exit to be raised but nothing was raised")
+            raise AssertionError(
+                "Expected a typer.Exit to be raised but nothing was raised"
+            )
         if not issubclass(exc_type, ClickExit):
             return False  # let other exceptions propagate
         assert isinstance(exc_val, ClickExit)

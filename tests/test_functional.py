@@ -67,7 +67,9 @@ def _scaffold(tmp_path: Path, name: str, template: str, addons: list[str]) -> Pa
     }
 
     contributions = collect_all(template_config, selected_addon_configs)
-    apply_contributions(ctx, contributions, template_config.extension_points, render_vars)
+    apply_contributions(
+        ctx, contributions, template_config.extension_points, render_vars
+    )
     generate_all(ctx, template_config, contributions)
     init_and_commit(project_dir)
 
@@ -143,7 +145,9 @@ class TestBlankFunctional:
         project_dir = _scaffold(tmp_path, "myapp", "blank", [])
         _uv("sync", "--quiet", cwd=project_dir)
         result = _uv("run", "python", "-m", "myapp", cwd=project_dir)
-        assert result.returncode == 0, f"python -m myapp failed:\n{result.stdout}\n{result.stderr}"
+        assert result.returncode == 0, (
+            f"python -m myapp failed:\n{result.stdout}\n{result.stderr}"
+        )
         assert "Hello from myapp" in result.stdout
 
 
@@ -225,13 +229,19 @@ class TestRenderedContentCorrectness:
         assert "((" not in env
 
     def test_no_unrendered_jinja_in_github_actions_ci(self, tmp_path):
-        project_dir = _scaffold(tmp_path, "myapi", "fastapi", ["docker", "redis", "github-actions"])
+        project_dir = _scaffold(
+            tmp_path, "myapi", "fastapi", ["docker", "redis", "github-actions"]
+        )
         ci = (project_dir / ".github" / "workflows" / "ci.yml").read_text()
         assert "((" not in ci
 
     def test_no_unrendered_jinja_in_celery_app(self, tmp_path):
-        project_dir = _scaffold(tmp_path, "myapi", "fastapi", ["docker", "redis", "celery"])
-        celery_app = (project_dir / "src" / "myapi" / "tasks" / "celery_app.py").read_text()
+        project_dir = _scaffold(
+            tmp_path, "myapi", "fastapi", ["docker", "redis", "celery"]
+        )
+        celery_app = (
+            project_dir / "src" / "myapi" / "tasks" / "celery_app.py"
+        ).read_text()
         assert "((" not in celery_app
 
     def test_no_unrendered_block_tags_in_blank(self, tmp_path):

@@ -16,7 +16,13 @@ from scaffolder.schema import (
 
 if TYPE_CHECKING:
     from scaffolder.context import Context
-    from scaffolder.schema import AddonConfig, ComposeService, EnvVar, Injection, TemplateConfig
+    from scaffolder.schema import (
+        AddonConfig,
+        ComposeService,
+        EnvVar,
+        Injection,
+        TemplateConfig,
+    )
 
 
 def collect_all(
@@ -118,7 +124,9 @@ def apply_contributions(
             else:
                 ctx.copy_file(src_path, dest)
 
-    _apply_injections(project_dir, contributions.injections, extension_points, render_vars)
+    _apply_injections(
+        project_dir, contributions.injections, extension_points, render_vars
+    )
 
     if contributions.compose_services and (project_dir / "compose.yml").exists():
         _merge_compose_services(project_dir, contributions.compose_services)
@@ -184,7 +192,9 @@ def _apply_to_file(
 def _merge_compose_services(project_dir: Path, services: list[ComposeService]) -> None:
     """Add *services* to ``compose.yml``, skipping any that already exist."""
     compose_path = project_dir / "compose.yml"
-    data: dict[str, object] = yaml.safe_load(compose_path.read_text(encoding="utf-8")) or {}
+    data: dict[str, object] = (
+        yaml.safe_load(compose_path.read_text(encoding="utf-8")) or {}
+    )
     existing: dict[str, object] = data.setdefault("services", {})  # type: ignore[assignment]
 
     for svc in services:
@@ -220,7 +230,9 @@ def _merge_compose_services(project_dir: Path, services: list[ComposeService]) -
 def _merge_compose_volumes(project_dir: Path, volumes: list[str]) -> None:
     """Add named volumes to ``compose.yml``, skipping duplicates."""
     compose_path = project_dir / "compose.yml"
-    data: dict[str, object] = yaml.safe_load(compose_path.read_text(encoding="utf-8")) or {}
+    data: dict[str, object] = (
+        yaml.safe_load(compose_path.read_text(encoding="utf-8")) or {}
+    )
     vols_section: dict[str, None] = data.setdefault("volumes", {})  # type: ignore[assignment]
     for vol_name in volumes:
         if vol_name not in vols_section:

@@ -147,7 +147,8 @@ def test_collect_all_template_just_recipes_not_in_contributions():
 
 def test_collect_all_addon_just_recipes_in_contributions():
     result = collect_all(
-        _template(), [_addon(just_recipes=["redis-up:\n    docker compose up -d redis"])]
+        _template(),
+        [_addon(just_recipes=["redis-up:\n    docker compose up -d redis"])],
     )
     assert "redis-up:\n    docker compose up -d redis" in result.just_recipes
 
@@ -156,8 +157,12 @@ def test_collect_all_just_recipes_from_multiple_addons():
     result = collect_all(
         _template(),
         [
-            _addon(id="redis", just_recipes=["redis-up:\n    docker compose up -d redis"]),
-            _addon(id="docker", just_recipes=["docker-up:\n    docker compose up --build"]),
+            _addon(
+                id="redis", just_recipes=["redis-up:\n    docker compose up -d redis"]
+            ),
+            _addon(
+                id="docker", just_recipes=["docker-up:\n    docker compose up --build"]
+            ),
         ],
     )
     assert len(result.just_recipes) == 2

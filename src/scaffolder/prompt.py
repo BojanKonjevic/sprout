@@ -126,13 +126,13 @@ def _tui_single(prompt: str, items: list[tuple[str, str]]) -> str:
     try:
         while True:
             key = _read_key()
-            if key in ("\x1b[A", "k"):        # up
+            if key in ("\x1b[A", "k"):  # up
                 cursor = (cursor - 1) % n_items
-            elif key in ("\x1b[B", "j"):      # down
+            elif key in ("\x1b[B", "j"):  # down
                 cursor = (cursor + 1) % n_items
-            elif key in ("\r", "\n", " "):    # enter / space → confirm
+            elif key in ("\r", "\n", " "):  # enter / space → confirm
                 break
-            elif key == "\x03":               # ctrl+c
+            elif key == "\x03":  # ctrl+c
                 sys.stdout.write(_SHOW_CURSOR)
                 print()
                 sys.exit(0)
@@ -177,7 +177,11 @@ def _render_multi(
             label = name
 
         reqs = _requires_of(items[i][0])
-        extra = f"  {DIM}(needs {', '.join(reqs)}){RESET}" if reqs and i not in locked else ""
+        extra = (
+            f"  {DIM}(needs {', '.join(reqs)}){RESET}"
+            if reqs and i not in locked
+            else ""
+        )
         sys.stdout.write(f"{prefix}{tick} {label:<18}{DIM}  {desc}{RESET}{extra}\n")
         lines += 1
 
@@ -295,7 +299,7 @@ def _fallback_template() -> str:
     while True:
         try:
             choice = input("  Template [1/2]: ").strip().lower()
-        except (EOFError, KeyboardInterrupt):
+        except EOFError, KeyboardInterrupt:
             print()
             sys.exit(0)
         for key, (name, _) in enumerate(TEMPLATES, 1):
@@ -312,7 +316,9 @@ def _fallback_addons(
     if not items:
         return list(always_locked_names)
 
-    print(f"\n  Select addons: {DIM}(space-separated numbers, or enter to skip){RESET}\n")
+    print(
+        f"\n  Select addons: {DIM}(space-separated numbers, or enter to skip){RESET}\n"
+    )
     for i, (addon_id, desc) in enumerate(items, 1):
         locked = " (required)" if addon_id in always_locked_names else ""
         print(f"    {CYAN}{i}){RESET} {addon_id:<18} {DIM}—{RESET} {desc}{locked}")
@@ -321,7 +327,7 @@ def _fallback_addons(
     while True:
         try:
             raw = input("  Addons [e.g. 1 3, or leave blank]: ").strip()
-        except (EOFError, KeyboardInterrupt):
+        except EOFError, KeyboardInterrupt:
             print()
             sys.exit(0)
 

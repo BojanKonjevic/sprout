@@ -14,7 +14,12 @@ from scaffolder.dryrun import DryRunContext, run_dry
 SCAFFOLDER_ROOT = Path(__file__).parent.parent / "src" / "scaffolder"
 
 
-def _real_ctx(tmp_path: Path, name: str = "myapp", template: str = "blank", addons: list | None = None) -> Context:
+def _real_ctx(
+    tmp_path: Path,
+    name: str = "myapp",
+    template: str = "blank",
+    addons: list | None = None,
+) -> Context:
     return Context(
         name=name,
         pkg_name=name.replace("-", "_"),
@@ -227,7 +232,11 @@ def test_run_dry_fastapi_output_mentions_alembic(tmp_path, capsys):
 
 
 def test_run_dry_all_fastapi_addons(tmp_path, capsys):
-    ctx = _real_ctx(tmp_path, template="fastapi", addons=["docker", "redis", "celery", "sentry", "github-actions"])
+    ctx = _real_ctx(
+        tmp_path,
+        template="fastapi",
+        addons=["docker", "redis", "celery", "sentry", "github-actions"],
+    )
     run_dry(ctx)
     captured = capsys.readouterr()
     # Should complete without raising and mention all addons

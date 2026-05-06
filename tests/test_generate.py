@@ -22,7 +22,9 @@ def test_recipe_name_with_args():
 
 
 def test_recipe_name_with_deps():
-    assert _recipe_name("upgrade: wait-db\n    uv run alembic upgrade head") == "upgrade"
+    assert (
+        _recipe_name("upgrade: wait-db\n    uv run alembic upgrade head") == "upgrade"
+    )
 
 
 def test_recipe_name_strips_whitespace():
@@ -30,7 +32,10 @@ def test_recipe_name_strips_whitespace():
 
 
 def test_recipe_name_with_leading_comment_and_args():
-    assert _recipe_name('# generate migration\nmigrate msg="":\n    uv run alembic') == "migrate"
+    assert (
+        _recipe_name('# generate migration\nmigrate msg="":\n    uv run alembic')
+        == "migrate"
+    )
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -80,7 +85,9 @@ def _get_justfile(ctx: MagicMock) -> str:
 
 def test_generate_all_includes_template_recipes(tmp_path):
     ctx = _make_ctx(tmp_path)
-    template_cfg = _make_template_config(["# run the app\nrun:\n    python -m myproject"])
+    template_cfg = _make_template_config(
+        ["# run the app\nrun:\n    python -m myproject"]
+    )
     contributions = _make_contributions([])
 
     generate_all(ctx, template_cfg, contributions)
@@ -107,8 +114,12 @@ def test_generate_all_includes_addon_recipes(tmp_path):
 def test_generate_all_deduplicates_by_recipe_name(tmp_path):
     ctx = _make_ctx(tmp_path)
     # Both template and addon define "run" — the addon's version should be dropped.
-    template_cfg = _make_template_config(["# run the app\nrun:\n    python -m myproject"])
-    contributions = _make_contributions(["# start server\nrun:\n    uvicorn myproject.main:app"])
+    template_cfg = _make_template_config(
+        ["# run the app\nrun:\n    python -m myproject"]
+    )
+    contributions = _make_contributions(
+        ["# start server\nrun:\n    uvicorn myproject.main:app"]
+    )
 
     generate_all(ctx, template_cfg, contributions)
 
@@ -120,7 +131,9 @@ def test_generate_all_deduplicates_by_recipe_name(tmp_path):
 
 def test_generate_all_keeps_distinct_addon_recipes(tmp_path):
     ctx = _make_ctx(tmp_path)
-    template_cfg = _make_template_config(["# run the app\nrun:\n    python -m myproject"])
+    template_cfg = _make_template_config(
+        ["# run the app\nrun:\n    python -m myproject"]
+    )
     contributions = _make_contributions(
         [
             "# start redis\nredis-up:\n    docker compose up -d redis",
@@ -152,7 +165,9 @@ def test_generate_all_renders_pkg_name_in_recipes(tmp_path):
 def test_generate_all_renders_name_in_recipes(tmp_path):
     ctx = _make_ctx(tmp_path)
     template_cfg = _make_template_config(
-        ["# create db\ndb-create:\n    docker compose exec db createdb -U postgres (( name ))"]
+        [
+            "# create db\ndb-create:\n    docker compose exec db createdb -U postgres (( name ))"
+        ]
     )
     contributions = _make_contributions([])
 

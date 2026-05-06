@@ -25,6 +25,6 @@ def get_available_addons() -> list[AddonConfig]:
             cfg: AddonConfig = mod.config
             cfg._module = mod  # attach module so post_apply can be called later
             addons.append(cfg)
-        except (FileNotFoundError, AttributeError):
+        except FileNotFoundError, AttributeError:
             continue
     return addons

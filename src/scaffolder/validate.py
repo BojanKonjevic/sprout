@@ -18,7 +18,9 @@ def validate_name(name: str, pkg_name: str) -> None:
 
     if not re.match(r"^[a-zA-Z][a-zA-Z0-9_-]*$", name):
         error(f"Invalid project name '{name}'.")
-        info("Must start with a letter; only letters, numbers, hyphens, and underscores allowed.")
+        info(
+            "Must start with a letter; only letters, numbers, hyphens, and underscores allowed."
+        )
         raise typer.Exit(1)
 
     if pkg_name in sys.stdlib_module_names:
@@ -59,7 +61,7 @@ def _check_uv() -> list[str]:
                     f"uv {parts[1]} is too old (need >= 0.4).\n"
                     "     Upgrade: uv self update"
                 ]
-    except (subprocess.CalledProcessError, ValueError):
+    except subprocess.CalledProcessError, ValueError:
         pass
     return []
 

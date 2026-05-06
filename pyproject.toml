@@ -41,11 +41,9 @@ where = ["src"]
     "generate/*",
 ]
 
-[tool.ruff]
-line-length = 100
-
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
+ignore = ["E501"]
 
 [tool.ruff.lint.per-file-ignores]
 "addons/celery/apply.py" = ["E501"]

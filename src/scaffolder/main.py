@@ -135,7 +135,9 @@ def _scaffold(
     if "github-actions" in addons:
         print()
         info("GitHub Actions CI is set up at .github/workflows/ci.yml")
-        print("    Push to GitHub and it will lint, type-check, and test automatically.")
+        print(
+            "    Push to GitHub and it will lint, type-check, and test automatically."
+        )
 
 
 @app.callback()
@@ -170,7 +172,9 @@ def cmd_list_addons() -> None:
     configs = get_available_addons()
     print()
     for cfg in configs:
-        req_suffix = f"  {DIM}requires: {', '.join(cfg.requires)}{RESET}" if cfg.requires else ""
+        req_suffix = (
+            f"  {DIM}requires: {', '.join(cfg.requires)}{RESET}" if cfg.requires else ""
+        )
         print(f"  {CYAN}{cfg.id:<20}{RESET}  {DIM}{cfg.description}{RESET}{req_suffix}")
     print()
 

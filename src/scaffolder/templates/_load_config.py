@@ -16,5 +16,7 @@ def load_template_config(scaffolder_root: Path, template_id: str) -> TemplateCon
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     if not hasattr(mod, "config"):
-        raise AttributeError(f"template.py for '{template_id}' must export a 'config' object")
+        raise AttributeError(
+            f"template.py for '{template_id}' must export a 'config' object"
+        )
     return mod.config

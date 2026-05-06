@@ -22,7 +22,9 @@ def apply(ctx: Context) -> None:
             full_env = f"use nix shell.nix\n{base_env}"
             ctx.write_file(".envrc", full_env)
             ctx.copy_file(common / "shell.nix", "shell.nix")
-            msg = ".gitignore, .gitattributes, .pre-commit-config.yaml, .envrc, shell.nix"
+            msg = (
+                ".gitignore, .gitattributes, .pre-commit-config.yaml, .envrc, shell.nix"
+            )
         else:
             ctx.copy_file(common / "envrc", ".envrc")
             msg = ".gitignore, .gitattributes, .pre-commit-config.yaml, .envrc"

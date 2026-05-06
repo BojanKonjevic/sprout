@@ -530,7 +530,9 @@ def test_post_apply_hook_not_required(tmp_path):
 def test_apply_to_file_after_sentinel(tmp_path):
     f = tmp_path / "target.py"
     f.write_text("before\n    # sentinel\nafter\n")
-    ep = ExtensionPoint(file="target.py", sentinel="    # sentinel", mode=InjectionMode.AFTER_SENTINEL)
+    ep = ExtensionPoint(
+        file="target.py", sentinel="    # sentinel", mode=InjectionMode.AFTER_SENTINEL
+    )
     _apply_to_file(f, ep, ["    injected()"])
     text = f.read_text()
     assert "    # sentinel\n    injected()\nafter" in text
@@ -539,7 +541,9 @@ def test_apply_to_file_after_sentinel(tmp_path):
 def test_apply_to_file_append(tmp_path):
     f = tmp_path / "target.py"
     f.write_text("line1\n    # sentinel\nline3\n")
-    ep = ExtensionPoint(file="target.py", sentinel="    # sentinel", mode=InjectionMode.APPEND)
+    ep = ExtensionPoint(
+        file="target.py", sentinel="    # sentinel", mode=InjectionMode.APPEND
+    )
     _apply_to_file(f, ep, ["appended line"])
     text = f.read_text()
     assert text.endswith("appended line\n")
@@ -555,7 +559,9 @@ def test_apply_to_file_noop_when_file_missing(tmp_path):
 def test_apply_to_file_noop_when_sentinel_absent(tmp_path):
     f = tmp_path / "target.py"
     f.write_text("no sentinel here\n")
-    ep = ExtensionPoint(file="target.py", sentinel="# MISSING", mode=InjectionMode.AFTER_SENTINEL)
+    ep = ExtensionPoint(
+        file="target.py", sentinel="# MISSING", mode=InjectionMode.AFTER_SENTINEL
+    )
     _apply_to_file(f, ep, ["injected"])
     assert "injected" not in f.read_text()
 
