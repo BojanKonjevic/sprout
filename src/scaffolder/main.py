@@ -84,7 +84,6 @@ def _scaffold(
     project_dir = ctx.project_dir
     with scaffold_or_rollback(project_dir):
         project_dir.mkdir()
-        os.chdir(project_dir)
 
         _load_apply(scaffolder_root / "templates" / "_common" / "apply.py")(ctx)
 

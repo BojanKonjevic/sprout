@@ -34,6 +34,10 @@ config = AddonConfig(
             content="    from .integrations.sentry import init_sentry\n    init_sentry()",
         ),
         Injection(
+            point="main_startup",
+            content="    from .integrations.sentry import init_sentry\n    init_sentry()",
+        ),
+        Injection(
             point="settings_fields",
             content='    sentry_dsn: str = ""\n    sentry_environment: str = "development"',
         ),

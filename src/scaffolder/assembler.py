@@ -11,6 +11,7 @@ from scaffolder.render import make_env
 from scaffolder.schema import (
     Contributions,
     ExtensionPoint,
+    FileContribution,
     InjectionMode,
 )
 
@@ -62,6 +63,32 @@ def collect_all(
             c.injections.append(inj)
 
     c._addon_configs = addon_configs
+
+    seen: dict[str, tuple[str, FileContribution]] = {}
+    all_labeled: list[tuple[str, FileContribution]] = [
+        ("template", fc) for fc in template_config.files
+    ] + [(addon.id, fc) for addon in addon_configs for fc in addon.files]
+    for label, fc in all_labeled:
+        dest = fc.dest
+        if dest not in seen:
+            seen[dest] = (label, fc)
+            continue
+        prev_label, prev_fc = seen[dest]
+        # Two empty stubs (__init__.py) overlapping is fine.
+        if fc.content == "" and prev_fc.content == "":
+            continue
+        # Identical source or content → no conflict.
+        if fc.source is not None and fc.source == prev_fc.source:
+            continue
+        if fc.content is not None and fc.content == prev_fc.content:
+            continue
+        from scaffolder.exceptions import ScaffoldError
+
+        raise ScaffoldError(
+            f"Internal conflict: both '{prev_label}' and '{label}' want to write '{dest}'. "
+            f"Please report this at https://github.com/BojanKonjevic/zenit/issues"
+        )
+
     return c
 
 

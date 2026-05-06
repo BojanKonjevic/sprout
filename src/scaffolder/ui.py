@@ -111,7 +111,10 @@ def confirm(ctx: object) -> bool:
     print()
 
     if not sys.stdin.isatty():
-        return True
+        warn(
+            "Non-interactive mode — proceeding automatically. Pass --dry-run to preview first."
+        )
+    return True
 
     try:
         raw = input(f"  Proceed? {DIM}[Y/n]{RESET}  ").strip().lower()
