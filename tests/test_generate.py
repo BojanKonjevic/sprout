@@ -33,7 +33,7 @@ def test_recipe_name_with_leading_comment_and_args():
     assert _recipe_name('# generate migration\nmigrate msg="":\n    uv run alembic') == "migrate"
 
 
-# ── helpers ───────────────────────────────────────────────────────────────────
+# ── Helpers ───────────────────────────────────────────────────────────────────
 
 
 def _make_template_config(recipes: list[str]) -> TemplateConfig:
@@ -106,7 +106,7 @@ def test_generate_all_includes_addon_recipes(tmp_path):
 
 def test_generate_all_deduplicates_by_recipe_name(tmp_path):
     ctx = _make_ctx(tmp_path)
-    # Both template and addon define "run" — addon's should be dropped
+    # Both template and addon define "run" — the addon's version should be dropped.
     template_cfg = _make_template_config(["# run the app\nrun:\n    python -m myproject"])
     contributions = _make_contributions(["# start server\nrun:\n    uvicorn myproject.main:app"])
 
@@ -114,7 +114,6 @@ def test_generate_all_deduplicates_by_recipe_name(tmp_path):
 
     justfile = _get_justfile(ctx)
     assert justfile.count("run:") == 1
-    # Template version should win
     assert "python -m myproject" in justfile
     assert "uvicorn" not in justfile
 

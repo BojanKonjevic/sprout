@@ -9,7 +9,7 @@ Usage:
 from .celery_app import celery_app
 
 
-@celery_app.task  # type: ignore[untyped-decorator]
+@celery_app.task
 def add(x: int, y: int) -> int:
     """Example task — replace or delete."""
     return x + y

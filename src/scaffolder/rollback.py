@@ -9,6 +9,12 @@ from scaffolder.ui import error, warn
 
 @contextmanager
 def scaffold_or_rollback(project_dir: Path) -> Generator[None]:
+    """Context manager that removes *project_dir* if the scaffold fails.
+
+    On ``KeyboardInterrupt`` the directory is cleaned up and the interrupt is
+    re-raised.  On any other exception the directory is cleaned up and the
+    process exits with code 1.
+    """
     try:
         yield
     except KeyboardInterrupt:

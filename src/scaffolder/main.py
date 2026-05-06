@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""jumpstart CLI – scaffold Python projects with optional addons."""
+"""jumpstart CLI — scaffold Python projects from a template with optional addons."""
 
 import importlib.util
 import os
@@ -28,9 +28,10 @@ app = typer.Typer(
 
 
 def _load_apply(path: Path) -> Callable[[Context], None]:
-    """Import and return the apply() function from an old‑style apply.py file."""
+    """Import and return the ``apply()`` function from an ``apply.py`` file."""
     spec = importlib.util.spec_from_file_location("apply", path)
-    mod = importlib.util.module_from_spec(spec)  # type: ignore[arg-type]
+    assert spec is not None and spec.loader is not None
+    mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)  # type: ignore[union-attr]
     return mod.apply  # type: ignore[no-any-return]
 
@@ -54,7 +55,9 @@ def main_callback(
 @app.command()
 def scaffold(
     name: Annotated[str, typer.Argument(help="Project name to scaffold")],
-    dry_run: Annotated[bool, typer.Option("--dry-run", help="Preview without writing")] = False,
+    dry_run: Annotated[
+        bool, typer.Option("--dry-run", help="Preview without writing")
+    ] = False,
 ) -> None:
     """Scaffold a new Python project from a template."""
     scaffolder_root = Path(os.environ.get("SCAFFOLDER_ROOT", Path(__file__).parent))
@@ -111,7 +114,6 @@ def scaffold(
 
         contributions = collect_all(template_config, selected_addon_configs)
 
-        # Build render_vars once — never pass name= explicitly alongside **render_vars
         render_vars: dict[str, object] = {
             "name": name,
             "pkg_name": pkg_name,
@@ -133,11 +135,8 @@ def scaffold(
         init_and_commit(project_dir)
 
     print()
-    success(
-        f"Project '{name}' ready!  ({template}"
-        + (" + " + ", ".join(addons) if addons else "")
-        + ")"
-    )
+    addon_suffix = (" + " + ", ".join(addons)) if addons else ""
+    success(f"Project '{name}' ready!  ({template}{addon_suffix})")
     print()
     print(f"  cd {name}")
 
@@ -178,7 +177,9 @@ def cmd_list_addons() -> None:
     configs = get_available_addons()
     print()
     for cfg in configs:
-        req_suffix = f"  {DIM}requires: {', '.join(cfg.requires)}{RESET}" if cfg.requires else ""
+        req_suffix = (
+            f"  {DIM}requires: {', '.join(cfg.requires)}{RESET}" if cfg.requires else ""
+        )
         print(f"  {CYAN}{cfg.id:<20}{RESET}  {DIM}{cfg.description}{RESET}{req_suffix}")
     print()
 
@@ -188,7 +189,6 @@ def main() -> None:
 
 
 def _print_commands_from_just(project_dir: Path) -> None:
-    import shutil
     import subprocess
 
     if not shutil.which("just"):

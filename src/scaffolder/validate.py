@@ -11,6 +11,7 @@ from scaffolder.ui import error, info
 
 
 def validate_name(name: str, pkg_name: str) -> None:
+    """Abort with exit code 1 if *name* is not a valid project name."""
     if Path(name).exists():
         error(f"Directory '{name}' already exists.")
         raise typer.Exit(1)
@@ -27,6 +28,7 @@ def validate_name(name: str, pkg_name: str) -> None:
 
 
 def check_preflight() -> None:
+    """Check that required tools are available; abort with exit code 1 if not."""
     failures: list[str] = []
     failures += _check_uv()
     failures += _check_git()
@@ -53,8 +55,11 @@ def _check_uv() -> list[str]:
         if len(parts) >= 2:
             major, minor, *_ = (int(x) for x in parts[1].split("."))
             if (major, minor) < (0, 4):
-                return [f"uv {parts[1]} is too old (need >= 0.4).\n     Upgrade: uv self update"]
-    except subprocess.CalledProcessError, ValueError:
+                return [
+                    f"uv {parts[1]} is too old (need >= 0.4).\n"
+                    "     Upgrade: uv self update"
+                ]
+    except (subprocess.CalledProcessError, ValueError):
         pass
     return []
 
@@ -62,12 +67,14 @@ def _check_uv() -> list[str]:
 def _check_git() -> list[str]:
     if shutil.which("git") is None:
         return [
-            "'git' is not installed or not in PATH.\n     Install: https://git-scm.com/downloads\n"
+            "'git' is not installed or not in PATH.\n"
+            "     Install: https://git-scm.com/downloads\n"
         ]
     return []
 
 
 def validate_addon_deps(addons: list[str], available: list[AddonConfig]) -> None:
+    """Abort with exit code 1 if any selected addon's requirements are missing."""
     requires_map = {cfg.id: cfg.requires for cfg in available}
     for addon in addons:
         for req in requires_map.get(addon, []):

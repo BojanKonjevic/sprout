@@ -1,7 +1,17 @@
 """Central Jinja2 environment factory.
 
-All templates and addons use make_env() so the custom delimiters
-stay defined in exactly one place.
+All templates and addons use ``make_env()`` so the custom delimiters stay
+defined in exactly one place.
+
+Custom delimiters
+-----------------
+Variable:  ``(( … ))``   instead of ``{{ … }}``
+Block:     ``[% … %]``   instead of ``{% … %}``
+Comment:   disabled      (``line_comment_prefix=None``)
+
+The non-standard delimiters let Jinja2 templates coexist with Python source
+files and YAML that use ``{{}}`` and ``{%%}`` as literal text (e.g. Docker
+Compose files, Alembic scripts).
 """
 
 from pathlib import Path
@@ -12,8 +22,11 @@ import jinja2
 def make_env(loader_path: Path | None = None) -> jinja2.Environment:
     """Return a Jinja2 Environment with jumpstart's custom delimiters.
 
-    Pass loader_path to load templates from a directory.
-    Omit it (or pass None) when rendering strings directly.
+    Parameters
+    ----------
+    loader_path:
+        Directory to use as the template search path.  Pass ``None`` (or omit)
+        when rendering strings directly via ``env.from_string()``.
     """
     loader: jinja2.BaseLoader
     if loader_path is not None:
@@ -28,5 +41,7 @@ def make_env(loader_path: Path | None = None) -> jinja2.Environment:
         variable_end_string="))",
         block_start_string="[%",
         block_end_string="%]",
+        # Explicitly disable the default "##" line-comment prefix so that
+        # double-hash comments in generated Python files are never stripped.
         line_comment_prefix=None,
     )

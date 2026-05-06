@@ -1,4 +1,4 @@
-"""Declarative addon/template contributions – no file I/O here."""
+"""Declarative addon/template contribution types — no file I/O here."""
 
 from __future__ import annotations
 
@@ -13,7 +13,9 @@ class InjectionMode(Enum):
 
 @dataclass
 class FileContribution:
-    dest: str  # relative path, may contain {{pkg_name}}
+    """A single file to be written into the project directory."""
+
+    dest: str  # relative path; may contain ``{{pkg_name}}``
     source: str | None = None
     content: str | None = None
     template: bool = False
@@ -21,6 +23,8 @@ class FileContribution:
 
 @dataclass
 class ComposeService:
+    """A Docker Compose service block contributed by a template or addon."""
+
     name: str
     image: str | None = None
     build: str | None = None
@@ -30,11 +34,13 @@ class ComposeService:
     env_file: list[str] = field(default_factory=list)
     command: str | None = None
     depends_on: list[str] = field(default_factory=list)
-    develop_watch: list[dict] = field(default_factory=list)
+    develop_watch: list[dict[str, object]] = field(default_factory=list)
 
 
 @dataclass
 class EnvVar:
+    """A key/value pair to be appended to ``.env`` and ``.env.example``."""
+
     key: str
     default: str
     comment: str = ""
@@ -42,6 +48,8 @@ class EnvVar:
 
 @dataclass
 class Injection:
+    """A snippet of code to be inserted at a named extension point."""
+
     point: str
     content: str
     addon_id: str = ""
@@ -49,6 +57,8 @@ class Injection:
 
 @dataclass
 class AddonConfig:
+    """All contributions made by a single addon."""
+
     id: str
     description: str
     requires: list[str] = field(default_factory=list)
@@ -64,6 +74,8 @@ class AddonConfig:
 
 @dataclass
 class ExtensionPoint:
+    """A named location inside a generated file where addons can inject code."""
+
     file: str
     sentinel: str
     mode: InjectionMode = InjectionMode.AFTER_SENTINEL
@@ -71,6 +83,8 @@ class ExtensionPoint:
 
 @dataclass
 class TemplateConfig:
+    """All contributions made by a template (blank, fastapi, …)."""
+
     id: str
     description: str
     requires_addons: list[str] = field(default_factory=list)
@@ -88,6 +102,8 @@ class TemplateConfig:
 
 @dataclass
 class Contributions:
+    """Merged contributions from all selected addons (and the template)."""
+
     files: list[FileContribution] = field(default_factory=list)
     dirs: list[str] = field(default_factory=list)
     compose_services: list[ComposeService] = field(default_factory=list)

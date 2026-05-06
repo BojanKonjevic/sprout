@@ -1,2 +1,2 @@
 class ScaffoldError(Exception):
-    pass
+    """Raised when the scaffold pipeline encounters an unrecoverable error."""

@@ -47,9 +47,18 @@ config = AddonConfig(
     deps=["celery[redis]>=5", "flower"],
     dev_deps=["pytest-celery"],
     just_recipes=[
-        "# start celery worker and beat scheduler\ncelery-up:\n    docker compose up -d celery-worker celery-beat",
-        "# stop celery worker and beat scheduler\ncelery-down:\n    docker compose stop celery-worker celery-beat",
-        "# open flower monitoring UI on port 5555\ncelery-flower:\n    docker compose run --rm celery-worker celery -A (( pkg_name )).tasks.celery_app flower --port=5555",
-        "# tail celery worker logs\ncelery-logs:\n    docker compose logs -f celery-worker",
+        "# start celery worker and beat scheduler\n"
+        "celery-up:\n"
+        "    docker compose up -d celery-worker celery-beat",
+        "# stop celery worker and beat scheduler\n"
+        "celery-down:\n"
+        "    docker compose stop celery-worker celery-beat",
+        "# open flower monitoring UI on port 5555\n"
+        "celery-flower:\n"
+        "    docker compose run --rm celery-worker "
+        "celery -A (( pkg_name )).tasks.celery_app flower --port=5555",
+        "# tail celery worker logs\n"
+        "celery-logs:\n"
+        "    docker compose logs -f celery-worker",
     ],
 )

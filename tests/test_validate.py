@@ -7,8 +7,8 @@ from scaffolder.schema import AddonConfig
 from scaffolder.validate import validate_addon_deps, validate_name
 
 
-def assert_exits(fn, *args, **kwargs):
-    """Assert that fn(*args, **kwargs) raises typer.Exit(1)."""
+def _assert_exits(fn, *args, **kwargs) -> None:  # type: ignore[no-untyped-def]
+    """Assert that calling ``fn(*args, **kwargs)`` raises ``typer.Exit(1)``."""
     with pytest.raises(ClickExit) as exc_info:
         fn(*args, **kwargs)
     assert exc_info.value.exit_code == 1
@@ -35,38 +35,38 @@ def test_validate_name_accepts_alphanumeric(tmp_path, monkeypatch):
 def test_validate_name_rejects_existing_directory(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     (tmp_path / "myproject").mkdir()
-    assert_exits(validate_name, "myproject", "myproject")
+    _assert_exits(validate_name, "myproject", "myproject")
 
 
 def test_validate_name_rejects_leading_digit(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
-    assert_exits(validate_name, "1project", "1project")
+    _assert_exits(validate_name, "1project", "1project")
 
 
 def test_validate_name_rejects_hyphen_start(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
-    assert_exits(validate_name, "-project", "_project")
+    _assert_exits(validate_name, "-project", "_project")
 
 
 def test_validate_name_rejects_special_characters(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
-    assert_exits(validate_name, "my project", "my project")
+    _assert_exits(validate_name, "my project", "my project")
 
 
 def test_validate_name_rejects_stdlib_module(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
-    assert_exits(validate_name, "json", "json")
+    _assert_exits(validate_name, "json", "json")
 
 
 def test_validate_name_rejects_stdlib_module_os(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
-    assert_exits(validate_name, "os", "os")
+    _assert_exits(validate_name, "os", "os")
 
 
 def test_validate_name_rejects_empty_string(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
-    # empty string — Path("").exists() is True on all platforms
-    assert_exits(validate_name, "", "")
+    # Path("").exists() is True on all platforms, so this always exits.
+    _assert_exits(validate_name, "", "")
 
 
 # ── validate_addon_deps ───────────────────────────────────────────────────────
@@ -99,7 +99,7 @@ def test_validate_addon_deps_fails_when_requirement_missing():
         _make_addon("redis", []),
         _make_addon("celery", ["redis"]),
     ]
-    assert_exits(validate_addon_deps, ["celery"], available)
+    _assert_exits(validate_addon_deps, ["celery"], available)
 
 
 def test_validate_addon_deps_fails_for_transitive_missing():
@@ -108,7 +108,7 @@ def test_validate_addon_deps_fails_for_transitive_missing():
         _make_addon("celery", ["redis"]),
         _make_addon("docker", []),
     ]
-    assert_exits(validate_addon_deps, ["docker", "celery"], available)
+    _assert_exits(validate_addon_deps, ["docker", "celery"], available)
 
 
 def test_validate_addon_deps_passes_single_addon_no_requires():

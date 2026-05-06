@@ -1,7 +1,7 @@
-"""Interactive prompt – arrow keys, space to toggle, enter to confirm.
+"""Interactive prompt — arrow keys and space to select, enter to confirm.
 
-Works on Unix (termios) and Windows (msvcrt). Falls back to number
-input when stdin is not a tty (CI / piped input).
+Works on Unix (termios) and Windows (msvcrt).  Falls back to numbered input
+when stdin is not a tty (CI / piped input).
 """
 
 from __future__ import annotations
@@ -16,13 +16,16 @@ TEMPLATES: list[tuple[str, str]] = [
     ("fastapi", "FastAPI + SQLAlchemy + Alembic + asyncpg"),
 ]
 
+# Templates that force certain addons to be pre-selected and locked.
 TEMPLATE_REQUIRES: dict[str, list[str]] = {
     "fastapi": ["docker"],
 }
 
+# Populated by prompt_addons so that _requires_of can resolve deps without
+# threading the requires_map through every render call.
 _REGISTRY_REQUIRES: dict[str, list[str]] = {}
 
-# ── ANSI helpers ─────────────────────────────────────────────────────────
+# ── ANSI helpers ──────────────────────────────────────────────────────────────
 
 _HIDE_CURSOR = "\033[?25l"
 _SHOW_CURSOR = "\033[?25h"
@@ -42,16 +45,16 @@ def _clear_lines(n: int) -> None:
     sys.stdout.flush()
 
 
-# ── Cross‑platform key reader ───────────────────────────────────────────
+# ── Cross-platform key reader ─────────────────────────────────────────────────
 
 
 def _read_key() -> str:
-    """Return a key identifier string, e.g. '\r', ' ', '\x1b[A', etc."""
+    """Return a key identifier string such as ``'\r'``, ``' '``, or ``'\x1b[A'``."""
     if sys.platform == "win32":
         import msvcrt
 
         ch = msvcrt.getwch()
-        if ch == "\x00" or ch == "\xe0":  # arrow / function prefix
+        if ch in ("\x00", "\xe0"):  # arrow / function key prefix
             ch2 = msvcrt.getwch()
             if ch2 == "H":
                 return "\x1b[A"  # up arrow
@@ -83,7 +86,7 @@ def _tty_available() -> bool:
     return sys.stdin.isatty()
 
 
-# ── Visual symbols ──────────────────────────────────────────────────────
+# ── Visual symbols ────────────────────────────────────────────────────────────
 
 _ARROW = f"{MAGENTA}›{RESET}"
 _SPACER = " "
@@ -92,7 +95,7 @@ _EMPTY = f"{DIM}[ ]{RESET}"
 _LOCKED = f"{YELLOW}[~]{RESET}"
 
 
-# ── Single selection (template) ─────────────────────────────────────────
+# ── Single selection (template) ───────────────────────────────────────────────
 
 
 def _render_single(items: list[tuple[str, str]], cursor: int) -> int:
@@ -123,13 +126,13 @@ def _tui_single(prompt: str, items: list[tuple[str, str]]) -> str:
     try:
         while True:
             key = _read_key()
-            if key in ("\x1b[A", "k"):  # up
+            if key in ("\x1b[A", "k"):        # up
                 cursor = (cursor - 1) % n_items
-            elif key in ("\x1b[B", "j"):  # down
+            elif key in ("\x1b[B", "j"):      # down
                 cursor = (cursor + 1) % n_items
-            elif key in ("\r", "\n", " "):  # enter / space → confirm
+            elif key in ("\r", "\n", " "):    # enter / space → confirm
                 break
-            elif key == "\x03":  # ctrl+c
+            elif key == "\x03":               # ctrl+c
                 sys.stdout.write(_SHOW_CURSOR)
                 print()
                 sys.exit(0)
@@ -146,7 +149,7 @@ def _tui_single(prompt: str, items: list[tuple[str, str]]) -> str:
     return name
 
 
-# ── Multi selection (addons) ────────────────────────────────────────────
+# ── Multi selection (addons) ──────────────────────────────────────────────────
 
 
 def _render_multi(
@@ -165,20 +168,19 @@ def _render_multi(
             tick = _CHECK
         else:
             tick = _EMPTY
+
         if i == cursor:
             prefix = f"  {_ARROW} "
             label = f"{CYAN}{BOLD}{name}{RESET}"
         else:
             prefix = f"  {_SPACER}  "
             label = name
-        # Append dependency hint to description for non‑locked items
-        extra = ""
-        if i not in locked:
-            reqs = _requires_of(items[i][0])
-            if reqs:
-                extra = f"  {DIM}(needs {', '.join(reqs)}){RESET}"
+
+        reqs = _requires_of(items[i][0])
+        extra = f"  {DIM}(needs {', '.join(reqs)}){RESET}" if reqs and i not in locked else ""
         sys.stdout.write(f"{prefix}{tick} {label:<18}{DIM}  {desc}{RESET}{extra}\n")
         lines += 1
+
     if flash:
         sys.stdout.write(f"\n  {YELLOW}⚠  {flash}{RESET}\n")
     else:
@@ -189,14 +191,7 @@ def _render_multi(
 
 
 def _requires_of(addon_id: str) -> list[str]:
-    # Look up the requirement from the addon registry.
-    # This function will be called with the actual registry data,
-    # so we pass it as a global or closure. We'll set a module‑level
-    # variable before calling prompt_addons.
-    try:
-        return _REGISTRY_REQUIRES.get(addon_id, [])
-    except NameError:
-        return []
+    return _REGISTRY_REQUIRES.get(addon_id, [])
 
 
 def _tui_multi(
@@ -213,7 +208,6 @@ def _tui_multi(
     selected: set[int] = set(always_locked)
     name_to_idx = {name: i for i, (name, _) in enumerate(items)}
 
-    # Save registry for _requires_of
     global _REGISTRY_REQUIRES
     _REGISTRY_REQUIRES = requires_map
 
@@ -252,13 +246,16 @@ def _tui_multi(
                         flash = f"{item_name} is required by {', '.join(dependents)}"
                 elif cursor in selected:
                     selected.discard(cursor)
-                    # Also discard any addon that depends on this one
+                    # Also remove any addon that depended on this one.
                     for i, (name, _) in enumerate(items):
-                        if item_name in requires_map.get(name, []) and i not in always_locked:
+                        if (
+                            item_name in requires_map.get(name, [])
+                            and i not in always_locked
+                        ):
                             selected.discard(i)
                 else:
                     selected.add(cursor)
-                    # Auto‑select required addons
+                    # Auto-select transitive requirements.
                     for req in requires_map.get(item_name, []):
                         if req in name_to_idx:
                             selected.add(name_to_idx[req])
@@ -287,12 +284,10 @@ def _tui_multi(
     return chosen
 
 
-# ── Fallback (non‑tty) ─────────────────────────────────────────────────
+# ── Fallback (non-tty) ────────────────────────────────────────────────────────
 
 
 def _fallback_template() -> str:
-    from scaffolder.ui import CYAN, DIM, RESET
-
     print("\n  Select a base template:\n")
     for i, (name, desc) in enumerate(TEMPLATES, 1):
         print(f"    {CYAN}{i}){RESET} {name:<10} {DIM}—{RESET} {desc}")
@@ -300,7 +295,7 @@ def _fallback_template() -> str:
     while True:
         try:
             choice = input("  Template [1/2]: ").strip().lower()
-        except EOFError, KeyboardInterrupt:
+        except (EOFError, KeyboardInterrupt):
             print()
             sys.exit(0)
         for key, (name, _) in enumerate(TEMPLATES, 1):
@@ -314,12 +309,10 @@ def _fallback_addons(
     requires_map: dict[str, list[str]],
     always_locked_names: set[str],
 ) -> list[str]:
-    from scaffolder.ui import CYAN, DIM, RESET
-
     if not items:
         return list(always_locked_names)
 
-    print(f"\n  Select addons: {DIM}(space‑separated numbers, or enter to skip){RESET}\n")
+    print(f"\n  Select addons: {DIM}(space-separated numbers, or enter to skip){RESET}\n")
     for i, (addon_id, desc) in enumerate(items, 1):
         locked = " (required)" if addon_id in always_locked_names else ""
         print(f"    {CYAN}{i}){RESET} {addon_id:<18} {DIM}—{RESET} {desc}{locked}")
@@ -328,7 +321,7 @@ def _fallback_addons(
     while True:
         try:
             raw = input("  Addons [e.g. 1 3, or leave blank]: ").strip()
-        except EOFError, KeyboardInterrupt:
+        except (EOFError, KeyboardInterrupt):
             print()
             sys.exit(0)
 
@@ -353,12 +346,12 @@ def _fallback_addons(
                 for req in requires_map.get(addon_id, []):
                     if req not in selected:
                         selected.append(req)
-                        warn(f"Auto‑selected '{req}' (required by '{addon_id}').")
+                        warn(f"Auto-selected '{req}' (required by '{addon_id}').")
         if valid:
             return selected
 
 
-# ── Public API ──────────────────────────────────────────────────────────
+# ── Public API ────────────────────────────────────────────────────────────────
 
 
 def prompt_template() -> str:
@@ -376,8 +369,6 @@ def prompt_addons(available: list[AddonConfig], template: str = "") -> list[str]
     name_to_idx = {cfg.id: i for i, cfg in enumerate(available)}
 
     always_locked: set[int] = set()
-    # TEMPLATE_REQUIRES is still needed; we'll load template config the same way.
-    # For now, keep the dict.
     for req in TEMPLATE_REQUIRES.get(template, []):
         if req in name_to_idx:
             always_locked.add(name_to_idx[req])

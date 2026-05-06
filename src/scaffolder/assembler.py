@@ -1,4 +1,4 @@
-"""Assembles contributions from template + addons and applies them."""
+"""Assembles contributions from the template and selected addons, then applies them."""
 
 from __future__ import annotations
 
@@ -23,10 +23,14 @@ def collect_all(
     template_config: TemplateConfig,
     addon_configs: list[AddonConfig],
 ) -> Contributions:
-    """Merge contributions from the template and all selected addons."""
+    """Merge contributions from the template and all selected addons.
+
+    Note: template ``just_recipes`` are intentionally *not* collected here.
+    ``generate_all`` reads them directly from ``template_cfg`` to avoid
+    double-rendering during deduplication.
+    """
     c = Contributions()
 
-    # Templates
     c.dirs.extend(template_config.dirs)
     c.files.extend(template_config.files)
     c.compose_services.extend(template_config.compose_services)
@@ -34,13 +38,11 @@ def collect_all(
     c.env_vars.extend(template_config.env_vars)
     c.deps.extend(template_config.deps)
     c.dev_deps.extend(template_config.dev_deps)
-    # Note: just_recipes are NOT collected here from template_config —
-    # generate_all reads template_cfg.just_recipes directly to avoid duplication.
+
     for inj in template_config.injections:
         inj.addon_id = "template"
         c.injections.append(inj)
 
-    # Addons
     for addon in addon_configs:
         c.files.extend(addon.files)
         c.compose_services.extend(addon.compose_services)
@@ -63,18 +65,26 @@ def apply_contributions(
     extension_points: dict[str, ExtensionPoint],
     render_vars: dict[str, object],
 ) -> None:
-    """
-    Modify the generated project directory in-place according to the contributions.
-    Assumes the common files have already been placed (via _common/apply.py).
+    """Modify the generated project directory in-place according to *contributions*.
+
+    Assumes common files have already been placed via ``_common/apply.py``.
+    Steps (in order):
+
+    1. Create directories.
+    2. Write / copy / render individual files.
+    3. Apply sentinel-based injections.
+    4. Merge compose services and volumes into ``compose.yml`` (if present).
+    5. Append env vars to ``.env`` and ``.env.example`` (if present).
+    6. Run each addon's optional ``post_apply`` hook.
     """
     project_dir = ctx.project_dir
+    pkg_name = str(render_vars["pkg_name"])
 
     for d in contributions.dirs:
-        dest = d.replace("{{pkg_name}}", str(render_vars["pkg_name"]))
-        ctx.create_dir(dest)
+        ctx.create_dir(d.replace("{{pkg_name}}", pkg_name))
 
-    # Pre-render dynamic fields in compose services
-    pkg_name = str(render_vars["pkg_name"])
+    # Pre-render {{pkg_name}} placeholders in compose service fields before
+    # the services are serialised to YAML.
     for svc in contributions.compose_services:
         if svc.command and "{{pkg_name}}" in svc.command:
             svc.command = svc.command.replace("{{pkg_name}}", pkg_name)
@@ -92,7 +102,6 @@ def apply_contributions(
         dest = fc.dest.replace("{{pkg_name}}", pkg_name)
         if fc.content is not None:
             if fc.template:
-                # Render inline content through Jinja2 using only **render_vars
                 string_env = make_env()
                 rendered = string_env.from_string(fc.content).render(**render_vars)
                 ctx.write_file(dest, rendered)
@@ -101,22 +110,15 @@ def apply_contributions(
         elif fc.source is not None:
             src_path = Path(fc.source)
             if not src_path.is_absolute():
-                raise ValueError(f"source path for {fc.dest} is not absolute")
+                raise ValueError(f"source path for {fc.dest!r} must be absolute")
             if fc.template:
                 env = make_env(src_path.parent)
-                # Use only **render_vars — never mix explicit kwargs with **render_vars
-                # as render_vars already contains "name", "pkg_name", "template", etc.
                 content = env.get_template(src_path.name).render(**render_vars)
                 ctx.write_file(dest, content)
             else:
                 ctx.copy_file(src_path, dest)
 
-    _apply_injections_rendered(
-        project_dir,
-        contributions.injections,
-        extension_points,
-        render_vars,
-    )
+    _apply_injections(project_dir, contributions.injections, extension_points, render_vars)
 
     if contributions.compose_services and (project_dir / "compose.yml").exists():
         _merge_compose_services(project_dir, contributions.compose_services)
@@ -128,16 +130,21 @@ def apply_contributions(
             _merge_env_vars(env_path, contributions.env_vars)
 
     for addon_cfg in contributions._addon_configs:
-        if hasattr(addon_cfg, "_module") and hasattr(addon_cfg._module, "post_apply"):
-            addon_cfg._module.post_apply(ctx)
+        module = getattr(addon_cfg, "_module", None)
+        if module is not None and hasattr(module, "post_apply"):
+            module.post_apply(ctx)
 
 
-def _apply_injections_rendered(
+# ── Internal helpers ──────────────────────────────────────────────────────────
+
+
+def _apply_injections(
     project_dir: Path,
     injections: list[Injection],
     extension_points: dict[str, ExtensionPoint],
     render_vars: dict[str, object],
 ) -> None:
+    """Group injections by extension-point name, then apply each group."""
     by_point: dict[str, list[str]] = {}
     for inj in injections:
         by_point.setdefault(inj.point, []).append(inj.content)
@@ -147,8 +154,7 @@ def _apply_injections_rendered(
             continue
         ep = extension_points[point_name]
         rel_path = ep.file.replace("{{pkg_name}}", str(render_vars["pkg_name"]))
-        file_path = project_dir / rel_path
-        _apply_to_file(file_path, ep, contents)
+        _apply_to_file(project_dir / rel_path, ep, contents)
 
 
 def _apply_to_file(
@@ -156,17 +162,17 @@ def _apply_to_file(
     ep: ExtensionPoint,
     contents: list[str],
 ) -> None:
+    """Insert *contents* into *file_path* according to *ep*'s mode and sentinel."""
     if not file_path.exists():
         return
     text = file_path.read_text(encoding="utf-8")
-    sentinel = ep.sentinel
-    if sentinel not in text:
+    if ep.sentinel not in text:
         return
 
     joined = "\n".join(contents)
 
     if ep.mode == InjectionMode.AFTER_SENTINEL:
-        text = text.replace(sentinel, sentinel + "\n" + joined, 1)
+        text = text.replace(ep.sentinel, ep.sentinel + "\n" + joined, 1)
     elif ep.mode == InjectionMode.APPEND:
         text = text.rstrip("\n") + "\n" + joined + "\n"
     else:
@@ -176,14 +182,15 @@ def _apply_to_file(
 
 
 def _merge_compose_services(project_dir: Path, services: list[ComposeService]) -> None:
+    """Add *services* to ``compose.yml``, skipping any that already exist."""
     compose_path = project_dir / "compose.yml"
-    data = yaml.safe_load(compose_path.read_text(encoding="utf-8")) or {}
-    existing = data.setdefault("services", {})
+    data: dict[str, object] = yaml.safe_load(compose_path.read_text(encoding="utf-8")) or {}
+    existing: dict[str, object] = data.setdefault("services", {})  # type: ignore[assignment]
 
     for svc in services:
         if svc.name in existing:
             continue
-        block: dict = {}
+        block: dict[str, object] = {}
         if svc.image:
             block["image"] = svc.image
         if svc.build:
@@ -201,7 +208,7 @@ def _merge_compose_services(project_dir: Path, services: list[ComposeService]) -
         if svc.depends_on:
             block["depends_on"] = svc.depends_on
         if svc.develop_watch:
-            block.setdefault("develop", {})["watch"] = svc.develop_watch
+            block.setdefault("develop", {})["watch"] = svc.develop_watch  # type: ignore[index]
         existing[svc.name] = block
 
     compose_path.write_text(
@@ -211,9 +218,10 @@ def _merge_compose_services(project_dir: Path, services: list[ComposeService]) -
 
 
 def _merge_compose_volumes(project_dir: Path, volumes: list[str]) -> None:
+    """Add named volumes to ``compose.yml``, skipping duplicates."""
     compose_path = project_dir / "compose.yml"
-    data = yaml.safe_load(compose_path.read_text(encoding="utf-8")) or {}
-    vols_section = data.setdefault("volumes", {})
+    data: dict[str, object] = yaml.safe_load(compose_path.read_text(encoding="utf-8")) or {}
+    vols_section: dict[str, None] = data.setdefault("volumes", {})  # type: ignore[assignment]
     for vol_name in volumes:
         if vol_name not in vols_section:
             vols_section[vol_name] = None
@@ -224,14 +232,15 @@ def _merge_compose_volumes(project_dir: Path, volumes: list[str]) -> None:
 
 
 def _merge_env_vars(env_path: Path, env_vars: list[EnvVar]) -> None:
-    text = env_path.read_text(encoding="utf-8")
+    """Append missing env vars after the ``# [jumpstart: env_vars]`` sentinel."""
     sentinel = "# [jumpstart: env_vars]"
+    text = env_path.read_text(encoding="utf-8")
     if sentinel not in text:
         return
 
-    new_lines = []
+    new_lines: list[str] = []
     for v in env_vars:
-        if v.key + "=" not in text:
+        if f"{v.key}=" not in text:
             line = f"{v.key}={v.default}"
             if v.comment:
                 line += f"  # {v.comment}"

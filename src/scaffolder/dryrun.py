@@ -1,4 +1,5 @@
-"""Dry‑run mode – faithful preview by running apply functions with a recording context."""
+"""Dry-run mode — faithful preview by running the scaffold pipeline with a
+recording context that captures every file operation without touching disk."""
 
 from __future__ import annotations
 
@@ -21,9 +22,11 @@ from scaffolder.ui import (
 
 
 class DryRunContext(Context):
-    """A context that records every file operation without touching the disk."""
+    """A ``Context`` subclass that records every file operation instead of
+    executing it, leaving the filesystem completely untouched."""
 
-    recorded_files: list[tuple[str, str, str]]  # (action, path, details)
+    # List of (action, path, details) tuples recorded during the dry run.
+    recorded_files: list[tuple[str, str, str]]
 
     def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)
@@ -52,7 +55,7 @@ class DryRunContext(Context):
 
 
 def run_dry(ctx: Context) -> None:
-    """Scaffold with a DryRunContext and display the resulting manifest."""
+    """Run the scaffold pipeline with a ``DryRunContext`` and print the manifest."""
     dry_ctx = DryRunContext(
         name=ctx.name,
         pkg_name=ctx.pkg_name,
@@ -79,7 +82,6 @@ def run_dry(ctx: Context) -> None:
 
     contributions = collect_all(template_config, selected_addon_configs)
 
-    # Build render_vars once — never pass name= explicitly alongside **render_vars
     render_vars: dict[str, object] = {
         "name": ctx.name,
         "pkg_name": ctx.pkg_name,
@@ -111,7 +113,8 @@ def run_dry(ctx: Context) -> None:
         if action == "mkdir":
             print(f"  {MAGENTA}►{RESET} {path}/")
         elif action in ("create", "copy"):
-            print(f"  {GREEN}+{RESET} {path}{'  ' + DIM + details + RESET if details else ''}")
+            suffix = f"  {DIM}{details}{RESET}" if details else ""
+            print(f"  {GREEN}+{RESET} {path}{suffix}")
         elif action == "append":
             print(f"  {GREEN}+{RESET} {path}  {DIM}(appended){RESET}")
         elif action == "modify":
@@ -140,8 +143,8 @@ def run_dry(ctx: Context) -> None:
         dry_dep(dep, "addon")
 
     dry_header("Generated config files")
-    for template_name in ["pyproject.toml", "justfile"]:
-        dry_dep(template_name)
+    for file_name in ["pyproject.toml", "justfile"]:
+        dry_dep(file_name)
 
     dry_header("Commands that would run")
     for cmd in [

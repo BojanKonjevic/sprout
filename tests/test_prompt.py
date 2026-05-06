@@ -1,9 +1,9 @@
 """Tests for scaffolder.prompt fallback functions.
 
 The TUI path requires a real terminal and is not tested here.
-The fallback path (_fallback_template, _fallback_addons) runs whenever
-stdin is not a tty — e.g. in CI — and is plain input-parsing logic
-that can be fully exercised by mocking builtins.input.
+The fallback functions (``_fallback_template``, ``_fallback_addons``) run
+whenever stdin is not a tty — e.g. in CI — and are plain input-parsing logic
+that can be fully exercised by patching ``builtins.input``.
 """
 
 from __future__ import annotations
@@ -13,7 +13,6 @@ from unittest.mock import patch
 import pytest
 
 from scaffolder.prompt import _fallback_addons, _fallback_template
-
 
 # ── _fallback_template ────────────────────────────────────────────────────────
 
@@ -44,7 +43,6 @@ def test_fallback_template_case_insensitive():
 
 
 def test_fallback_template_retries_on_invalid_then_accepts():
-    # First input invalid, second valid
     with patch("builtins.input", side_effect=["99", "1"]):
         assert _fallback_template() == "blank"
 
@@ -97,7 +95,7 @@ def test_fallback_addons_empty_input_no_locked_returns_empty():
 
 
 def test_fallback_addons_no_items_returns_locked_immediately():
-    # When items is empty, function returns without prompting
+    # When items is empty the function returns without prompting.
     result = _fallback_addons([], _requires(), always_locked_names={"docker"})
     assert result == ["docker"]
 
@@ -138,7 +136,7 @@ def test_fallback_addons_always_locked_included_even_if_not_typed():
 
 def test_fallback_addons_locked_not_duplicated():
     items = _items("docker", "redis")
-    # Select docker (1) even though it's already locked
+    # Explicitly select docker (1) even though it is already locked.
     with patch("builtins.input", return_value="1"):
         result = _fallback_addons(items, _requires(), always_locked_names={"docker"})
     assert result.count("docker") == 1
@@ -158,16 +156,16 @@ def test_fallback_addons_auto_selects_required():
 
 def test_fallback_addons_auto_selects_only_direct_requirements():
     # _fallback_addons resolves one level deep only — it does not recurse.
-    # Selecting celery pulls in redis (celery requires redis),
-    # but docker is NOT pulled in even though redis requires docker,
-    # because the auto-select loop runs once over the originally selected addon.
+    # Selecting celery pulls in redis (celery requires redis), but docker is
+    # NOT pulled in even though redis requires docker, because the auto-select
+    # loop runs only over the originally selected addon.
     items = _items("docker", "redis", "celery")
     requires = _requires(("celery", ["redis"]), ("redis", ["docker"]))
     with patch("builtins.input", return_value="3"):
         result = _fallback_addons(items, requires, always_locked_names=set())
     assert "celery" in result
     assert "redis" in result
-    assert "docker" not in result  # not recursively resolved
+    assert "docker" not in result
 
 
 def test_fallback_addons_no_auto_select_when_no_requirement():
@@ -205,7 +203,7 @@ def test_fallback_addons_retries_on_zero_index():
 
 
 def test_fallback_addons_retries_on_mixed_valid_invalid():
-    # "1 abc" — the whole line is rejected, not partially accepted
+    # "1 abc" — the whole line is rejected, not partially accepted.
     items = _items("docker", "redis", "sentry")
     with patch("builtins.input", side_effect=["1 abc", "2"]):
         result = _fallback_addons(items, _requires(), always_locked_names=set())

@@ -3,21 +3,19 @@ import sys
 import threading
 import time
 
-# ── Windows: enable VT100 / ANSI escape processing ───────────────────────────
-# Required on older Windows builds; a no-op on Windows 10 1511+ and all
-# Unix systems.  Must run before any ANSI codes are written.
-
+# Enable VT100 / ANSI escape processing on Windows.
+# This is a no-op on Windows 10 1511+ and all Unix systems, but required on
+# older Windows builds.  Must run before any ANSI codes are written.
 if sys.platform == "win32":
     try:
         import ctypes
 
         kernel32 = ctypes.windll.kernel32  # type: ignore[attr-defined]
-        # ENABLE_PROCESSED_OUTPUT | ENABLE_WRAP_AT_EOL_OUTPUT | ENABLE_VIRTUAL_TERMINAL_PROCESSING
+        # Flags: ENABLE_PROCESSED_OUTPUT | ENABLE_WRAP_AT_EOL_OUTPUT |
+        #        ENABLE_VIRTUAL_TERMINAL_PROCESSING
         kernel32.SetConsoleMode(kernel32.GetStdHandle(-11), 7)
-    except Exception:
-        pass  # non-fatal; colours just won't render on very old Windows
-
-# ─────────────────────────────────────────────────────────────────────────────
+    except Exception:  # noqa: BLE001 — non-fatal; colours just won't render
+        pass
 
 BOLD = "\033[1m"
 DIM = "\033[2m"
@@ -53,7 +51,7 @@ def error(msg: str) -> None:
     print(f"\n  {RED}✗  {msg}{RESET}", file=sys.stderr)
 
 
-# ─── Dry-run display helpers ──────────────────────────────────────────────────
+# ── Dry-run display helpers ───────────────────────────────────────────────────
 
 
 def dry_header(msg: str) -> None:
@@ -78,7 +76,7 @@ def dry_section(title: str) -> None:
     print(f"\n  {BOLD}{DIM}{title}{RESET}")
 
 
-# ─── Confirm prompt ───────────────────────────────────────────────────────────
+# ── Confirm prompt ────────────────────────────────────────────────────────────
 
 
 def confirm(ctx: object) -> bool:
@@ -88,7 +86,9 @@ def confirm(ctx: object) -> bool:
 
     template_line = f"{CYAN}{ctx.template}{RESET}"
     addon_line = (
-        "  ".join(f"{GREEN}{a}{RESET}" for a in ctx.addons) if ctx.addons else f"{DIM}none{RESET}"
+        "  ".join(f"{GREEN}{a}{RESET}" for a in ctx.addons)
+        if ctx.addons
+        else f"{DIM}none{RESET}"
     )
 
     print(f"\n  {BOLD}Ready to scaffold:{RESET}")
@@ -115,14 +115,14 @@ def confirm(ctx: object) -> bool:
 
     try:
         raw = input(f"  Proceed? {DIM}[Y/n]{RESET}  ").strip().lower()
-    except EOFError, KeyboardInterrupt:
+    except (EOFError, KeyboardInterrupt):
         print()
         return False
 
     return raw in ("", "y", "yes")
 
 
-# ─── Spinner ──────────────────────────────────────────────────────────────────
+# ── Spinner ───────────────────────────────────────────────────────────────────
 
 
 class _Spinner:

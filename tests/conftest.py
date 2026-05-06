@@ -4,27 +4,33 @@ import pytest
 from click.exceptions import Exit as ClickExit
 
 
-def raises_exit(code: int = 1):
-    """Context manager that expects a typer.Exit(code) to be raised."""
+def raises_exit(code: int = 1) -> pytest.ExceptionInfo[ClickExit]:
+    """Context manager that expects a ``typer.Exit(code)`` to be raised."""
     return pytest.raises(ClickExit, match="")
 
 
 class ExitAssertion:
-    """Use as a context manager to assert a typer.Exit(1) was raised."""
+    """Context manager that asserts a ``typer.Exit(1)`` was raised."""
 
-    def __enter__(self):
+    def __enter__(self) -> ExitAssertion:
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: object,
+    ) -> bool:
         if exc_type is None:
             raise AssertionError("Expected a typer.Exit to be raised but nothing was raised")
-        if not isinstance(exc_val, ClickExit):
+        if not issubclass(exc_type, ClickExit):
             return False  # let other exceptions propagate
+        assert isinstance(exc_val, ClickExit)
         assert exc_val.exit_code == 1, f"Expected exit code 1, got {exc_val.exit_code}"
-        return True  # suppress the exception
+        return True  # suppress the ClickExit
 
 
 @pytest.fixture
-def assert_exits():
+def assert_exits() -> type[ExitAssertion]:
     """Fixture that returns an ExitAssertion context manager."""
     return ExitAssertion

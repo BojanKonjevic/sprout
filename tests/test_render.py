@@ -1,7 +1,7 @@
 """Tests for scaffolder.render — Jinja2 environment configuration.
 
-Includes a regression test for line_comment_prefix=None, which must stay
-set to prevent Jinja2's default `##` from silently eating comment lines in
+Includes a regression test for ``line_comment_prefix=None``, which must stay
+set to prevent Jinja2's default ``##`` from silently eating comment lines in
 generated Python files.
 """
 
@@ -12,7 +12,7 @@ import pytest
 
 from scaffolder.render import make_env
 
-# ── delimiter configuration ───────────────────────────────────────────────────
+# ── Delimiter configuration ───────────────────────────────────────────────────
 
 
 def test_variable_delimiters_are_double_parens():
@@ -29,9 +29,8 @@ def test_block_delimiters_are_bracket_percent():
 
 
 def test_default_jinja2_delimiters_are_NOT_active():
-    """{{ }} and {% %} must be treated as literal text, not Jinja2 syntax."""
+    """``{{ }}`` and ``{% %}`` must be treated as literal text, not Jinja2 syntax."""
     env = make_env()
-    # These look like Jinja2 but should be passed through unchanged
     result = env.from_string("{{pkg_name}}").render(pkg_name="myapp")
     assert result == "{{pkg_name}}"
 
@@ -42,16 +41,16 @@ def test_default_block_delimiter_not_active():
     assert result == "{% if True %}yes{% endif %}"
 
 
-# ── line_comment_prefix regression ───────────────────────────────────────────
+# ── line_comment_prefix regression ────────────────────────────────────────────
 
 
 def test_hash_hash_is_NOT_a_line_comment():
-    """REGRESSION: line_comment_prefix=None must be set.
+    """REGRESSION: ``line_comment_prefix=None`` must be set.
 
-    Jinja2's default line_comment_prefix is '##'.  If it is accidentally
-    removed, any Python line starting with '##' would be silently stripped
-    from generated files — breaking double-hash comments in templates like
-    alembic scripts or docstrings.
+    Jinja2's default ``line_comment_prefix`` is ``'##'``.  If it is
+    accidentally removed, any Python line starting with ``##`` would be
+    silently stripped from generated files — breaking double-hash comments in
+    templates like Alembic scripts or docstrings.
     """
     env = make_env()
     template_text = "line1\n## this must survive\nline3\n"
@@ -99,7 +98,7 @@ def test_env_with_loader_path_loads_templates(tmp_path):
     assert result == "Hi Bojan!\n"
 
 
-def test_env_without_loader_path_renders_strings(tmp_path):
+def test_env_without_loader_path_renders_strings():
     env = make_env()
     result = env.from_string("(( x )) + (( y ))").render(x=1, y=2)
     assert result == "1 + 2"
@@ -127,18 +126,18 @@ def test_for_loop_with_custom_delimiters():
     assert result == "a\nb\nc\n"
 
 
-# ── raw block ────────────────────────────────────────────────────────────────
+# ── raw block ─────────────────────────────────────────────────────────────────
 
 
 def test_raw_block_passes_through_unchanged():
-    """[% raw %] ... [% endraw %] must work for alembic.ini templates."""
+    """``[% raw %] … [% endraw %]`` must work for alembic.ini templates."""
     env = make_env()
     tmpl = "[% raw %]%(levelname)s [%(name)s][% endraw %]"
     result = env.from_string(tmpl).render()
     assert result == "%(levelname)s [%(name)s]"
 
 
-# ── filter / default ─────────────────────────────────────────────────────────
+# ── filter / default ──────────────────────────────────────────────────────────
 
 
 def test_default_filter_works():
@@ -147,7 +146,7 @@ def test_default_filter_works():
     assert result == "fallback"
 
 
-# ── two envs are independent ──────────────────────────────────────────────────
+# ── Two envs are independent ──────────────────────────────────────────────────
 
 
 def test_two_envs_with_different_loader_paths_are_independent(tmp_path):

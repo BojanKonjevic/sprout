@@ -1,6 +1,5 @@
 """Tests for scaffolder.assembler — collecting and merging contributions."""
 
-
 from scaffolder.assembler import collect_all
 from scaffolder.schema import (
     AddonConfig,
@@ -12,7 +11,7 @@ from scaffolder.schema import (
     TemplateConfig,
 )
 
-# ── helpers ───────────────────────────────────────────────────────────────────
+# ── Helpers ───────────────────────────────────────────────────────────────────
 
 
 def _template(
@@ -80,7 +79,6 @@ def test_collect_all_empty():
 
 
 def test_collect_all_template_deps_in_contributions():
-    # Template deps ARE collected into contributions.deps
     result = collect_all(_template(deps=["fastapi", "uvicorn"]), [])
     assert "fastapi" in result.deps
     assert "uvicorn" in result.deps
@@ -140,8 +138,9 @@ def test_collect_all_files_from_multiple_addons():
 
 
 def test_collect_all_template_just_recipes_not_in_contributions():
-    # Template just_recipes are NOT put into contributions —
-    # generate_all reads them directly from template_cfg
+    # Template just_recipes are NOT put into contributions.just_recipes —
+    # generate_all reads them directly from template_cfg to avoid
+    # double-rendering during deduplication.
     result = collect_all(_template(just_recipes=["run:\n    python -m app"]), [])
     assert result.just_recipes == []
 

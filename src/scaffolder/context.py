@@ -1,19 +1,21 @@
 import shutil
+import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
 
 @dataclass
 class Context:
+    """Runtime state passed through the entire scaffold pipeline."""
+
     name: str
     pkg_name: str
     template: str
     addons: list[str]
     scaffolder_root: Path
     project_dir: Path
-    _dry_run: bool = False  # ← renamed, private
+    _dry_run: bool = False
 
-    # Read-only property so DryRunContext can override it
     @property
     def dry_run(self) -> bool:
         return self._dry_run
@@ -21,7 +23,9 @@ class Context:
     def has(self, addon: str) -> bool:
         return addon in self.addons
 
-    # ── Filesystem abstraction (real I/O) ──────────────────────────────
+    # ── Filesystem abstraction ────────────────────────────────────────────────
+    # Each method checks dry_run first; DryRunContext overrides the _record_*
+    # hooks so the same codepaths exercise the recording logic without I/O.
 
     def write_file(self, path: str, content: str) -> None:
         if self.dry_run:
@@ -61,11 +65,9 @@ class Context:
     def execute_command(self, cmd: list[str]) -> None:
         if self.dry_run:
             return
-        import subprocess
-
         subprocess.run(cmd, check=True, capture_output=True)
 
-    # ── Recording hooks (overridden in DryRunContext) ─────────────────
+    # ── Recording hooks (overridden in DryRunContext) ─────────────────────────
 
     def _record_write(self, path: str, content: str = "") -> None:
         pass

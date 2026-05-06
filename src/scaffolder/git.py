@@ -5,6 +5,7 @@ from scaffolder.ui import spinner
 
 
 def init_and_commit(project_dir: Path) -> None:
+    """Initialise a git repository and create the first commit."""
     with spinner("Initialising git repository"):
 
         def run(*cmd: str) -> None:
