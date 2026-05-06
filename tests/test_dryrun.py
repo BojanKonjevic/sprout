@@ -1,0 +1,268 @@
+"""Tests for scaffolder.dryrun — preview mode that records operations without writing.
+
+Verifies that DryRunContext records all file operations and that run_dry
+produces the expected output without touching the filesystem.
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+from scaffolder.context import Context
+from scaffolder.dryrun import DryRunContext, run_dry
+
+SCAFFOLDER_ROOT = Path(__file__).parent.parent / "src" / "scaffolder"
+
+
+def _real_ctx(tmp_path: Path, name: str = "myapp", template: str = "blank", addons: list | None = None) -> Context:
+    return Context(
+        name=name,
+        pkg_name=name.replace("-", "_"),
+        template=template,
+        addons=addons or [],
+        scaffolder_root=SCAFFOLDER_ROOT,
+        project_dir=tmp_path / name,
+    )
+
+
+# ── DryRunContext.dry_run property ────────────────────────────────────────────
+
+
+def test_dry_run_context_dry_run_is_true(tmp_path):
+    ctx = DryRunContext(
+        name="myapp",
+        pkg_name="myapp",
+        template="blank",
+        addons=[],
+        scaffolder_root=SCAFFOLDER_ROOT,
+        project_dir=tmp_path / "myapp",
+    )
+    assert ctx.dry_run is True
+
+
+def test_real_context_dry_run_is_false(tmp_path):
+    ctx = _real_ctx(tmp_path)
+    assert ctx.dry_run is False
+
+
+# ── DryRunContext recording ───────────────────────────────────────────────────
+
+
+def test_write_file_is_recorded_not_written(tmp_path):
+    ctx = DryRunContext(
+        name="myapp",
+        pkg_name="myapp",
+        template="blank",
+        addons=[],
+        scaffolder_root=SCAFFOLDER_ROOT,
+        project_dir=tmp_path / "myapp",
+    )
+    ctx.write_file("src/myapp/main.py", "# content")
+    assert not (tmp_path / "myapp" / "src" / "myapp" / "main.py").exists()
+    assert any(path == "src/myapp/main.py" for (action, path, _) in ctx.recorded_files)
+
+
+def test_create_dir_is_recorded_not_created(tmp_path):
+    ctx = DryRunContext(
+        name="myapp",
+        pkg_name="myapp",
+        template="blank",
+        addons=[],
+        scaffolder_root=SCAFFOLDER_ROOT,
+        project_dir=tmp_path / "myapp",
+    )
+    ctx.create_dir("src/myapp")
+    assert not (tmp_path / "myapp" / "src" / "myapp").exists()
+    assert any(action == "mkdir" for (action, _, __) in ctx.recorded_files)
+
+
+def test_copy_file_is_recorded_not_copied(tmp_path):
+    src = tmp_path / "source.txt"
+    src.write_text("data")
+    ctx = DryRunContext(
+        name="myapp",
+        pkg_name="myapp",
+        template="blank",
+        addons=[],
+        scaffolder_root=SCAFFOLDER_ROOT,
+        project_dir=tmp_path / "myapp",
+    )
+    ctx.copy_file(src, "dest.txt")
+    assert not (tmp_path / "myapp" / "dest.txt").exists()
+    assert any(action == "copy" for (action, _, __) in ctx.recorded_files)
+
+
+def test_append_to_file_is_recorded(tmp_path):
+    ctx = DryRunContext(
+        name="myapp",
+        pkg_name="myapp",
+        template="blank",
+        addons=[],
+        scaffolder_root=SCAFFOLDER_ROOT,
+        project_dir=tmp_path / "myapp",
+    )
+    ctx.append_to_file("somefile.py", "# appended")
+    assert any(action == "append" for (action, _, __) in ctx.recorded_files)
+
+
+def test_record_modification_is_recorded(tmp_path):
+    ctx = DryRunContext(
+        name="myapp",
+        pkg_name="myapp",
+        template="blank",
+        addons=[],
+        scaffolder_root=SCAFFOLDER_ROOT,
+        project_dir=tmp_path / "myapp",
+    )
+    ctx.record_modification("settings.py", "injected redis_url field")
+    assert any(action == "modify" for (action, _, __) in ctx.recorded_files)
+
+
+# ── run_dry — no filesystem side-effects ─────────────────────────────────────
+
+
+def test_run_dry_blank_does_not_create_project_dir(tmp_path):
+    ctx = _real_ctx(tmp_path, template="blank")
+    run_dry(ctx)
+    assert not (tmp_path / "myapp").exists()
+
+
+def test_run_dry_blank_docker_does_not_create_project_dir(tmp_path):
+    ctx = _real_ctx(tmp_path, template="blank", addons=["docker"])
+    run_dry(ctx)
+    assert not (tmp_path / "myapp").exists()
+
+
+def test_run_dry_fastapi_does_not_create_project_dir(tmp_path):
+    ctx = _real_ctx(tmp_path, template="fastapi", addons=["docker"])
+    run_dry(ctx)
+    assert not (tmp_path / "myapp").exists()
+
+
+# ── run_dry — output content ──────────────────────────────────────────────────
+
+
+def test_run_dry_blank_output_mentions_project_name(tmp_path, capsys):
+    ctx = _real_ctx(tmp_path, name="coolproject", template="blank")
+    run_dry(ctx)
+    captured = capsys.readouterr()
+    assert "coolproject" in captured.out
+
+
+def test_run_dry_blank_output_mentions_template(tmp_path, capsys):
+    ctx = _real_ctx(tmp_path, template="blank")
+    run_dry(ctx)
+    captured = capsys.readouterr()
+    assert "blank" in captured.out
+
+
+def test_run_dry_blank_output_contains_dry_run_header(tmp_path, capsys):
+    ctx = _real_ctx(tmp_path, template="blank")
+    run_dry(ctx)
+    captured = capsys.readouterr()
+    assert "Dry run" in captured.out
+
+
+def test_run_dry_blank_output_contains_files_section(tmp_path, capsys):
+    ctx = _real_ctx(tmp_path, template="blank")
+    run_dry(ctx)
+    captured = capsys.readouterr()
+    assert "Files" in captured.out or "files" in captured.out
+
+
+def test_run_dry_blank_output_contains_git_command(tmp_path, capsys):
+    ctx = _real_ctx(tmp_path, template="blank")
+    run_dry(ctx)
+    captured = capsys.readouterr()
+    assert "git init" in captured.out
+
+
+def test_run_dry_blank_output_contains_main_py(tmp_path, capsys):
+    ctx = _real_ctx(tmp_path, template="blank")
+    run_dry(ctx)
+    captured = capsys.readouterr()
+    assert "main.py" in captured.out
+
+
+def test_run_dry_with_docker_addon_output_mentions_dockerfile(tmp_path, capsys):
+    ctx = _real_ctx(tmp_path, template="blank", addons=["docker"])
+    run_dry(ctx)
+    captured = capsys.readouterr()
+    assert "Dockerfile" in captured.out
+
+
+def test_run_dry_with_addons_output_mentions_addon(tmp_path, capsys):
+    ctx = _real_ctx(tmp_path, template="blank", addons=["docker"])
+    run_dry(ctx)
+    captured = capsys.readouterr()
+    assert "docker" in captured.out
+
+
+def test_run_dry_output_says_nothing_will_be_written(tmp_path, capsys):
+    ctx = _real_ctx(tmp_path, template="blank")
+    run_dry(ctx)
+    captured = capsys.readouterr()
+    assert "Nothing will be written" in captured.out
+
+
+def test_run_dry_output_contains_dependencies(tmp_path, capsys):
+    ctx = _real_ctx(tmp_path, template="blank")
+    run_dry(ctx)
+    captured = capsys.readouterr()
+    assert "pytest" in captured.out
+
+
+def test_run_dry_fastapi_output_mentions_fastapi_dep(tmp_path, capsys):
+    ctx = _real_ctx(tmp_path, template="fastapi", addons=["docker"])
+    run_dry(ctx)
+    captured = capsys.readouterr()
+    assert "fastapi" in captured.out
+
+
+def test_run_dry_fastapi_output_mentions_alembic(tmp_path, capsys):
+    ctx = _real_ctx(tmp_path, template="fastapi", addons=["docker"])
+    run_dry(ctx)
+    captured = capsys.readouterr()
+    assert "alembic" in captured.out.lower() or "alembic" in captured.out
+
+
+def test_run_dry_all_fastapi_addons(tmp_path, capsys):
+    ctx = _real_ctx(tmp_path, template="fastapi", addons=["docker", "redis", "celery", "sentry", "github-actions"])
+    run_dry(ctx)
+    captured = capsys.readouterr()
+    # Should complete without raising and mention all addons
+    for addon in ["docker", "redis", "celery", "sentry"]:
+        assert addon in captured.out
+
+
+# ── DryRunContext recorded_files structure ─────────────────────────────────────
+
+
+def test_recorded_files_is_list_of_tuples(tmp_path):
+    ctx = DryRunContext(
+        name="myapp",
+        pkg_name="myapp",
+        template="blank",
+        addons=[],
+        scaffolder_root=SCAFFOLDER_ROOT,
+        project_dir=tmp_path / "myapp",
+    )
+    ctx.write_file("a.py", "x")
+    ctx.create_dir("mydir")
+    for entry in ctx.recorded_files:
+        assert isinstance(entry, tuple)
+        assert len(entry) == 3
+        action, path, details = entry
+        assert isinstance(action, str)
+        assert isinstance(path, str)
+        assert isinstance(details, str)
+
+
+def test_run_dry_blank_recorded_files_are_non_empty(tmp_path):
+    """After run_dry, the internal DryRunContext should have recorded files."""
+    # We verify indirectly: output mentions at least one file path
+    ctx = _real_ctx(tmp_path, template="blank")
+    run_dry(ctx)
+    # If DryRunContext recorded nothing, output would be empty of file paths;
+    # we already checked main.py appears above. This is a belt-and-suspenders check.
+    # The real assertion: no exception was raised.

@@ -3,11 +3,8 @@
 from pathlib import Path
 from unittest.mock import MagicMock
 
-import pytest
-
 from scaffolder.generate import _recipe_name, generate_all
 from scaffolder.schema import Contributions, TemplateConfig
-
 
 # ── _recipe_name ──────────────────────────────────────────────────────────────
 

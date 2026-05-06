@@ -1,6 +1,5 @@
 """Tests for scaffolder.assembler — collecting and merging contributions."""
 
-from pathlib import Path
 
 from scaffolder.assembler import collect_all
 from scaffolder.schema import (
@@ -12,7 +11,6 @@ from scaffolder.schema import (
     Injection,
     TemplateConfig,
 )
-
 
 # ── helpers ───────────────────────────────────────────────────────────────────
 

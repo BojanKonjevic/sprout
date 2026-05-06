@@ -3,15 +3,12 @@
 import subprocess
 from pathlib import Path
 
-import pytest
-
 from scaffolder.addons._registry import get_available_addons
 from scaffolder.assembler import apply_contributions, collect_all
 from scaffolder.context import Context
 from scaffolder.generate import generate_all
 from scaffolder.git import init_and_commit
 from scaffolder.templates._load_config import load_template_config
-
 
 # ── fixture ───────────────────────────────────────────────────────────────────
 

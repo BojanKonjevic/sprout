@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "jumpstart-cli"
-version = "0.1.15"
+version = "0.2.0"
 description = "Scaffold your next Python project with one command"
 readme = "README.md"
 license = { text = "MIT" }
@@ -57,3 +57,9 @@ exclude = [
     "src/scaffolder/templates/",
     "src/scaffolder/addons/.*/files/",
 ]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+pythonpath = ["src"]
+markers = ["slow: marks tests as slow (deselect with -m 'not slow')"]
