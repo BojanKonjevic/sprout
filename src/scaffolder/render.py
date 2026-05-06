@@ -12,6 +12,13 @@ Comment:   disabled      (``line_comment_prefix=None``)
 The non-standard delimiters let Jinja2 templates coexist with Python source
 files and YAML that use ``{{}}`` and ``{%%}`` as literal text (e.g. Docker
 Compose files, Alembic scripts).
+
+trim_blocks / lstrip_blocks
+----------------------------
+Both are enabled so that ``[% if … %]`` / ``[% endif %]`` block tags do not
+leave behind blank lines in the rendered output when their body is empty or
+omitted. Without these options, a conditional block that evaluates to nothing
+still contributes a newline for the tag line itself.
 """
 
 from pathlib import Path
@@ -37,6 +44,8 @@ def make_env(loader_path: Path | None = None) -> jinja2.Environment:
     return jinja2.Environment(
         loader=loader,
         keep_trailing_newline=True,
+        trim_blocks=True,
+        lstrip_blocks=True,
         variable_start_string="((",
         variable_end_string="))",
         block_start_string="[%",

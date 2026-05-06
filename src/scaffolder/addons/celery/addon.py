@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from scaffolder.lockfile import ZenitLockfile
 from scaffolder.schema import AddonConfig, ComposeService, FileContribution
 
 _HERE = Path(__file__).parent.absolute()
@@ -66,3 +67,18 @@ config = AddonConfig(
         "    docker compose logs -f celery-worker",
     ],
 )
+
+
+def can_apply(project_dir: Path, lockfile: ZenitLockfile) -> str | None:
+    pkg_name = project_dir.name.replace("-", "_")
+
+    # Need a src/ layout.
+    if not (project_dir / "src").is_dir():
+        return "No src/ directory found — celery addon expects a src layout."
+
+    # Don't overwrite existing celery tasks.
+    celery_app = project_dir / "src" / pkg_name / "tasks" / "celery_app.py"
+    if celery_app.exists():
+        return f"{celery_app.relative_to(project_dir)} already exists — celery appears to already be configured."
+
+    return None

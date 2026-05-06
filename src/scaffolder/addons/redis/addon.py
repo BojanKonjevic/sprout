@@ -2,6 +2,7 @@
 
 from pathlib import Path
 
+from scaffolder.lockfile import ZenitLockfile
 from scaffolder.schema import (
     AddonConfig,
     ComposeService,
@@ -59,3 +60,18 @@ config = AddonConfig(
         ),
     ],
 )
+
+
+def can_apply(project_dir: Path, lockfile: ZenitLockfile) -> str | None:
+    pkg_name = project_dir.name.replace("-", "_")
+
+    # Need a src/ layout.
+    if not (project_dir / "src").is_dir():
+        return "No src/ directory found — redis addon expects a src layout."
+
+    # Don't overwrite an existing redis integration.
+    redis_file = project_dir / "src" / pkg_name / "integrations" / "redis.py"
+    if redis_file.exists():
+        return f"{redis_file.relative_to(project_dir)} already exists — redis appears to already be configured."
+
+    return None

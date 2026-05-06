@@ -20,7 +20,7 @@ from scaffolder.generate import generate_all
 from scaffolder.git import init_and_commit
 from scaffolder.prompt import TEMPLATES, prompt_addons, prompt_template
 from scaffolder.rollback import scaffold_or_rollback
-from scaffolder.ui import confirm, info, success
+from scaffolder.ui import confirm, info, success, warn
 
 app = typer.Typer(
     name="zenit",
@@ -156,6 +156,169 @@ def _scaffold(
         )
 
 
+def _add(addon_id: str, dry_run: bool = False) -> None:
+    """Apply a single addon to an existing zenit project."""
+    from scaffolder.addons._registry import get_available_addons
+    from scaffolder.checks import check_can_add
+    from scaffolder.exceptions import ScaffoldError
+    from scaffolder.lockfile import write_lockfile
+
+    project_dir = Path.cwd()
+    available = get_available_addons()
+
+    try:
+        lockfile = check_can_add(project_dir, addon_id, available)
+    except ScaffoldError as exc:
+        from scaffolder.ui import error
+
+        error(str(exc))
+        raise typer.Exit(1) from None
+
+    template = lockfile.template
+    pkg_name = project_dir.name.replace("-", "_")
+    scaffolder_root = Path(os.environ.get("SCAFFOLDER_ROOT", Path(__file__).parent))
+
+    ctx = Context(
+        name=project_dir.name,
+        pkg_name=pkg_name,
+        template=template,
+        addons=lockfile.addons + [addon_id],
+        scaffolder_root=scaffolder_root,
+        project_dir=project_dir,
+    )
+
+    if dry_run:
+        _dry_add(ctx, addon_id, available, template)
+        return
+
+    from scaffolder.ui import BOLD, CYAN, DIM, RESET, YELLOW
+
+    print(f"\n  {BOLD}Ready to add addon:{RESET}")
+    print(f"\n    {'addon':<12}  {BOLD}{addon_id}{RESET}")
+    print(f"    {'project':<12}  {DIM}{project_dir}{RESET}")
+    print(f"    {'template':<12}  {CYAN}{template}{RESET}")
+    print()
+
+    if sys.stdin.isatty():
+        try:
+            raw = input(f"  Proceed? {DIM}[Y/n]{RESET}  ").strip().lower()
+        except EOFError, KeyboardInterrupt:
+            print()
+            raise typer.Exit(0) from None
+        if raw not in ("", "y", "yes"):
+            print(f"\n  {YELLOW}Aborted.{RESET}\n")
+            raise typer.Exit(0)
+    else:
+        warn("Non-interactive mode — proceeding automatically.")
+
+    from scaffolder.assembler import apply_contributions, collect_all
+    from scaffolder.templates._load_config import load_template_config
+
+    template_config = load_template_config(scaffolder_root, template)
+    selected_addon_configs = [a for a in available if a.id == addon_id]
+
+    render_vars: dict[str, object] = {
+        "name": project_dir.name,
+        "pkg_name": pkg_name,
+        "template": template,
+        "secret_key": "",
+        "has_postgres": template == "fastapi",
+        "has_redis": "redis" in ctx.addons,
+    }
+
+    contributions = collect_all(template_config, selected_addon_configs)
+
+    apply_contributions(
+        ctx,
+        contributions,
+        template_config.extension_points,
+        render_vars,
+    )
+
+    _strip_zenit_sentinels(project_dir)
+
+    new_addons = lockfile.addons + [addon_id]
+    write_lockfile(project_dir, template, new_addons)
+
+    print()
+    success(f"Addon '{addon_id}' added to '{project_dir.name}'.")
+    info("Review pyproject.toml and add any new dependencies, then run 'uv sync'.")
+    print()
+
+
+def _dry_add(
+    ctx: Context,
+    addon_id: str,
+    available: list,  # type: ignore[type-arg]
+    template: str,
+) -> None:
+    """Print what `zenit add` would do without writing anything."""
+    from scaffolder.assembler import apply_contributions, collect_all
+    from scaffolder.dryrun import DryRunContext
+    from scaffolder.templates._load_config import load_template_config
+    from scaffolder.ui import (
+        BOLD,
+        DIM,
+        GREEN,
+        MAGENTA,
+        RESET,
+        dry_dep,
+        dry_header,
+    )
+
+    scaffolder_root = ctx.scaffolder_root
+    dry_ctx = DryRunContext(
+        name=ctx.name,
+        pkg_name=ctx.pkg_name,
+        template=template,
+        addons=ctx.addons,
+        scaffolder_root=scaffolder_root,
+        project_dir=ctx.project_dir,
+    )
+
+    template_config = load_template_config(scaffolder_root, template)
+    selected_addon_configs = [a for a in available if a.id == addon_id]
+    contributions = collect_all(template_config, selected_addon_configs)
+
+    render_vars: dict[str, object] = {
+        "name": ctx.name,
+        "pkg_name": ctx.pkg_name,
+        "template": template,
+        "secret_key": "",
+        "has_postgres": template == "fastapi",
+        "has_redis": "redis" in ctx.addons,
+    }
+
+    apply_contributions(
+        dry_ctx,
+        contributions,
+        template_config.extension_points,
+        render_vars,
+    )
+
+    print(
+        f"\n  {BOLD}{MAGENTA}Dry run:{RESET} zenit add {addon_id}"
+        f"  {DIM}(nothing will be written){RESET}\n"
+    )
+
+    dry_header("Files that would be created or modified")
+    for action, path, details in dry_ctx.recorded_files:
+        if action in ("create", "copy"):
+            print(f"  {GREEN}+{RESET} {path}")
+        elif action == "append":
+            print(f"  {GREEN}+{RESET} {path}  {DIM}(appended){RESET}")
+        elif action == "modify":
+            print(f"  {GREEN}△{RESET} {path}  {DIM}{details}{RESET}")
+
+    dry_header("Dependencies that would be added to pyproject.toml")
+    for dep in contributions.deps:
+        dry_dep(dep)
+    for dep in contributions.dev_deps:
+        dry_dep(dep, "dev")
+
+    print()
+
+
 @app.callback()
 def main_callback(
     version: Annotated[
@@ -230,11 +393,22 @@ def cmd_config() -> None:
     print()
 
 
+@app.command("add")
+def cmd_add(
+    addon: Annotated[str, typer.Argument(help="Addon to add to the current project")],
+    dry_run: Annotated[
+        bool, typer.Option("--dry-run", help="Preview without writing anything")
+    ] = False,
+) -> None:
+    """Add an addon to an existing zenit project in the current directory."""
+    _add(addon, dry_run=dry_run)
+
+
 def main() -> None:
     if len(sys.argv) == 1 or (
         len(sys.argv) > 1
         and sys.argv[1]
-        not in {"list-templates", "list-addons", "config", "--version", "--help"}
+        not in {"list-templates", "list-addons", "config", "add", "--version", "--help"}
         and not sys.argv[1].startswith("-")
     ):
         import argparse
