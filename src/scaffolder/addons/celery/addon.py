@@ -72,13 +72,32 @@ config = AddonConfig(
 def can_apply(project_dir: Path, lockfile: ZenitLockfile) -> str | None:
     pkg_name = project_dir.name.replace("-", "_")
 
-    # Need a src/ layout.
     if not (project_dir / "src").is_dir():
-        return "No src/ directory found — celery addon expects a src layout."
+        return (
+            "No src/ directory found — celery addon expects a src layout.\n"
+            "    Ensure your package lives under src/<pkg_name>/."
+        )
 
-    # Don't overwrite existing celery tasks.
-    celery_app = project_dir / "src" / pkg_name / "tasks" / "celery_app.py"
-    if celery_app.exists():
-        return f"{celery_app.relative_to(project_dir)} already exists — celery appears to already be configured."
+    # Don't overwrite existing tasks directory contents.
+    tasks_dir = project_dir / "src" / pkg_name / "tasks"
+    if tasks_dir.is_dir() and any(tasks_dir.rglob("*.py")):
+        return (
+            f"{tasks_dir.relative_to(project_dir)}/ already contains Python files.\n"
+            "    zenit won't overwrite existing task definitions.\n"
+            "    Review that directory and remove any files if you want zenit to manage it:\n"
+            f"      rm -r {tasks_dir.relative_to(project_dir)}"
+        )
+
+    # Check for any existing celery configuration anywhere in src/.
+    src_dir = project_dir / "src"
+    for py_file in src_dir.rglob("*.py"):
+        text = py_file.read_text(encoding="utf-8")
+        if "from celery import" in text or "import celery" in text.lower():
+            rel = py_file.relative_to(project_dir)
+            return (
+                f"{rel} already contains celery configuration.\n"
+                "    zenit won't add celery alongside existing configuration.\n"
+                "    Review that file and remove celery references if you want zenit to manage it."
+            )
 
     return None

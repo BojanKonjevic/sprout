@@ -65,13 +65,53 @@ config = AddonConfig(
 def can_apply(project_dir: Path, lockfile: ZenitLockfile) -> str | None:
     pkg_name = project_dir.name.replace("-", "_")
 
-    # Need a src/ layout.
     if not (project_dir / "src").is_dir():
-        return "No src/ directory found — redis addon expects a src layout."
+        return (
+            "No src/ directory found — redis addon expects a src layout.\n"
+            "    Ensure your package lives under src/<pkg_name>/."
+        )
 
-    # Don't overwrite an existing redis integration.
+    # Check for any existing redis integration file.
     redis_file = project_dir / "src" / pkg_name / "integrations" / "redis.py"
     if redis_file.exists():
-        return f"{redis_file.relative_to(project_dir)} already exists — redis appears to already be configured."
+        return (
+            f"{redis_file.relative_to(project_dir)} already exists.\n"
+            "    Remove it first if you want zenit to generate a fresh one:\n"
+            f"      rm {redis_file.relative_to(project_dir)}"
+        )
+
+    # Check for any mention of redis in the integrations directory.
+    integrations_dir = project_dir / "src" / pkg_name / "integrations"
+    if integrations_dir.is_dir():
+        for f in integrations_dir.rglob("*.py"):
+            text = f.read_text(encoding="utf-8")
+            if "redis" in text.lower():
+                return (
+                    f"{f.relative_to(project_dir)} already references redis.\n"
+                    "    zenit won't overwrite existing redis configuration.\n"
+                    "    Review that file and remove any redis references if you want zenit to manage it."
+                )
+
+    # Check for REDIS_URL anywhere in the project's env files.
+    for env_file in (".env", ".env.example"):
+        path = project_dir / env_file
+        if path.exists() and "REDIS_URL" in path.read_text(encoding="utf-8"):
+            return (
+                f"REDIS_URL is already defined in {env_file}.\n"
+                "    zenit won't add a duplicate. Remove it first if you want zenit to manage it:\n"
+                f"      Remove the REDIS_URL line from {env_file}"
+            )
+
+    # Check for REDIS_URL or redis imports anywhere in Python source files.
+    src_dir = project_dir / "src"
+    for py_file in src_dir.rglob("*.py"):
+        text = py_file.read_text(encoding="utf-8")
+        if "import redis" in text or "REDIS_URL" in text:
+            rel = py_file.relative_to(project_dir)
+            return (
+                f"{rel} already contains redis configuration.\n"
+                "    zenit won't add redis alongside existing configuration.\n"
+                "    Review that file and remove redis references if you want zenit to manage it."
+            )
 
     return None

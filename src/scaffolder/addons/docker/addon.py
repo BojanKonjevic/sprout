@@ -33,24 +33,38 @@ config = AddonConfig(
 
 
 def can_apply(project_dir: Path, lockfile: ZenitLockfile) -> str | None:
-    # Need a src/ layout to know where the package lives.
     if not (project_dir / "src").is_dir():
-        return "No src/ directory found — docker addon expects a src layout."
-
-    # Need pyproject.toml to exist for the Dockerfile COPY step to make sense.
-    if not (project_dir / "pyproject.toml").exists():
-        return "No pyproject.toml found — docker addon requires a pyproject.toml."
-
-    # Don't overwrite an existing Dockerfile.
-    if (project_dir / "Dockerfile").exists():
         return (
-            "Dockerfile already exists. Remove it first if you want to regenerate it."
+            "No src/ directory found — docker addon expects a src layout.\n"
+            "    Ensure your package lives under src/<pkg_name>/."
         )
 
-    # Don't overwrite an existing compose.yml.
+    if not (project_dir / "pyproject.toml").exists():
+        return (
+            "No pyproject.toml found — docker addon requires one to exist.\n"
+            "    The generated Dockerfile copies pyproject.toml during the build."
+        )
+
+    if (project_dir / "Dockerfile").exists():
+        return (
+            "A Dockerfile already exists in this directory.\n"
+            "    Remove it first if you want zenit to generate one:\n"
+            "      rm Dockerfile"
+        )
+
     if (project_dir / "compose.yml").exists():
         return (
-            "compose.yml already exists. Remove it first if you want to regenerate it."
+            "compose.yml already exists in this directory.\n"
+            "    Remove it first if you want zenit to generate one:\n"
+            "      rm compose.yml"
+        )
+
+    if (project_dir / "docker-compose.yml").exists():
+        return (
+            "docker-compose.yml already exists in this directory.\n"
+            "    zenit generates compose.yml (the modern filename). Remove or rename it first:\n"
+            "      mv docker-compose.yml compose.yml  # if you want to keep it\n"
+            "      rm docker-compose.yml              # if you want zenit to generate a fresh one"
         )
 
     return None

@@ -50,27 +50,60 @@ def can_apply(project_dir: Path, lockfile: ZenitLockfile) -> str | None:
     pkg_name = project_dir.name.replace("-", "_")
     template = lockfile.template
 
-    # Need a src/ layout.
     if not (project_dir / "src").is_dir():
-        return "No src/ directory found — sentry addon expects a src layout."
+        return (
+            "No src/ directory found — sentry addon expects a src layout.\n"
+            "    Ensure your package lives under src/<pkg_name>/."
+        )
 
-    # Don't overwrite an existing sentry integration.
+    # Don't overwrite an existing sentry integration file.
     sentry_file = project_dir / "src" / pkg_name / "integrations" / "sentry.py"
     if sentry_file.exists():
-        return f"{sentry_file.relative_to(project_dir)} already exists — sentry appears to already be configured."
+        return (
+            f"{sentry_file.relative_to(project_dir)} already exists.\n"
+            "    Remove it first if you want zenit to generate a fresh one:\n"
+            f"      rm {sentry_file.relative_to(project_dir)}"
+        )
 
-    # Check that the injection target exists and hasn't already been patched.
+    # Check the file being patched for any existing sentry_sdk usage.
+    # A manual sentry_sdk.init() call would conflict with the generated init_sentry().
     if template == "fastapi":
-        lifecycle = project_dir / "src" / pkg_name / "lifecycle.py"
-        if not lifecycle.exists():
-            return "lifecycle.py not found — has it been moved or deleted?"
-        if "init_sentry" in lifecycle.read_text():
-            return "init_sentry already present in lifecycle.py — sentry appears to already be configured."
+        target = project_dir / "src" / pkg_name / "lifecycle.py"
+        if not target.exists():
+            return (
+                "lifecycle.py not found — has it been moved or deleted?\n"
+                "    zenit needs to inject init_sentry() into the lifespan function.\n"
+                "    Restore lifecycle.py or add the call manually."
+            )
+        if "sentry_sdk" in target.read_text(encoding="utf-8"):
+            return (
+                "lifecycle.py already references sentry_sdk.\n"
+                "    zenit won't add a second initialisation.\n"
+                "    Remove the existing sentry_sdk references from lifecycle.py first."
+            )
     else:
-        main = project_dir / "src" / pkg_name / "main.py"
-        if not main.exists():
-            return "main.py not found — has it been moved or deleted?"
-        if "init_sentry" in main.read_text():
-            return "init_sentry already present in main.py — sentry appears to already be configured."
+        target = project_dir / "src" / pkg_name / "main.py"
+        if not target.exists():
+            return (
+                "main.py not found — has it been moved or deleted?\n"
+                "    zenit needs to inject init_sentry() into the main() function.\n"
+                "    Restore main.py or add the call manually."
+            )
+        if "sentry_sdk" in target.read_text(encoding="utf-8"):
+            return (
+                "main.py already references sentry_sdk.\n"
+                "    zenit won't add a second initialisation.\n"
+                "    Remove the existing sentry_sdk references from main.py first."
+            )
+
+    # Check for SENTRY_DSN in env files — a strong signal sentry is already configured.
+    for env_file in (".env", ".env.example"):
+        path = project_dir / env_file
+        if path.exists() and "SENTRY_DSN" in path.read_text(encoding="utf-8"):
+            return (
+                f"SENTRY_DSN is already defined in {env_file}.\n"
+                "    zenit won't add a duplicate. Remove it first if you want zenit to manage it:\n"
+                f"      Remove the SENTRY_DSN line from {env_file}"
+            )
 
     return None
