@@ -3,6 +3,7 @@
 
 import importlib.util
 import os
+import re
 import secrets
 import shutil
 import sys
@@ -36,6 +37,16 @@ def _load_apply(path: Path) -> Callable[[Context], None]:
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     return mod.apply  # type: ignore[no-any-return]
+
+
+def _strip_zenit_sentinels(project_dir: Path) -> None:
+    """Remove all # [zenit: ...] sentinel lines from generated source files."""
+    pattern = re.compile(r"^\s*# \[zenit: [^\]]+\]\s*\n", re.MULTILINE)
+    for path in project_dir.rglob("*.py"):
+        text = path.read_text(encoding="utf-8")
+        cleaned = pattern.sub("", text)
+        if cleaned != text:
+            path.write_text(cleaned, encoding="utf-8")
 
 
 def _scaffold(
@@ -112,10 +123,13 @@ def _scaffold(
             template_config.extension_points,
             render_vars,
         )
-
         generate_all(ctx, template_config, contributions)
-
+        _strip_zenit_sentinels(project_dir)
         init_and_commit(project_dir)
+
+        from scaffolder.lockfile import write_lockfile
+
+        write_lockfile(project_dir, template, addons)
 
     print()
     addon_suffix = (" + " + ", ".join(addons)) if addons else ""

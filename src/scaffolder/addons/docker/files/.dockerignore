@@ -12,3 +12,4 @@ htmlcov/
 .env
 result
 result-*
+.zenit.toml

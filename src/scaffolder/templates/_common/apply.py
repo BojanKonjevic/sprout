@@ -30,7 +30,7 @@ def apply(ctx: Context) -> None:
             msg = ".gitignore, .gitattributes, .pre-commit-config.yaml, .envrc"
 
         if shutil.which("direnv"):
-            ctx.execute_command(["direnv", "allow"])
+            ctx.execute_command(["direnv", "allow"], check=False)
         else:
             hint = "direnv not found — .envrc copied but not activated."
             if is_nixos:

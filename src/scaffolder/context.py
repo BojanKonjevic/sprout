@@ -62,10 +62,10 @@ class Context:
         if self.dry_run:
             self._record_action("modify", path, description)
 
-    def execute_command(self, cmd: list[str]) -> None:
+    def execute_command(self, cmd: list[str], check: bool = True) -> None:
         if self.dry_run:
             return
-        subprocess.run(cmd, check=True, capture_output=True)
+        subprocess.run(cmd, check=check, capture_output=True)
 
     # ── Recording hooks (overridden in DryRunContext) ─────────────────────────
 
