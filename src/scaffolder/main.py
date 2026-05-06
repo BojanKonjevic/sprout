@@ -24,6 +24,7 @@ app = typer.Typer(
     name="jumpstart",
     add_completion=False,
     pretty_exceptions_enable=False,
+    invoke_without_command=True,
 )
 
 
@@ -36,30 +37,10 @@ def _load_apply(path: Path) -> Callable[[Context], None]:
     return mod.apply  # type: ignore[no-any-return]
 
 
-@app.callback(invoke_without_command=True)
-def main_callback(
-    ctx: typer.Context,
-    version: Annotated[
-        bool,
-        typer.Option("--version", help="Show the version and exit"),
-    ] = False,
+def _scaffold(
+    name: str,
+    dry_run: bool = False,
 ) -> None:
-    if version:
-        print(get_version("jumpstart-cli"))
-        raise typer.Exit()
-    if ctx.invoked_subcommand is None:
-        print(app.get_help(ctx))  # type: ignore[attr-defined]
-        raise typer.Exit()
-
-
-@app.command()
-def scaffold(
-    name: Annotated[str, typer.Argument(help="Project name to scaffold")],
-    dry_run: Annotated[
-        bool, typer.Option("--dry-run", help="Preview without writing")
-    ] = False,
-) -> None:
-    """Scaffold a new Python project from a template."""
     scaffolder_root = Path(os.environ.get("SCAFFOLDER_ROOT", Path(__file__).parent))
     pkg_name = name.replace("-", "_")
 
@@ -157,6 +138,18 @@ def scaffold(
         print("    Push to GitHub and it will lint, type-check, and test automatically.")
 
 
+@app.callback()
+def main_callback(
+    version: Annotated[
+        bool,
+        typer.Option("--version", help="Show the version and exit"),
+    ] = False,
+) -> None:
+    if version:
+        print(get_version("jumpstart-cli"))
+        raise typer.Exit()
+
+
 @app.command("list-templates")
 def cmd_list_templates() -> None:
     """Show available project templates."""
@@ -177,15 +170,30 @@ def cmd_list_addons() -> None:
     configs = get_available_addons()
     print()
     for cfg in configs:
-        req_suffix = (
-            f"  {DIM}requires: {', '.join(cfg.requires)}{RESET}" if cfg.requires else ""
-        )
+        req_suffix = f"  {DIM}requires: {', '.join(cfg.requires)}{RESET}" if cfg.requires else ""
         print(f"  {CYAN}{cfg.id:<20}{RESET}  {DIM}{cfg.description}{RESET}{req_suffix}")
     print()
 
 
 def main() -> None:
-    app()
+    if len(sys.argv) == 1 or (
+        len(sys.argv) > 1
+        and sys.argv[1] not in {"list-templates", "list-addons", "--version", "--help"}
+        and not sys.argv[1].startswith("-")
+    ):
+        import argparse
+
+        parser = argparse.ArgumentParser(add_help=False)
+        parser.add_argument("name", nargs="?", default=None)
+        parser.add_argument("--dry-run", action="store_true")
+        args, _ = parser.parse_known_args()
+
+        if args.name is not None:
+            _scaffold(args.name, dry_run=args.dry_run)
+        else:
+            app()
+    else:
+        app()
 
 
 def _print_commands_from_just(project_dir: Path) -> None:
