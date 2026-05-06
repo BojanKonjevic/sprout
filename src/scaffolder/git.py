@@ -12,5 +12,14 @@ def init_and_commit(project_dir: Path) -> None:
             subprocess.run(list(cmd), cwd=project_dir, check=True, capture_output=True)
 
         run("git", "init")
+
+        # Set a temporary identity if none is configured globally.
+        # git init picks up global user.name/email, but CI lacks it.
+        try:
+            run("git", "config", "user.email")
+        except subprocess.CalledProcessError:
+            run("git", "config", "user.email", "jumpstart@localhost")
+            run("git", "config", "user.name", "jumpstart")
+
         run("git", "add", ".")
         run("git", "commit", "-m", "init: scaffold from jumpstart")
