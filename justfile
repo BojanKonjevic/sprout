@@ -11,6 +11,8 @@ test:
     uv run python -m pytest -v -m "not slow"
 test-full:
     uv run python -m pytest -v
+re:
+    uv tool install --reinstall .
 publish:
     rm -f dist/*.tar.gz dist/*.whl
     uv build
