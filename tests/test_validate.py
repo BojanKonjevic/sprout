@@ -1,0 +1,116 @@
+"""Tests for scaffolder.validate — name validation and addon dependency checks."""
+
+import pytest
+from click.exceptions import Exit as ClickExit
+
+from scaffolder.schema import AddonConfig
+from scaffolder.validate import validate_addon_deps, validate_name
+
+
+def assert_exits(fn, *args, **kwargs):
+    """Assert that fn(*args, **kwargs) raises typer.Exit(1)."""
+    with pytest.raises(ClickExit) as exc_info:
+        fn(*args, **kwargs)
+    assert exc_info.value.exit_code == 1
+
+
+# ── validate_name ─────────────────────────────────────────────────────────────
+
+
+def test_validate_name_accepts_simple_name(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    validate_name("my-project", "my_project")
+
+
+def test_validate_name_accepts_underscores(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    validate_name("my_project", "my_project")
+
+
+def test_validate_name_accepts_alphanumeric(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    validate_name("project123", "project123")
+
+
+def test_validate_name_rejects_existing_directory(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "myproject").mkdir()
+    assert_exits(validate_name, "myproject", "myproject")
+
+
+def test_validate_name_rejects_leading_digit(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    assert_exits(validate_name, "1project", "1project")
+
+
+def test_validate_name_rejects_hyphen_start(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    assert_exits(validate_name, "-project", "_project")
+
+
+def test_validate_name_rejects_special_characters(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    assert_exits(validate_name, "my project", "my project")
+
+
+def test_validate_name_rejects_stdlib_module(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    assert_exits(validate_name, "json", "json")
+
+
+def test_validate_name_rejects_stdlib_module_os(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    assert_exits(validate_name, "os", "os")
+
+
+def test_validate_name_rejects_empty_string(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    # empty string — Path("").exists() is True on all platforms
+    assert_exits(validate_name, "", "")
+
+
+# ── validate_addon_deps ───────────────────────────────────────────────────────
+
+
+def _make_addon(id: str, requires: list[str]) -> AddonConfig:
+    return AddonConfig(id=id, description="", requires=requires)
+
+
+def test_validate_addon_deps_passes_when_all_satisfied():
+    available = [
+        _make_addon("redis", []),
+        _make_addon("celery", ["redis"]),
+    ]
+    validate_addon_deps(["redis", "celery"], available)
+
+
+def test_validate_addon_deps_passes_with_no_addons():
+    available = [_make_addon("redis", []), _make_addon("celery", ["redis"])]
+    validate_addon_deps([], available)
+
+
+def test_validate_addon_deps_passes_with_no_requirements():
+    available = [_make_addon("docker", []), _make_addon("github-actions", [])]
+    validate_addon_deps(["docker", "github-actions"], available)
+
+
+def test_validate_addon_deps_fails_when_requirement_missing():
+    available = [
+        _make_addon("redis", []),
+        _make_addon("celery", ["redis"]),
+    ]
+    assert_exits(validate_addon_deps, ["celery"], available)
+
+
+def test_validate_addon_deps_fails_for_transitive_missing():
+    available = [
+        _make_addon("redis", []),
+        _make_addon("celery", ["redis"]),
+        _make_addon("docker", []),
+    ]
+    assert_exits(validate_addon_deps, ["docker", "celery"], available)
+
+
+def test_validate_addon_deps_passes_single_addon_no_requires():
+    available = [_make_addon("sentry", [])]
+    validate_addon_deps(["sentry"], available)
