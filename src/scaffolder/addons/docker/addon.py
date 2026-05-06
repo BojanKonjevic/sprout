@@ -24,4 +24,8 @@ config = AddonConfig(
             source=str(_HERE / "files" / ".dockerignore"),
         ),
     ],
+    just_recipes=[
+        "docker-up:\n    docker compose up --build",
+        "docker-down:\n    docker compose down",
+    ],
 )

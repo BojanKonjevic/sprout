@@ -295,8 +295,6 @@ All generated projects come with a `justfile`. Run `just` with no arguments to l
 |---|---|
 | `just docker-up` | docker compose up --build |
 | `just docker-down` | docker compose down |
-| `just docker-build` | build the image |
-| `just docker-run` | run the container locally |
 
 **Redis addon:**
 

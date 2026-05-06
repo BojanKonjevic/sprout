@@ -12,6 +12,11 @@ if TYPE_CHECKING:
     from scaffolder.schema import Contributions, TemplateConfig
 
 
+def _recipe_name(recipe: str) -> str:
+    """Return the bare name of a just recipe (text before the first colon)."""
+    return recipe.strip().split("\n")[0].split(":")[0].strip()
+
+
 def generate_all(
     ctx: Context,
     template_cfg: TemplateConfig,
@@ -36,6 +41,12 @@ def generate_all(
     for raw in contributions.just_recipes:
         rendered_addon_recipes.append(string_env.from_string(raw).render(**render_vars))
 
+    # Deduplicate addon recipes whose name already appears in template recipes
+    template_recipe_names = {_recipe_name(r) for r in rendered_template_recipes}
+    rendered_addon_recipes_unique = [
+        r for r in rendered_addon_recipes if _recipe_name(r) not in template_recipe_names
+    ]
+
     vars = {
         "name": ctx.name,
         "pkg_name": ctx.pkg_name,
@@ -44,7 +55,7 @@ def generate_all(
         "deps": template_cfg.deps + contributions.deps,
         "dev_deps": template_cfg.dev_deps + contributions.dev_deps,
         "template_just_recipes": rendered_template_recipes,
-        "extra_just_recipes": rendered_addon_recipes,
+        "extra_just_recipes": rendered_addon_recipes_unique,
     }
 
     for template_name, dest_rel in [

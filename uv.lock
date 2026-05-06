@@ -59,7 +59,7 @@ wheels = [
 
 [[package]]
 name = "jumpstart-cli"
-version = "0.1.9"
+version = "0.1.12"
 source = { editable = "." }
 dependencies = [
     { name = "jinja2" },
