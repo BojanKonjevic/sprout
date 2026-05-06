@@ -33,7 +33,7 @@ def _load_apply(path: Path) -> Callable[[Context], None]:
     spec = importlib.util.spec_from_file_location("apply", path)
     assert spec is not None and spec.loader is not None
     mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)  # type: ignore[union-attr]
+    spec.loader.exec_module(mod)
     return mod.apply  # type: ignore[no-any-return]
 
 

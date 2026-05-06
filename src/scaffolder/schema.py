@@ -70,6 +70,7 @@ class AddonConfig:
     dev_deps: list[str] = field(default_factory=list)
     just_recipes: list[str] = field(default_factory=list)
     injections: list[Injection] = field(default_factory=list)
+    _module: object = field(default=None, repr=False, compare=False)
 
 
 @dataclass
