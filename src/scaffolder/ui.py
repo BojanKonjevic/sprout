@@ -2,6 +2,7 @@ import itertools
 import sys
 import threading
 import time
+from pathlib import Path
 
 # Enable VT100 / ANSI escape processing on Windows.
 # This is a no-op on Windows 10 1511+ and all Unix systems, but required on
@@ -167,3 +168,14 @@ class _Spinner:
 
 def spinner(label: str) -> _Spinner:
     return _Spinner(label)
+
+
+def print_commands_from_just(project_dir: Path) -> None:
+    """Run `just --list` if just is available."""
+    import shutil
+    import subprocess
+
+    if not shutil.which("just"):
+        return
+    print()
+    subprocess.run(["just", "--list"], cwd=project_dir)

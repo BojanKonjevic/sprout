@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """zenit — scaffold Python projects from a template with optional addons."""
 
-import sys
 from importlib.metadata import version as get_version
 from typing import Annotated
 
@@ -15,7 +14,7 @@ app = typer.Typer(
     name="zenit",
     add_completion=False,
     pretty_exceptions_enable=False,
-    invoke_without_command=True,
+    no_args_is_help=True,
 )
 
 
@@ -26,9 +25,21 @@ def main_callback(
         typer.Option("--version", help="Show the version and exit"),
     ] = False,
 ) -> None:
+    """Scaffold Python projects from a template with optional addons."""
     if version:
         print(get_version("zenit"))
         raise typer.Exit()
+
+
+@app.command("create")
+def cmd_create(
+    name: Annotated[str, typer.Argument(help="Name of the project to create")],
+    dry_run: Annotated[
+        bool, typer.Option("--dry-run", help="Preview without writing anything")
+    ] = False,
+) -> None:
+    """Create a new project from a template."""
+    scaffold_project(name, dry_run=dry_run)
 
 
 @app.command("list-templates")
@@ -95,42 +106,88 @@ def cmd_config() -> None:
 
 @app.command("add")
 def cmd_add(
-    addon: Annotated[str, typer.Argument(help="Addon to add to the current project")],
+    addon: Annotated[
+        str | None,
+        typer.Argument(
+            help="Addon to add to the current project (omit for interactive selection)"
+        ),
+    ] = None,
     dry_run: Annotated[
         bool, typer.Option("--dry-run", help="Preview without writing anything")
     ] = False,
 ) -> None:
-    """Add an addon to an existing zenit project in the current directory."""
-    add_addon(addon, dry_run=dry_run)
+    """Add an addon to an existing zenit project in the current directory.
+
+    Run without arguments to select addons interactively.
+    """
+    if addon is None:
+        # Interactive mode — show the TUI to pick addons
+        _add_interactive(dry_run=dry_run)
+    else:
+        # Direct mode — add the specified addon
+        add_addon(addon, dry_run=dry_run)
+
+
+def _add_interactive(dry_run: bool = False) -> None:
+    """Interactive TUI for adding a single addon to an existing project."""
+    from pathlib import Path
+
+    from scaffolder.addons._registry import get_available_addons
+    from scaffolder.lockfile import read_lockfile
+    from scaffolder.prompt import _tui_single
+    from scaffolder.ui import error, info
+
+    project_dir = Path.cwd()
+    lockfile = read_lockfile(project_dir)
+
+    if lockfile is None:
+        error(
+            "No .zenit.toml found. 'zenit add' only works in projects scaffolded by zenit."
+        )
+        raise typer.Exit(1)
+
+    if not lockfile.template:
+        error(".zenit.toml exists but has no template field — it may be corrupt.")
+        raise typer.Exit(1)
+
+    available = get_available_addons()
+
+    already_installed = set(lockfile.addons)
+    available_to_add = [
+        a
+        for a in available
+        if a.id not in already_installed
+        and all(req in lockfile.addons for req in a.requires)
+    ]
+
+    if not available_to_add:
+        info("All available addons are already installed.")
+        if already_installed:
+            print(f"  Installed: {', '.join(sorted(already_installed))}")
+        print()
+        return
+
+    if already_installed:
+        print(f"\n  Already installed: {', '.join(sorted(already_installed))}")
+
+    items = [(a.id, a.description) for a in available_to_add]
+
+    selected = _tui_single(
+        "Select an addon to add:",
+        items,
+        default=None,
+    )
+
+    if not selected:
+        info("No addon selected.")
+        print()
+        return
+
+    add_addon(selected, dry_run=dry_run)
 
 
 def main() -> None:
-    if len(sys.argv) == 1 or (
-        len(sys.argv) > 1
-        and sys.argv[1]
-        not in {
-            "list-templates",
-            "list-addons",
-            "config",
-            "add",
-            "--version",
-            "--help",
-        }
-        and not sys.argv[1].startswith("-")
-    ):
-        import argparse
-
-        parser = argparse.ArgumentParser(add_help=False)
-        parser.add_argument("name", nargs="?", default=None)
-        parser.add_argument("--dry-run", action="store_true")
-        args, _ = parser.parse_known_args()
-
-        if args.name is not None:
-            scaffold_project(args.name, dry_run=args.dry_run)
-        else:
-            app()
-    else:
-        app()
+    app()
 
 
 if __name__ == "__main__":

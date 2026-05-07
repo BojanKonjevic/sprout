@@ -3,7 +3,6 @@
 import re
 import secrets
 import shutil
-import subprocess
 import sys
 from collections.abc import Callable
 from pathlib import Path
@@ -16,7 +15,7 @@ from scaffolder.generate import generate_all
 from scaffolder.git import init_and_commit
 from scaffolder.prompt import prompt_addons, prompt_template
 from scaffolder.rollback import scaffold_or_rollback
-from scaffolder.ui import confirm, info, success
+from scaffolder.ui import confirm, info, print_commands_from_just, success
 
 
 def _load_apply(path: Path) -> Callable[[Context], None]:
@@ -38,13 +37,6 @@ def _strip_zenit_sentinels(project_dir: Path) -> None:
         cleaned = pattern.sub("", text)
         if cleaned != text:
             path.write_text(cleaned, encoding="utf-8")
-
-
-def _print_commands_from_just(project_dir: Path) -> None:
-    if not shutil.which("just"):
-        return
-    print()
-    subprocess.run(["just", "--list"], cwd=project_dir)
 
 
 def scaffold_project(name: str, dry_run: bool = False) -> None:
@@ -140,7 +132,7 @@ def scaffold_project(name: str, dry_run: bool = False) -> None:
     print()
     print(f"  cd {name}")
 
-    _print_commands_from_just(project_dir)
+    print_commands_from_just(project_dir)
 
     if sys.platform == "win32":
         print()

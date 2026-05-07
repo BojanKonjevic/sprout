@@ -1,8 +1,6 @@
 """Add‑on pipeline — apply a single addon to an existing project."""
 
 import re
-import shutil
-import subprocess
 import sys
 from pathlib import Path
 
@@ -31,13 +29,6 @@ def _strip_zenit_sentinels(project_dir: Path) -> None:
         cleaned = pattern.sub("", text)
         if cleaned != text:
             path.write_text(cleaned, encoding="utf-8")
-
-
-def _print_commands_from_just(project_dir: Path) -> None:
-    if not shutil.which("just"):
-        return
-    print()
-    subprocess.run(["just", "--list"], cwd=project_dir)
 
 
 def add_addon(addon_id: str, dry_run: bool = False) -> None:
