@@ -21,10 +21,6 @@ TEMPLATE_REQUIRES: dict[str, list[str]] = {
     "fastapi": ["docker"],
 }
 
-# Populated by prompt_addons so that _requires_of can resolve deps without
-# threading the requires_map through every render call.
-_REGISTRY_REQUIRES: dict[str, list[str]] = {}
-
 # ── ANSI helpers ──────────────────────────────────────────────────────────────
 
 _HIDE_CURSOR = "\033[?25l"
@@ -172,6 +168,7 @@ def _render_multi(
     items: list[tuple[str, str]],
     cursor: int,
     selected: set[int],
+    requires_map: dict[str, list[str]],
     locked: set[int] | None = None,
     flash: str = "",
     default_selected: set[int] | None = None,
@@ -194,7 +191,7 @@ def _render_multi(
             prefix = f"  {_SPACER}  "
             label = name
 
-        reqs = _requires_of(items[i][0])
+        reqs = requires_map.get(name, [])
         extra = (
             f"  {DIM}(needs {', '.join(reqs)}){RESET}"
             if reqs and i not in locked
@@ -222,10 +219,6 @@ def _render_multi(
     return lines
 
 
-def _requires_of(addon_id: str) -> list[str]:
-    return _REGISTRY_REQUIRES.get(addon_id, [])
-
-
 def _tui_multi(
     prompt: str,
     items: list[tuple[str, str]],
@@ -244,9 +237,6 @@ def _tui_multi(
         selected |= default_selected
     name_to_idx = {name: i for i, (name, _) in enumerate(items)}
 
-    global _REGISTRY_REQUIRES
-    _REGISTRY_REQUIRES = requires_map
-
     def _compute_locked() -> set[int]:
         locked = set(always_locked)
         for sel_idx in selected:
@@ -259,7 +249,13 @@ def _tui_multi(
     flash = ""
     locked = _compute_locked()
     rendered = _render_multi(
-        items, cursor, selected, locked, flash, default_selected=default_selected
+        items,
+        cursor,
+        selected,
+        requires_map,
+        locked,
+        flash,
+        default_selected=default_selected,
     )
 
     try:
@@ -310,6 +306,7 @@ def _tui_multi(
                 items,
                 cursor,
                 selected,
+                requires_map,
                 locked,
                 flash,
                 default_selected=default_selected,

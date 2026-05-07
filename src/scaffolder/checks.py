@@ -7,7 +7,7 @@ Return contract
 ---------------
 - Return ``None`` (or don't define the function) → addon assumes it can apply.
 - Return a non-empty string → human-readable reason why it cannot; the add
-  command will print this and abort.
+  command will raise ``ScaffoldError`` with this message and abort.
 
 Example in an addon.py
 -----------------------

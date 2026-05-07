@@ -7,6 +7,7 @@ entries.
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import cast
 
@@ -87,7 +88,5 @@ def _pkg_name(dep: str) -> str:
         "sentry-sdk[fastapi]"   -> "sentry-sdk"
         "fakeredis[aioredis]"   -> "fakeredis"
     """
-    name = dep.split("[")[0]
-    for op in (">=", "<=", "!=", "==", ">", "<", "~=", "@"):
-        name = name.split(op)[0]
-    return name.strip().lower()
+    match = re.match(r"^([a-zA-Z0-9_.-]+)", dep)
+    return match.group(1).lower() if match else dep.lower()

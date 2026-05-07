@@ -21,6 +21,7 @@ from scaffolder.git import init_and_commit
 from scaffolder.prompt import TEMPLATES, prompt_addons, prompt_template
 from scaffolder.render import make_env
 from scaffolder.rollback import scaffold_or_rollback
+from scaffolder.schema import AddonConfig
 from scaffolder.ui import confirm, info, success, warn
 
 app = typer.Typer(
@@ -299,7 +300,7 @@ def _add(addon_id: str, dry_run: bool = False) -> None:
 def _dry_add(
     ctx: Context,
     addon_id: str,
-    available: list,  # type: ignore[type-arg]
+    available: list[AddonConfig],
     template: str,
 ) -> None:
     """Print what `zenit add` would do without writing anything."""
