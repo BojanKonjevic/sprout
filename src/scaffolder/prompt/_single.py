@@ -4,62 +4,17 @@ from __future__ import annotations
 
 import sys
 
-from scaffolder.ui import BOLD, CYAN, DIM, GREEN, RESET, YELLOW
+from scaffolder.ui import BOLD, CYAN, DIM, GREEN, RESET
 
 from ._keys import read_key, tty_available
 from ._render import (
-    ARROW,
-    CHECK,
-    CROSS,
-    DESC_INDENT,
-    EMPTY,
-    LABEL_WIDTH,
     TEMPLATES,
     clear_lines,
     hide_cursor,
+    render_single,
+    reserve_lines,
     show_cursor,
 )
-
-
-def _render_single(
-    items: list[tuple[str, str]],
-    cursor: int,
-    default_name: str | None = None,
-) -> int:
-    """Render the single-selection TUI with fixed-width prefixes.
-
-    Every line has identical structure so text never shifts horizontally:
-      prefix(5) + tick(5) + label(LABEL_WIDTH) + desc_indent(2) + desc
-    """
-    lines = 0
-    for i, (name, desc) in enumerate(items):
-        # Build prefix: "  › " (cursor) or "    " (not cursor) — both 5 chars
-        prefix = f"  {ARROW} " if i == cursor else "     "
-
-        # Build tick: "[✓]" or "[ ]" — both 5 chars (with trailing space)
-        tick = f"{CHECK} " if i == cursor else f"{EMPTY} "
-
-        # Build label: colored+bold if cursor, plain otherwise
-        label = f"{CYAN}{BOLD}{name}{RESET}" if i == cursor else name
-        padded_label = f"{label:<{LABEL_WIDTH}}"
-
-        # Description
-        desc_text = f"{DIM}{desc}{RESET}"
-
-        # Default marker (only on non-cursor rows to avoid width mismatch)
-        default_marker = ""
-        if name == default_name and i != cursor:
-            default_marker = f"  {DIM}(default){RESET}"
-
-        sys.stdout.write(
-            f"{prefix}{tick}{padded_label}{DESC_INDENT}{desc_text}{default_marker}\n"
-        )
-        lines += 1
-
-    sys.stdout.write(f"\n  {DIM}↑↓ move · space / enter select{RESET}\n")
-    lines += 2
-    sys.stdout.flush()
-    return lines
 
 
 def prompt_template(default: str | None = None) -> str:
@@ -75,10 +30,12 @@ def prompt_template(default: str | None = None) -> str:
                 break
 
     print(f"\n  {BOLD}Select a base template:{RESET}\n")
+    reserve_lines(len(TEMPLATES) + 2)
+    clear_lines(len(TEMPLATES) + 2)
     hide_cursor()
 
     n_items = len(TEMPLATES)
-    rendered = _render_single(TEMPLATES, cursor, default_name=default)
+    rendered = render_single(TEMPLATES, cursor, default_name=default)
 
     try:
         while True:
@@ -95,7 +52,7 @@ def prompt_template(default: str | None = None) -> str:
                 sys.exit(0)
 
             clear_lines(rendered)
-            rendered = _render_single(TEMPLATES, cursor, default_name=default)
+            rendered = render_single(TEMPLATES, cursor, default_name=default)
     finally:
         show_cursor()
 
@@ -103,65 +60,6 @@ def prompt_template(default: str | None = None) -> str:
     clear_lines(rendered)
     print(f"  {GREEN}✓{RESET}  {BOLD}{name}{RESET}  {DIM}{desc}{RESET}\n")
     return name
-
-
-def _render_single_add(
-    items: list[tuple[str, str]],
-    cursor: int,
-    full_items: list[tuple[str, str, list[str]]],
-    unavailable_indices: set[int],
-    flash: str = "",
-) -> int:
-    """Render the `zenit add` single-select TUI with fixed-width prefixes.
-
-    Same fixed-width layout as _render_single, with an extra column for
-    dependency warnings on unavailable items.
-    """
-    lines = 0
-    for i, (name, desc) in enumerate(items):
-        is_unavailable = i in unavailable_indices
-
-        # Fixed prefix: 5 chars
-        prefix = f"  {ARROW} " if i == cursor else "     "
-
-        # Fixed tick: 5 chars
-        if is_unavailable:
-            tick = f"{CROSS}  "  # "✗  " (✗ is 1 char in terminal)
-        elif i == cursor:
-            tick = f"{CHECK} "
-        else:
-            tick = f"{EMPTY} "
-
-        # Label: 20 chars
-        if is_unavailable:
-            label = f"{DIM}{name}{RESET}"
-        elif i == cursor:
-            label = f"{CYAN}{BOLD}{name}{RESET}"
-        else:
-            label = name
-        padded_label = f"{label:<{LABEL_WIDTH}}"
-
-        # Description
-        desc_text = f"{DIM}{desc}{RESET}"
-
-        # Dependency warning
-        reqs = full_items[i][2] if i < len(full_items) else []
-        extra = ""
-        if is_unavailable and reqs:
-            extra = f"  {DIM}(needs {', '.join(reqs)}){RESET}"
-
-        sys.stdout.write(
-            f"{prefix}{tick}{padded_label}{DESC_INDENT}{desc_text}{extra}\n"
-        )
-        lines += 1
-
-    if flash:
-        sys.stdout.write(f"\n  {YELLOW}⚠  {flash}{RESET}\n")
-    else:
-        sys.stdout.write(f"\n  {DIM}↑↓ move · enter select · ctrl+c cancel{RESET}\n")
-    lines += 2
-    sys.stdout.flush()
-    return lines
 
 
 def prompt_single_addon(
@@ -188,11 +86,15 @@ def prompt_single_addon(
         print(f"\n  {DIM}Already installed: {', '.join(already_installed)}{RESET}")
 
     print(f"\n  {BOLD}Select an addon to add:{RESET}\n")
+    reserve_lines(len(display_items) + 2)
+    clear_lines(len(display_items) + 2)
     hide_cursor()
 
     cursor = 0
     n_items = len(display_items)
-    rendered = _render_single_add(display_items, cursor, items, unavailable_indices)
+    rendered = render_single(
+        display_items, cursor, unavailable=unavailable_indices, full_items=items
+    )
 
     try:
         while True:
@@ -209,11 +111,11 @@ def prompt_single_addon(
                         f"— install first with 'zenit add'"
                     )
                     clear_lines(rendered)
-                    rendered = _render_single_add(
+                    rendered = render_single(
                         display_items,
                         cursor,
-                        items,
-                        unavailable_indices,
+                        unavailable=unavailable_indices,
+                        full_items=items,
                         flash=flash,
                     )
                     continue
@@ -224,8 +126,8 @@ def prompt_single_addon(
                 sys.exit(0)
 
             clear_lines(rendered)
-            rendered = _render_single_add(
-                display_items, cursor, items, unavailable_indices
+            rendered = render_single(
+                display_items, cursor, unavailable=unavailable_indices, full_items=items
             )
     finally:
         show_cursor()

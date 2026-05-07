@@ -18,6 +18,7 @@ from ._render import (
     TEMPLATE_REQUIRES,
     clear_lines,
     hide_cursor,
+    reserve_lines,
     show_cursor,
 )
 
@@ -136,10 +137,12 @@ def _tui_multi(
     default_selected: set[int] | None = None,
 ) -> list[str]:
     print(f"\n  {BOLD}{prompt}{RESET}\n")
+    n_items = len(items)
+    reserve_lines(n_items + 2)
+    clear_lines(n_items + 2)
     hide_cursor()
 
     cursor = 0
-    n_items = len(items)
     selected: set[int] = set(always_locked)
     if default_selected:
         selected |= default_selected
