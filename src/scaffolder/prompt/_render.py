@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sys
+from collections.abc import Callable
 
 from scaffolder.ui import BOLD, CYAN, DIM, GREEN, MAGENTA, RESET, YELLOW
 
@@ -38,6 +39,30 @@ def reserve_lines(n: int) -> None:
     sys.stdout.flush()
 
 
+# ── Constants ─────────────────────────────────────────────────────────────────
+
+ARROW = f"{MAGENTA}›{RESET}"
+CHECK = f"{GREEN}●{RESET}"
+EMPTY = f"{DIM}○{RESET}"
+LOCKED = f"{YELLOW}●{RESET}"
+CROSS = f"{DIM}—{RESET}"
+
+LABEL_WIDTH = 20
+DESC_INDENT = "  "
+
+TEMPLATES: list[tuple[str, str]] = [
+    ("blank", "dev tools only  (pytest, ruff, mypy)"),
+    ("fastapi", "FastAPI + SQLAlchemy + Alembic + asyncpg"),
+]
+
+TEMPLATE_REQUIRES: dict[str, list[str]] = {
+    "fastapi": ["docker"],
+}
+
+
+# ── Renderers ─────────────────────────────────────────────────────────────────
+
+
 def render_single(
     items: list[tuple[str, str]],
     cursor: int,
@@ -60,17 +85,17 @@ def render_single(
         if is_unavailable:
             tick = f"{CROSS}  "
         elif is_cursor:
-            tick = f"{CHECK} "
+            tick = f"{CHECK}  "
         else:
-            tick = f"{EMPTY} "
+            tick = f"{EMPTY}  "
 
+        padded_name = f"{name:<{LABEL_WIDTH}}"
         if is_unavailable:
-            label = f"{DIM}{name}{RESET}"
+            padded_label = f"{DIM}{padded_name}{RESET}"
         elif is_cursor:
-            label = f"{CYAN}{BOLD}{name}{RESET}"
+            padded_label = f"{CYAN}{BOLD}{padded_name}{RESET}"
         else:
-            label = name
-        padded_label = f"{label:<{LABEL_WIDTH}}"
+            padded_label = padded_name
 
         desc_text = f"{DIM}{desc}{RESET}"
 
@@ -90,27 +115,99 @@ def render_single(
     if flash:
         sys.stdout.write(f"\n  {YELLOW}⚠  {flash}{RESET}\n")
     else:
-        sys.stdout.write(f"\n  {DIM}↑↓ move · space / enter select{RESET}\n")
+        sys.stdout.write(f"\n  {DIM}↑↓ navigate · enter select{RESET}\n")
     lines += 2
     sys.stdout.flush()
     return lines
 
 
-ARROW = f"{MAGENTA}›{RESET}"
-CHECK = f"{GREEN}[✓]{RESET}"
-EMPTY = f"{DIM}[ ]{RESET}"
-LOCKED = f"{YELLOW}[~]{RESET}"
-CROSS = f"{YELLOW}✗{RESET}"
+# ── TUI loop ──────────────────────────────────────────────────────────────────
 
-# Width constants
-LABEL_WIDTH = 20
-DESC_INDENT = "  "
+_DONE = object()
 
-TEMPLATES: list[tuple[str, str]] = [
-    ("blank", "dev tools only  (pytest, ruff, mypy)"),
-    ("fastapi", "FastAPI + SQLAlchemy + Alembic + asyncpg"),
-]
 
-TEMPLATE_REQUIRES: dict[str, list[str]] = {
-    "fastapi": ["docker"],
-}
+def run_tui(
+    render: Callable[[], int],
+    on_key: Callable[[str], object],
+) -> None:
+    """Generic TUI loop: render → read key → call handler → clear → repeat.
+
+    on_key should return _DONE to exit the loop, anything else to continue.
+    Handles ctrl-c and cursor show/hide.
+    """
+    from ._keys import read_key
+
+    hide_cursor()
+    rendered = render()
+    try:
+        while True:
+            key = read_key()
+            result = on_key(key)
+            if result is _DONE:
+                break
+            clear_lines(rendered)
+            rendered = render()
+    finally:
+        show_cursor()
+
+
+# ── Fallback (non-tty) ────────────────────────────────────────────────────────
+
+
+def run_fallback(
+    items: list[tuple[str, str]],
+    *,
+    default_name: str | None = None,
+    unavailable: set[int] | None = None,
+    full_items: list[tuple[str, str, list[str]]] | None = None,
+    prompt_text: str = "Selection",
+) -> int | None:
+    """Fallback numbered-list picker for non-tty environments.
+
+    Returns the selected index, or None if the user cancels.
+    """
+    from scaffolder.ui import warn
+
+    unavailable = unavailable or set()
+
+    for i, (name, desc) in enumerate(items, 1):
+        is_unavailable = (i - 1) in unavailable
+        markers = []
+        if is_unavailable and full_items:
+            reqs = full_items[i - 1][2]
+            if reqs:
+                markers.append(f"needs {', '.join(reqs)}")
+        if name == default_name:
+            markers.append("default")
+        suffix = f"  {DIM}({', '.join(markers)}){RESET}" if markers else ""
+        print(f"    {CYAN}{i}){RESET} {name:<18} {DIM}—{RESET} {desc}{suffix}")
+    print()
+
+    hint = f"1-{len(items)}"
+    if default_name:
+        hint += f", or enter for {default_name}"
+    else:
+        hint += ", or enter to cancel"
+
+    while True:
+        try:
+            raw = input(f"  {prompt_text} [{hint}]: ").strip().lower()
+        except EOFError, KeyboardInterrupt:
+            print()
+            sys.exit(0)
+
+        if not raw:
+            if default_name:
+                for i, (name, _) in enumerate(items):
+                    if name == default_name:
+                        return i
+            return None
+
+        for i, (name, _) in enumerate(items):
+            if raw in (str(i + 1), name.lower()):
+                if i in unavailable:
+                    warn(f"'{name}' cannot be selected yet — missing dependencies.")
+                    break
+                return i
+
+        warn(f"Please enter a number between 1 and {len(items)}, or a name.")

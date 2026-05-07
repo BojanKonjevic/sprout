@@ -7,8 +7,9 @@ import sys
 from scaffolder.schema import AddonConfig
 from scaffolder.ui import BOLD, CYAN, DIM, GREEN, RESET, YELLOW, warn
 
-from ._keys import read_key, tty_available
+from ._keys import tty_available
 from ._render import (
+    _DONE,
     ARROW,
     CHECK,
     DESC_INDENT,
@@ -17,8 +18,8 @@ from ._render import (
     LOCKED,
     TEMPLATE_REQUIRES,
     clear_lines,
-    hide_cursor,
     reserve_lines,
+    run_tui,
     show_cursor,
 )
 
@@ -32,37 +33,36 @@ def _render_multi(
     flash: str = "",
     default_selected: set[int] | None = None,
 ) -> int:
-    """Render the multi-selection TUI with fixed-width prefixes."""
+    """Render the multi-selection TUI."""
     locked = locked or set()
     default_selected = default_selected or set()
     lines = 0
 
     for i, (name, desc) in enumerate(items):
-        # Fixed prefix: 5 chars
         prefix = f"  {ARROW} " if i == cursor else "     "
 
-        # Fixed tick: 5 chars
         if i in locked:
-            tick = f"{LOCKED} "
+            tick = f"{LOCKED}  "
         elif i in selected:
-            tick = f"{CHECK} "
+            tick = f"{CHECK}  "
         else:
-            tick = f"{EMPTY} "
+            tick = f"{EMPTY}  "
 
-        # Label
-        label = f"{CYAN}{BOLD}{name}{RESET}" if i == cursor else name
-        padded_label = f"{label:<{LABEL_WIDTH}}"
+        padded_name = f"{name:<{LABEL_WIDTH}}"
+        if i == cursor:
+            padded_label = f"{CYAN}{BOLD}{padded_name}{RESET}"
+        elif i in selected and i not in locked:
+            padded_label = f"{GREEN}{padded_name}{RESET}"
+        else:
+            padded_label = padded_name
 
-        # Description
         desc_text = f"{DIM}{desc}{RESET}"
 
-        # Requirements hint
         reqs = requires_map.get(name, [])
         req_hint = ""
         if reqs and i not in locked:
             req_hint = f"  {DIM}(needs {', '.join(reqs)}){RESET}"
 
-        # Default hint
         default_hint = ""
         if i in default_selected and i not in locked and i != cursor:
             default_hint = f"  {DIM}(default){RESET}"
@@ -75,7 +75,9 @@ def _render_multi(
     if flash:
         sys.stdout.write(f"\n  {YELLOW}⚠  {flash}{RESET}\n")
     else:
-        sys.stdout.write(f"\n  {DIM}↑↓ move · space toggle · enter confirm{RESET}\n")
+        sys.stdout.write(
+            f"\n  {DIM}↑↓ navigate · space toggle · enter confirm{RESET}\n"
+        )
     lines += 2
     sys.stdout.flush()
     return lines
@@ -103,13 +105,11 @@ def prompt_addons(
 
     name_to_idx = {cfg.id: i for i, cfg in enumerate(available)}
 
-    # Template-locked addons
     always_locked: set[int] = set()
     for req in TEMPLATE_REQUIRES.get(template, []):
         if req in name_to_idx:
             always_locked.add(name_to_idx[req])
 
-    # Config defaults
     default_selected: set[int] = set()
     if default_addons:
         for addon_id in default_addons:
@@ -140,13 +140,13 @@ def _tui_multi(
     n_items = len(items)
     reserve_lines(n_items + 2)
     clear_lines(n_items + 2)
-    hide_cursor()
 
     cursor = 0
     selected: set[int] = set(always_locked)
     if default_selected:
         selected |= default_selected
     name_to_idx = {name: i for i, (name, _) in enumerate(items)}
+    flash = ""
 
     def _compute_locked() -> set[int]:
         locked = set(always_locked)
@@ -157,74 +157,64 @@ def _tui_multi(
                     locked.add(name_to_idx[req])
         return locked
 
-    flash = ""
     locked = _compute_locked()
-    rendered = _render_multi(
-        items,
-        cursor,
-        selected,
-        requires_map,
-        locked,
-        flash,
-        default_selected=default_selected,
-    )
 
-    try:
-        while True:
-            key = read_key()
-            flash = ""
-            if key in ("\x1b[A", "k"):
-                cursor = (cursor - 1) % n_items
-            elif key in ("\x1b[B", "j"):
-                cursor = (cursor + 1) % n_items
-            elif key == " ":
-                item_name = items[cursor][0]
-                if cursor in locked:
-                    if cursor in always_locked:
-                        flash = f"{item_name} is required by the template"
-                    else:
-                        dependents = [
-                            items[i][0]
-                            for i in selected
-                            if item_name in requires_map.get(items[i][0], [])
-                        ]
-                        flash = f"{item_name} is required by {', '.join(dependents)}"
-                elif cursor in selected:
-                    selected.discard(cursor)
-                    for i, (name, _) in enumerate(items):
-                        if (
-                            item_name in requires_map.get(name, [])
-                            and i not in always_locked
-                        ):
-                            selected.discard(i)
+    def render() -> int:
+        return _render_multi(
+            items,
+            cursor,
+            selected,
+            requires_map,
+            locked,
+            flash,
+            default_selected=default_selected,
+        )
+
+    def on_key(key: str) -> object:
+        nonlocal cursor, flash, locked
+        flash = ""
+        if key in ("\x1b[A", "k"):
+            cursor = (cursor - 1) % n_items
+        elif key in ("\x1b[B", "j"):
+            cursor = (cursor + 1) % n_items
+        elif key == " ":
+            item_name = items[cursor][0]
+            if cursor in locked:
+                if cursor in always_locked:
+                    flash = f"{item_name} is required by the template"
                 else:
-                    selected.add(cursor)
-                    for req in requires_map.get(item_name, []):
-                        if req in name_to_idx:
-                            selected.add(name_to_idx[req])
-            elif key in ("\r", "\n"):
-                break
-            elif key == "\x03":
-                show_cursor()
-                print()
-                sys.exit(0)
+                    dependents = [
+                        items[i][0]
+                        for i in selected
+                        if item_name in requires_map.get(items[i][0], [])
+                    ]
+                    flash = f"{item_name} is required by {', '.join(dependents)}"
+            elif cursor in selected:
+                selected.discard(cursor)
+                for i, (name, _) in enumerate(items):
+                    if (
+                        item_name in requires_map.get(name, [])
+                        and i not in always_locked
+                    ):
+                        selected.discard(i)
+            else:
+                selected.add(cursor)
+                for req in requires_map.get(item_name, []):
+                    if req in name_to_idx:
+                        selected.add(name_to_idx[req])
+        elif key in ("\r", "\n"):
+            return _DONE
+        elif key == "\x03":
+            show_cursor()
+            print()
+            sys.exit(0)
+        locked = _compute_locked()
+        return None
 
-            locked = _compute_locked()
-            clear_lines(rendered)
-            rendered = _render_multi(
-                items,
-                cursor,
-                selected,
-                requires_map,
-                locked,
-                flash,
-                default_selected=default_selected,
-            )
-    finally:
-        show_cursor()
+    run_tui(render, on_key)
 
     chosen = [items[i][0] for i in sorted(selected)]
-    clear_lines(rendered)
+    clear_lines(render())
 
     if chosen:
         names = ", ".join(f"{GREEN}{n}{RESET}" for n in chosen)
