@@ -7,7 +7,9 @@ import re
 import secrets
 import shutil
 import sys
+import tempfile
 from collections.abc import Callable
+from contextlib import contextmanager
 from importlib.metadata import version as get_version
 from pathlib import Path
 from typing import Annotated
@@ -49,6 +51,23 @@ def _strip_zenit_sentinels(project_dir: Path) -> None:
         cleaned = pattern.sub("", text)
         if cleaned != text:
             path.write_text(cleaned, encoding="utf-8")
+
+
+@contextmanager
+def backup_and_restore_on_failure(project_dir: Path):
+    """Backup project_dir before modifications, restore on failure or interruption."""
+    backup_dir = tempfile.mkdtemp(prefix="zenit_backup_")
+    shutil.copytree(project_dir, backup_dir, dirs_exist_ok=True)
+    try:
+        yield
+    except Exception, KeyboardInterrupt:
+        # Restore the original state atomically
+        if project_dir.exists():
+            shutil.rmtree(project_dir)
+        shutil.copytree(backup_dir, project_dir)
+        raise
+    finally:
+        shutil.rmtree(backup_dir, ignore_errors=True)
 
 
 def _scaffold(
@@ -213,88 +232,90 @@ def _add(addon_id: str, dry_run: bool = False) -> None:
     else:
         warn("Non-interactive mode — proceeding automatically.")
 
-    from scaffolder.assembler import apply_contributions, collect_all
-    from scaffolder.templates._load_config import load_template_config
+    # ── atomic modification block ─────────────────────────────────────────
+    with backup_and_restore_on_failure(project_dir):
+        from scaffolder.assembler import apply_contributions, collect_all
+        from scaffolder.templates._load_config import load_template_config
 
-    template_config = load_template_config(scaffolder_root, template)
-    selected_addon_configs = [a for a in available if a.id == addon_id]
+        template_config = load_template_config(scaffolder_root, template)
+        selected_addon_configs = [a for a in available if a.id == addon_id]
 
-    render_vars: dict[str, object] = {
-        "name": project_dir.name,
-        "pkg_name": pkg_name,
-        "template": template,
-        "secret_key": "",
-        "has_postgres": template == "fastapi",
-        "has_redis": "redis" in ctx.addons,
-    }
+        render_vars: dict[str, object] = {
+            "name": project_dir.name,
+            "pkg_name": pkg_name,
+            "template": template,
+            "secret_key": "",
+            "has_postgres": template == "fastapi",
+            "has_redis": "redis" in ctx.addons,
+        }
 
-    contributions = collect_all(template_config, selected_addon_configs)
+        contributions = collect_all(template_config, selected_addon_configs)
 
-    apply_contributions(
-        ctx,
-        contributions,
-        template_config.extension_points,
-        render_vars,
-    )
-
-    _strip_zenit_sentinels(project_dir)
-
-    # ── deps ──────────────────────────────────────────────────────────────────
-    from scaffolder.deps import inject_deps
-    from scaffolder.ui import BOLD, DIM, GREEN, RESET, YELLOW  # noqa: F811
-
-    try:
-        added_deps, added_dev_deps = inject_deps(
-            project_dir,
-            contributions.deps,
-            contributions.dev_deps,
+        apply_contributions(
+            ctx,
+            contributions,
+            template_config.extension_points,
+            render_vars,
         )
-    except FileNotFoundError as exc:
-        warn(str(exc))
-        added_deps, added_dev_deps = [], []
 
-    # ── justfile recipes ──────────────────────────────────────────────────────
-    from scaffolder.justfile import inject_just_recipes
+        _strip_zenit_sentinels(project_dir)
 
-    recipe_render_vars: dict[str, object] = {
-        "name": project_dir.name,
-        "pkg_name": pkg_name,
-        "template": template,
-        "addons": ctx.addons,
-    }
-    string_env = make_env()
-    rendered_recipes = [
-        string_env.from_string(r).render(**recipe_render_vars)
-        for r in contributions.just_recipes
-    ]
-    added_recipes = inject_just_recipes(project_dir, rendered_recipes)
+        # ── deps ──────────────────────────────────────────────────────────
+        from scaffolder.deps import inject_deps
+        from scaffolder.ui import BOLD, DIM, GREEN, RESET, YELLOW  # noqa: F811
 
-    # ── lockfile ──────────────────────────────────────────────────────────────
-    new_addons = lockfile.addons + [addon_id]
-    write_lockfile(project_dir, template, new_addons)
+        try:
+            added_deps, added_dev_deps = inject_deps(
+                project_dir,
+                contributions.deps,
+                contributions.dev_deps,
+            )
+        except FileNotFoundError as exc:
+            warn(str(exc))
+            added_deps, added_dev_deps = [], []
 
-    # ── output ────────────────────────────────────────────────────────────────
-    print()
-    success(f"Addon '{addon_id}' added to '{project_dir.name}'.")
+        # ── justfile recipes ──────────────────────────────────────────────
+        from scaffolder.justfile import inject_just_recipes
 
-    if added_deps or added_dev_deps:
+        recipe_render_vars: dict[str, object] = {
+            "name": project_dir.name,
+            "pkg_name": pkg_name,
+            "template": template,
+            "addons": ctx.addons,
+        }
+        string_env = make_env()
+        rendered_recipes = [
+            string_env.from_string(r).render(**recipe_render_vars)
+            for r in contributions.just_recipes
+        ]
+        added_recipes = inject_just_recipes(project_dir, rendered_recipes)
+
+        # ── lockfile ──────────────────────────────────────────────────────
+        new_addons = lockfile.addons + [addon_id]
+        write_lockfile(project_dir, template, new_addons)
+
+        # ── output ────────────────────────────────────────────────────────
         print()
-        print(f"  {BOLD}Dependencies added to pyproject.toml:{RESET}")
-        for dep in added_deps:
-            print(f"    {GREEN}+{RESET} {dep}")
-        for dep in added_dev_deps:
-            print(f"    {GREEN}+{RESET} {dep}  {DIM}(dev){RESET}")
-        info("Run 'uv sync' to install them.")
-    else:
-        info("No new dependencies were needed.")
+        success(f"Addon '{addon_id}' added to '{project_dir.name}'.")
 
-    if added_recipes:
+        if added_deps or added_dev_deps:
+            print()
+            print(f"  {BOLD}Dependencies added to pyproject.toml:{RESET}")
+            for dep in added_deps:
+                print(f"    {GREEN}+{RESET} {dep}")
+            for dep in added_dev_deps:
+                print(f"    {GREEN}+{RESET} {dep}  {DIM}(dev){RESET}")
+            info("Run 'uv sync' to install them.")
+        else:
+            info("No new dependencies were needed.")
+
+        if added_recipes:
+            print()
+            print(f"  {BOLD}Just recipes added:{RESET}")
+            for name in added_recipes:
+                print(f"    {GREEN}+{RESET} {name}")
+
         print()
-        print(f"  {BOLD}Just recipes added:{RESET}")
-        for name in added_recipes:
-            print(f"    {GREEN}+{RESET} {name}")
-
-    print()
 
 
 def _dry_add(
@@ -463,12 +484,70 @@ def cmd_config() -> None:
 
 @app.command("add")
 def cmd_add(
-    addon: Annotated[str, typer.Argument(help="Addon to add to the current project")],
+    addon: Annotated[
+        str | None,
+        typer.Argument(
+            help="Addon to add to the current project (omit for interactive selection)"
+        ),
+    ] = None,
     dry_run: Annotated[
         bool, typer.Option("--dry-run", help="Preview without writing anything")
     ] = False,
 ) -> None:
     """Add an addon to an existing zenit project in the current directory."""
+    if addon is None:
+        # ── interactive addon selection ──────────────────────────────────────
+        from scaffolder.addons._registry import get_available_addons
+        from scaffolder.lockfile import read_lockfile
+        from scaffolder.prompt import _tui_single
+        from scaffolder.ui import BOLD, CYAN, DIM, RESET, error, info, warn
+
+        project_dir = Path.cwd()
+        lockfile = read_lockfile(project_dir)
+        if lockfile is None:
+            error(
+                "No .zenit.toml found. "
+                "'zenit add' only works in projects scaffolded by zenit."
+            )
+            raise typer.Exit(1)
+
+        available = get_available_addons()
+        installed = set(lockfile.addons)
+
+        # Only show addons that are not already installed
+        not_installed = [cfg for cfg in available if cfg.id not in installed]
+        if not not_installed:
+            info("All available addons are already installed.")
+            raise typer.Exit(0)
+
+        items = [(cfg.id, cfg.description) for cfg in not_installed]
+
+        def _fallback_addon_prompt(items: list[tuple[str, str]]) -> str:
+            """Numbered selection when stdin is not a TTY."""
+            print(f"\n  {BOLD}Select an addon to add:{RESET}\n")
+            for i, (name, desc) in enumerate(items, 1):
+                print(f"    {CYAN}{i}){RESET} {name:<18} {DIM}—{RESET} {desc}")
+            print()
+            while True:
+                try:
+                    choice = input(f"  Addon [1-{len(items)}]: ").strip()
+                except EOFError:
+                    print()
+                    raise typer.Exit(0) from None
+                except KeyboardInterrupt:
+                    print()
+                    raise typer.Exit(0) from None
+                if choice.isdigit():
+                    idx = int(choice) - 1
+                    if 0 <= idx < len(items):
+                        return items[idx][0]
+                warn(f"Enter a number between 1 and {len(items)}.")
+
+        if sys.stdin.isatty():
+            addon = _tui_single("Select an addon to add:", items)
+        else:
+            addon = _fallback_addon_prompt(items)
+
     _add(addon, dry_run=dry_run)
 
 
