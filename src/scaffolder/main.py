@@ -45,7 +45,7 @@ def cmd_create(
 @app.command("list-templates")
 def cmd_list_templates() -> None:
     """Show available project templates."""
-    from scaffolder.prompt import TEMPLATES
+    from scaffolder.prompt._render import TEMPLATES
     from scaffolder.ui import CYAN, DIM, RESET
 
     print()
@@ -134,7 +134,7 @@ def _add_interactive(dry_run: bool = False) -> None:
 
     from scaffolder.addons._registry import get_available_addons
     from scaffolder.lockfile import read_lockfile
-    from scaffolder.prompt import _tui_single
+    from scaffolder.prompt import prompt_single_addon
     from scaffolder.ui import error, info
 
     project_dir = Path.cwd()
@@ -153,29 +153,35 @@ def _add_interactive(dry_run: bool = False) -> None:
     available = get_available_addons()
 
     already_installed = set(lockfile.addons)
-    available_to_add = [
-        a
-        for a in available
-        if a.id not in already_installed
-        and all(req in lockfile.addons for req in a.requires)
-    ]
+    if already_installed:
+        from scaffolder.ui import DIM, RESET
 
-    if not available_to_add:
+        print(
+            f"\n  {DIM}Already installed: {', '.join(sorted(already_installed))}{RESET}"
+        )
+
+    items = []
+    unavailable_indices = set()
+
+    for addon in available:
+        if addon.id in already_installed:
+            continue
+
+        deps_met = all(req in lockfile.addons for req in addon.requires)
+        items.append((addon.id, addon.description, addon.requires))
+
+        if not deps_met:
+            unavailable_indices.add(len(items) - 1)
+
+    if not items:
         info("All available addons are already installed.")
-        if already_installed:
-            print(f"  Installed: {', '.join(sorted(already_installed))}")
         print()
         return
 
-    if already_installed:
-        print(f"\n  Already installed: {', '.join(sorted(already_installed))}")
-
-    items = [(a.id, a.description) for a in available_to_add]
-
-    selected = _tui_single(
-        "Select an addon to add:",
+    selected = prompt_single_addon(
         items,
-        default=None,
+        unavailable_indices=unavailable_indices,
+        already_installed=sorted(already_installed) if already_installed else None,
     )
 
     if not selected:

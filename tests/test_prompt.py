@@ -12,7 +12,8 @@ from unittest.mock import patch
 
 import pytest
 
-from scaffolder.prompt import _fallback_addons, _fallback_template
+from scaffolder.prompt._multi import _fallback_multi
+from scaffolder.prompt._single import _fallback_template
 
 # ── _fallback_template ────────────────────────────────────────────────────────
 
@@ -66,7 +67,7 @@ def test_fallback_template_keyboard_interrupt_raises_system_exit():
         assert exc_info.value.code == 0
 
 
-# ── _fallback_addons helpers ──────────────────────────────────────────────────
+# ── _fallback_multi helpers ───────────────────────────────────────────────────
 
 
 def _items(*names: str) -> list[tuple[str, str]]:
@@ -77,154 +78,201 @@ def _requires(*pairs: tuple[str, list[str]]) -> dict[str, list[str]]:
     return dict(pairs)
 
 
-# ── _fallback_addons — empty / skip ──────────────────────────────────────────
+# ── _fallback_multi — empty / skip ────────────────────────────────────────────
 
 
-def test_fallback_addons_empty_input_returns_only_locked():
+def test_fallback_multi_empty_input_returns_only_locked():
     items = _items("docker", "redis", "celery")
     with patch("builtins.input", return_value=""):
-        result = _fallback_addons(items, _requires(), always_locked_names={"docker"})
-    assert result == ["docker"]
-
-
-def test_fallback_addons_empty_input_no_locked_returns_empty():
-    items = _items("docker", "redis")
-    with patch("builtins.input", return_value=""):
-        result = _fallback_addons(items, _requires(), always_locked_names=set())
+        result = _fallback_multi(
+            items, _requires(), template="", default_addon_names=[]
+        )
+    # No template, so always_locked is empty — returns empty
     assert result == []
 
 
-def test_fallback_addons_no_items_returns_locked_immediately():
-    # When items is empty the function returns without prompting.
-    result = _fallback_addons([], _requires(), always_locked_names={"docker"})
+def test_fallback_multi_locked_from_template():
+    items = _items("docker", "redis", "celery")
+    with patch("builtins.input", return_value=""):
+        result = _fallback_multi(
+            items,
+            _requires(),
+            template="fastapi",
+            default_addon_names=[],
+        )
     assert result == ["docker"]
 
 
-# ── _fallback_addons — selection by number ────────────────────────────────────
+def test_fallback_multi_empty_input_no_locked_returns_empty():
+    items = _items("docker", "redis")
+    with patch("builtins.input", return_value=""):
+        result = _fallback_multi(
+            items, _requires(), template="", default_addon_names=[]
+        )
+    assert result == []
 
 
-def test_fallback_addons_select_first():
-    items = _items("docker", "redis", "celery")
-    with patch("builtins.input", return_value="1"):
-        result = _fallback_addons(items, _requires(), always_locked_names=set())
+def test_fallback_multi_no_items_returns_locked_immediately():
+    result = _fallback_multi(
+        [], _requires(), template="fastapi", default_addon_names=[]
+    )
     assert "docker" in result
 
 
-def test_fallback_addons_select_second():
+# ── _fallback_multi — selection by number ─────────────────────────────────────
+
+
+def test_fallback_multi_select_first():
+    items = _items("docker", "redis", "celery")
+    with patch("builtins.input", return_value="1"):
+        result = _fallback_multi(
+            items, _requires(), template="", default_addon_names=[]
+        )
+    assert "docker" in result
+
+
+def test_fallback_multi_select_second():
     items = _items("docker", "redis", "celery")
     with patch("builtins.input", return_value="2"):
-        result = _fallback_addons(items, _requires(), always_locked_names=set())
+        result = _fallback_multi(
+            items, _requires(), template="", default_addon_names=[]
+        )
     assert "redis" in result
 
 
-def test_fallback_addons_select_multiple():
+def test_fallback_multi_select_multiple():
     items = _items("docker", "redis", "sentry")
     with patch("builtins.input", return_value="1 3"):
-        result = _fallback_addons(items, _requires(), always_locked_names=set())
+        result = _fallback_multi(
+            items, _requires(), template="", default_addon_names=[]
+        )
     assert "docker" in result
     assert "sentry" in result
     assert "redis" not in result
 
 
-def test_fallback_addons_always_locked_included_even_if_not_typed():
+def test_fallback_multi_always_locked_included_even_if_not_typed():
     items = _items("docker", "redis", "celery")
     with patch("builtins.input", return_value="2"):
-        result = _fallback_addons(items, _requires(), always_locked_names={"docker"})
+        result = _fallback_multi(
+            items, _requires(), template="fastapi", default_addon_names=[]
+        )
     assert "docker" in result
     assert "redis" in result
 
 
-def test_fallback_addons_locked_not_duplicated():
+def test_fallback_multi_locked_not_duplicated():
     items = _items("docker", "redis")
-    # Explicitly select docker (1) even though it is already locked.
     with patch("builtins.input", return_value="1"):
-        result = _fallback_addons(items, _requires(), always_locked_names={"docker"})
+        result = _fallback_multi(
+            items, _requires(), template="fastapi", default_addon_names=[]
+        )
     assert result.count("docker") == 1
 
 
-# ── _fallback_addons — auto-selection of required addons ─────────────────────
+# ── _fallback_multi — auto-selection of required addons ───────────────────────
 
 
-def test_fallback_addons_auto_selects_required():
+def test_fallback_multi_auto_selects_required():
     items = _items("docker", "redis", "celery")
     requires = _requires(("celery", ["redis"]))
-    with patch("builtins.input", return_value="3"):  # select celery
-        result = _fallback_addons(items, requires, always_locked_names=set())
+    with patch("builtins.input", return_value="3"):
+        result = _fallback_multi(items, requires, template="", default_addon_names=[])
     assert "celery" in result
-    assert "redis" in result  # auto-selected
+    assert "redis" in result
 
 
-def test_fallback_addons_auto_selects_only_direct_requirements():
-    # _fallback_addons resolves one level deep only — it does not recurse.
-    # Selecting celery pulls in redis (celery requires redis), but docker is
-    # NOT pulled in even though redis requires docker, because the auto-select
-    # loop runs only over the originally selected addon.
+def test_fallback_multi_auto_selects_only_direct_requirements():
     items = _items("docker", "redis", "celery")
     requires = _requires(("celery", ["redis"]), ("redis", ["docker"]))
     with patch("builtins.input", return_value="3"):
-        result = _fallback_addons(items, requires, always_locked_names=set())
+        result = _fallback_multi(items, requires, template="", default_addon_names=[])
     assert "celery" in result
     assert "redis" in result
     assert "docker" not in result
 
 
-def test_fallback_addons_no_auto_select_when_no_requirement():
+def test_fallback_multi_no_auto_select_when_no_requirement():
     items = _items("docker", "redis", "sentry")
     requires = _requires(("celery", ["redis"]))
-    with patch("builtins.input", return_value="3"):  # sentry, no requirements
-        result = _fallback_addons(items, requires, always_locked_names=set())
+    with patch("builtins.input", return_value="3"):
+        result = _fallback_multi(items, requires, template="", default_addon_names=[])
     assert "sentry" in result
     assert "redis" not in result
     assert "docker" not in result
 
 
-# ── _fallback_addons — validation ─────────────────────────────────────────────
+# ── _fallback_multi — validation ──────────────────────────────────────────────
 
 
-def test_fallback_addons_retries_on_out_of_range():
+def test_fallback_multi_retries_on_out_of_range():
     items = _items("docker", "redis")
     with patch("builtins.input", side_effect=["5", "1"]):
-        result = _fallback_addons(items, _requires(), always_locked_names=set())
+        result = _fallback_multi(
+            items, _requires(), template="", default_addon_names=[]
+        )
     assert "docker" in result
 
 
-def test_fallback_addons_retries_on_non_numeric():
+def test_fallback_multi_retries_on_non_numeric():
     items = _items("docker", "redis")
     with patch("builtins.input", side_effect=["abc", "2"]):
-        result = _fallback_addons(items, _requires(), always_locked_names=set())
+        result = _fallback_multi(
+            items, _requires(), template="", default_addon_names=[]
+        )
     assert "redis" in result
 
 
-def test_fallback_addons_retries_on_zero_index():
+def test_fallback_multi_retries_on_zero_index():
     items = _items("docker", "redis")
     with patch("builtins.input", side_effect=["0", "1"]):
-        result = _fallback_addons(items, _requires(), always_locked_names=set())
+        result = _fallback_multi(
+            items, _requires(), template="", default_addon_names=[]
+        )
     assert "docker" in result
 
 
-def test_fallback_addons_retries_on_mixed_valid_invalid():
-    # "1 abc" — the whole line is rejected, not partially accepted.
+def test_fallback_multi_retries_on_mixed_valid_invalid():
     items = _items("docker", "redis", "sentry")
     with patch("builtins.input", side_effect=["1 abc", "2"]):
-        result = _fallback_addons(items, _requires(), always_locked_names=set())
+        result = _fallback_multi(
+            items, _requires(), template="", default_addon_names=[]
+        )
     assert "redis" in result
     assert "docker" not in result
 
 
-# ── _fallback_addons — EOF / interrupt ────────────────────────────────────────
+# ── _fallback_multi — EOF / interrupt ─────────────────────────────────────────
 
 
-def test_fallback_addons_eof_raises_system_exit():
+def test_fallback_multi_eof_raises_system_exit():
     items = _items("docker", "redis")
     with patch("builtins.input", side_effect=EOFError):
         with pytest.raises(SystemExit) as exc_info:
-            _fallback_addons(items, _requires(), always_locked_names=set())
+            _fallback_multi(items, _requires(), template="", default_addon_names=[])
         assert exc_info.value.code == 0
 
 
-def test_fallback_addons_keyboard_interrupt_raises_system_exit():
+def test_fallback_multi_keyboard_interrupt_raises_system_exit():
     items = _items("docker", "redis")
     with patch("builtins.input", side_effect=KeyboardInterrupt):
         with pytest.raises(SystemExit) as exc_info:
-            _fallback_addons(items, _requires(), always_locked_names=set())
+            _fallback_multi(items, _requires(), template="", default_addon_names=[])
         assert exc_info.value.code == 0
+
+
+# ── _fallback_multi — defaults from config ────────────────────────────────────
+
+
+def test_fallback_multi_enter_returns_defaults():
+    items = _items("docker", "redis", "sentry")
+    with patch("builtins.input", return_value=""):
+        result = _fallback_multi(
+            items,
+            _requires(),
+            template="",
+            default_addon_names=["redis", "sentry"],
+        )
+    assert "redis" in result
+    assert "sentry" in result
+    assert "docker" not in result
