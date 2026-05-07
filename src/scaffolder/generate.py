@@ -70,7 +70,7 @@ def generate_all(
         "pkg_name": ctx.pkg_name,
         "template": ctx.template,
         "addons": ctx.addons,
-        "deps": template_cfg.deps + contributions.deps,
+        "deps": contributions.deps,
         "dev_deps": template_cfg.dev_deps + contributions.dev_deps,
         "template_just_recipes": rendered_template_recipes,
         "extra_just_recipes": unique_addon_recipes,
