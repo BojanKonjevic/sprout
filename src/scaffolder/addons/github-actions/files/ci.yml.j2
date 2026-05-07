@@ -17,7 +17,7 @@ jobs:
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: (( name ))_test
+          POSTGRES_DB: (( pkg_name ))_test
         ports:
           - 5432:5432
         options: >-
@@ -58,7 +58,7 @@ jobs:
 
       - name: Run migrations
         env:
-          DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/(( name ))_test
+          DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/(( pkg_name ))_test
         run: uv run alembic upgrade head
 [% endif %]
 
@@ -74,10 +74,9 @@ jobs:
       - name: Test
         env:
 [% if has_postgres %]
-          DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/(( name ))_test
+          DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/(( pkg_name ))_test
 [% endif %]
 [% if has_redis %]
           REDIS_URL: redis://localhost:6379/0
 [% endif %]
         run: uv run pytest -v
-

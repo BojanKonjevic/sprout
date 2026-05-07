@@ -158,13 +158,13 @@ config = TemplateConfig(
         "# apply all pending migrations\nupgrade: wait-db\n    uv run alembic upgrade head",
         "# roll back one migration\ndowngrade:\n    uv run alembic downgrade -1",
         "# wait until postgres is ready\nwait-db:\n    uv run python scripts/wait_db.py",
-        "# start db container, create databases, run migrations\ndb-create:\n    docker compose up -d db\n    just wait-db\n    docker compose exec db createdb -U postgres (( name ))\n    docker compose exec db createdb -U postgres (( name ))_test\n    just upgrade",
-        "# drop and recreate both databases\ndb-reset:\n    docker compose exec db dropdb -U postgres --if-exists (( name ))\n    docker compose exec db dropdb -U postgres --if-exists (( name ))_test\n    just db-create",
+        "# start db container, create databases, run migrations\ndb-create:\n    docker compose up -d db\n    just wait-db\n    docker compose exec db createdb -U postgres (( pkg_name ))\n    docker compose exec db createdb -U postgres (( pkg_name ))_test\n    just upgrade",
+        "# drop and recreate both databases\ndb-reset:\n    docker compose exec db dropdb -U postgres --if-exists (( pkg_name ))\n    docker compose exec db dropdb -U postgres --if-exists (( pkg_name ))_test\n    just db-create",
     ],
     env_vars=[
         EnvVar(
             key="DATABASE_URL",
-            default="postgresql+asyncpg://postgres:postgres@localhost:5432/(( name ))",
+            default="postgresql+asyncpg://postgres:postgres@localhost:5432/(( pkg_name ))",
         ),
         EnvVar(key="DEBUG", default="false"),
         EnvVar(key="SECRET_KEY", default="change-me-in-production"),

@@ -6,8 +6,8 @@ class Settings(BaseSettings):
 
     # Triple-slash = local Unix socket + peer auth (no password needed).
     # Override in .env for remote/production:
-    #   DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/(( name ))
-    database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/(( name ))"
+    #   DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/(( pkg_name ))
+    database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/(( pkg_name ))"
     debug: bool = False
 
     secret_key: str = "change-me-in-production"
