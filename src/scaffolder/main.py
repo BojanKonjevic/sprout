@@ -173,7 +173,7 @@ def _add(addon_id: str, dry_run: bool = False) -> None:
         from scaffolder.ui import error
 
         error(str(exc))
-        raise typer.Exit(1)
+        raise typer.Exit(1) from exc
 
     template = lockfile.template
     pkg_name = project_dir.name.replace("-", "_")
@@ -205,7 +205,7 @@ def _add(addon_id: str, dry_run: bool = False) -> None:
             raw = input(f"  Proceed? {DIM}[Y/n]{RESET}  ").strip().lower()
         except EOFError, KeyboardInterrupt:
             print()
-            raise typer.Exit(0)
+            raise typer.Exit(0) from None
         if raw not in ("", "y", "yes"):
             print(f"\n  {YELLOW}Aborted.{RESET}\n")
             raise typer.Exit(0)

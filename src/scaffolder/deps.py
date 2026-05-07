@@ -8,8 +8,10 @@ entries.
 from __future__ import annotations
 
 from pathlib import Path
+from typing import cast
 
 import tomlkit
+from tomlkit.container import Container
 
 
 def inject_deps(
@@ -35,13 +37,15 @@ def inject_deps(
     added_dev_deps: list[str] = []
 
     # ── runtime deps ──────────────────────────────────────────────────────────
-    project_table = doc.get("project", {})
-    existing_deps = project_table.get("dependencies", tomlkit.array())
+    project_table = cast(Container, doc.get("project", {}))
+    existing_deps = cast(
+        list[str], project_table.get("dependencies") or tomlkit.array()
+    )
     existing_names = {_pkg_name(str(d)) for d in existing_deps}
 
     for dep in deps:
         if _pkg_name(dep) not in existing_names:
-            existing_deps.append(dep)  # type: ignore[union-attr]
+            existing_deps.append(dep)
             existing_names.add(_pkg_name(dep))
             added_deps.append(dep)
 
@@ -49,22 +53,24 @@ def inject_deps(
     # Support both [dependency-groups] dev (PEP 735 / uv style) and
     # [project.optional-dependencies] dev.
     if "dependency-groups" in doc:
-        group = doc["dependency-groups"]
-        existing_dev = group.get("dev", tomlkit.array())
+        group = cast(Container, doc["dependency-groups"])
+        existing_dev = cast(list[str], group.get("dev") or tomlkit.array())
         existing_dev_names = {_pkg_name(str(d)) for d in existing_dev}
         for dep in dev_deps:
             if _pkg_name(dep) not in existing_dev_names:
-                existing_dev.append(dep)  # type: ignore[union-attr]
+                existing_dev.append(dep)
                 existing_dev_names.add(_pkg_name(dep))
                 added_dev_deps.append(dep)
 
-    elif "project" in doc and "optional-dependencies" in doc["project"]:
-        opt = doc["project"]["optional-dependencies"]
-        existing_dev = opt.get("dev", tomlkit.array())
+    elif "project" in doc and "optional-dependencies" in cast(
+        Container, doc["project"]
+    ):
+        opt = cast(Container, cast(Container, doc["project"])["optional-dependencies"])
+        existing_dev = cast(list[str], opt.get("dev") or tomlkit.array())
         existing_dev_names = {_pkg_name(str(d)) for d in existing_dev}
         for dep in dev_deps:
             if _pkg_name(dep) not in existing_dev_names:
-                existing_dev.append(dep)  # type: ignore[union-attr]
+                existing_dev.append(dep)
                 existing_dev_names.add(_pkg_name(dep))
                 added_dev_deps.append(dep)
 
