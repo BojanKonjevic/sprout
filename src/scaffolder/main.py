@@ -237,12 +237,38 @@ def _add(addon_id: str, dry_run: bool = False) -> None:
 
     _strip_zenit_sentinels(project_dir)
 
+    # Inject deps into pyproject.toml before updating the lockfile.
+    from scaffolder.deps import inject_deps
+    from scaffolder.ui import BOLD, DIM, GREEN, RESET, YELLOW
+
+    try:
+        added_deps, added_dev_deps = inject_deps(
+            project_dir,
+            contributions.deps,
+            contributions.dev_deps,
+        )
+    except FileNotFoundError as exc:
+        warn(str(exc))
+        added_deps, added_dev_deps = [], []
+
     new_addons = lockfile.addons + [addon_id]
     write_lockfile(project_dir, template, new_addons)
 
     print()
     success(f"Addon '{addon_id}' added to '{project_dir.name}'.")
-    info("Review pyproject.toml and add any new dependencies, then run 'uv sync'.")
+
+    if added_deps or added_dev_deps:
+        print()
+        print(f"  {BOLD}Dependencies added to pyproject.toml:{RESET}")
+        for dep in added_deps:
+            print(f"    {GREEN}+{RESET} {dep}")
+        for dep in added_dev_deps:
+            print(f"    {GREEN}+{RESET} {dep}  {DIM}(dev){RESET}")
+        print()
+        info("Run 'uv sync' to install them.")
+    else:
+        info("No new dependencies were needed.")
+
     print()
 
 
