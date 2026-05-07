@@ -183,7 +183,7 @@ def test_generate_all_writes_pyproject_toml(tmp_path):
     template_cfg = _make_template_config([])
     template_cfg.deps = ["fastapi", "uvicorn[standard]"]
     contributions = _make_contributions([])
-    contributions.deps = ["redis>=5"]
+    contributions.deps = ["fastapi", "uvicorn[standard]", "redis>=5"]
 
     generate_all(ctx, template_cfg, contributions)
 
