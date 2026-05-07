@@ -1,4 +1,4 @@
-"""Dependency injection into an existing pyproject.toml.
+"""Dependency injection into an existing pyproject.toml after running zenit add.
 
 Uses tomlkit for round-trip parsing so that the user's formatting, comments,
 and ordering are preserved. Only appends — never removes or reorders existing
@@ -10,7 +10,6 @@ from __future__ import annotations
 from pathlib import Path
 
 import tomlkit
-import tomlkit.items
 
 
 def inject_deps(

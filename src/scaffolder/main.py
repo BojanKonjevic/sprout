@@ -19,6 +19,7 @@ from scaffolder.context import Context
 from scaffolder.generate import generate_all
 from scaffolder.git import init_and_commit
 from scaffolder.prompt import TEMPLATES, prompt_addons, prompt_template
+from scaffolder.render import make_env
 from scaffolder.rollback import scaffold_or_rollback
 from scaffolder.ui import confirm, info, success, warn
 
@@ -172,7 +173,7 @@ def _add(addon_id: str, dry_run: bool = False) -> None:
         from scaffolder.ui import error
 
         error(str(exc))
-        raise typer.Exit(1) from None
+        raise typer.Exit(1)
 
     template = lockfile.template
     pkg_name = project_dir.name.replace("-", "_")
@@ -204,7 +205,7 @@ def _add(addon_id: str, dry_run: bool = False) -> None:
             raw = input(f"  Proceed? {DIM}[Y/n]{RESET}  ").strip().lower()
         except EOFError, KeyboardInterrupt:
             print()
-            raise typer.Exit(0) from None
+            raise typer.Exit(0)
         if raw not in ("", "y", "yes"):
             print(f"\n  {YELLOW}Aborted.{RESET}\n")
             raise typer.Exit(0)
@@ -237,9 +238,9 @@ def _add(addon_id: str, dry_run: bool = False) -> None:
 
     _strip_zenit_sentinels(project_dir)
 
-    # Inject deps into pyproject.toml before updating the lockfile.
+    # ── deps ──────────────────────────────────────────────────────────────────
     from scaffolder.deps import inject_deps
-    from scaffolder.ui import BOLD, DIM, GREEN, RESET, YELLOW
+    from scaffolder.ui import BOLD, DIM, GREEN, RESET, YELLOW  # noqa: F811
 
     try:
         added_deps, added_dev_deps = inject_deps(
@@ -251,9 +252,27 @@ def _add(addon_id: str, dry_run: bool = False) -> None:
         warn(str(exc))
         added_deps, added_dev_deps = [], []
 
+    # ── justfile recipes ──────────────────────────────────────────────────────
+    from scaffolder.justfile import inject_just_recipes
+
+    recipe_render_vars: dict[str, object] = {
+        "name": project_dir.name,
+        "pkg_name": pkg_name,
+        "template": template,
+        "addons": ctx.addons,
+    }
+    string_env = make_env()
+    rendered_recipes = [
+        string_env.from_string(r).render(**recipe_render_vars)
+        for r in contributions.just_recipes
+    ]
+    added_recipes = inject_just_recipes(project_dir, rendered_recipes)
+
+    # ── lockfile ──────────────────────────────────────────────────────────────
     new_addons = lockfile.addons + [addon_id]
     write_lockfile(project_dir, template, new_addons)
 
+    # ── output ────────────────────────────────────────────────────────────────
     print()
     success(f"Addon '{addon_id}' added to '{project_dir.name}'.")
 
@@ -264,10 +283,15 @@ def _add(addon_id: str, dry_run: bool = False) -> None:
             print(f"    {GREEN}+{RESET} {dep}")
         for dep in added_dev_deps:
             print(f"    {GREEN}+{RESET} {dep}  {DIM}(dev){RESET}")
-        print()
         info("Run 'uv sync' to install them.")
     else:
         info("No new dependencies were needed.")
+
+    if added_recipes:
+        print()
+        print(f"  {BOLD}Just recipes added:{RESET}")
+        for name in added_recipes:
+            print(f"    {GREEN}+{RESET} {name}")
 
     print()
 
@@ -281,6 +305,7 @@ def _dry_add(
     """Print what `zenit add` would do without writing anything."""
     from scaffolder.assembler import apply_contributions, collect_all
     from scaffolder.dryrun import DryRunContext
+    from scaffolder.generate import _recipe_name
     from scaffolder.templates._load_config import load_template_config
     from scaffolder.ui import (
         BOLD,
@@ -336,11 +361,27 @@ def _dry_add(
         elif action == "modify":
             print(f"  {GREEN}△{RESET} {path}  {DIM}{details}{RESET}")
 
-    dry_header("Dependencies that would be added to pyproject.toml")
-    for dep in contributions.deps:
-        dry_dep(dep)
-    for dep in contributions.dev_deps:
-        dry_dep(dep, "dev")
+    if contributions.deps or contributions.dev_deps:
+        dry_header("Dependencies that would be added to pyproject.toml")
+        for dep in contributions.deps:
+            dry_dep(dep)
+        for dep in contributions.dev_deps:
+            dry_dep(dep, "dev")
+
+    if contributions.just_recipes:
+        dry_header("Just recipes that would be added")
+        recipe_render_vars: dict[str, object] = {
+            "name": ctx.name,
+            "pkg_name": ctx.pkg_name,
+            "template": template,
+            "addons": ctx.addons,
+        }
+        string_env = make_env()
+        for recipe in contributions.just_recipes:
+            rendered = string_env.from_string(recipe).render(**recipe_render_vars)
+            name = _recipe_name(rendered)
+            if name:
+                dry_dep(name)
 
     print()
 
