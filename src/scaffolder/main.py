@@ -8,6 +8,7 @@ import typer
 
 from scaffolder.add import add_addon
 from scaffolder.config import config_path, load_config
+from scaffolder.doctor import print_results, run_doctor
 from scaffolder.scaffold import scaffold_project
 
 app = typer.Typer(
@@ -190,6 +191,42 @@ def _add_interactive(dry_run: bool = False) -> None:
         return
 
     add_addon(selected, dry_run=dry_run)
+
+
+@app.command("doctor")
+def cmd_doctor() -> None:
+    """Check that the current project matches zenit's expectations."""
+    from pathlib import Path
+
+    from scaffolder.lockfile import read_lockfile
+    from scaffolder.ui import error, success
+
+    project_dir = Path.cwd()
+    lockfile = read_lockfile(project_dir)
+
+    if lockfile is None:
+        error(
+            "No .zenit.toml found. 'zenit doctor' only works in projects scaffolded by zenit."
+        )
+        raise typer.Exit(1)
+
+    print(f"\n  Checking project '{project_dir.name}'…")
+
+    results = run_doctor(project_dir)
+
+    if not results:
+        print("\n  No checks registered yet.\n")
+        return
+
+    has_errors = print_results(results)
+
+    print()
+    if has_errors:
+        error("Project has issues that may prevent zenit commands from working.")
+        raise typer.Exit(1)
+    else:
+        success("Project looks healthy.")
+    print()
 
 
 def main() -> None:
