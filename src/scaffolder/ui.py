@@ -117,14 +117,6 @@ def confirm(ctx: object) -> bool:
         )
     return True
 
-    try:
-        raw = input(f"  Proceed? {DIM}[Y/n]{RESET}  ").strip().lower()
-    except EOFError, KeyboardInterrupt:
-        print()
-        return False
-
-    return raw in ("", "y", "yes")
-
 
 # ── Spinner ───────────────────────────────────────────────────────────────────
 

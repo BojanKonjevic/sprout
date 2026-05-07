@@ -1,12 +1,12 @@
 """Add‑on pipeline — apply a single addon to an existing project."""
 
-import re
 import sys
 from pathlib import Path
 
 import typer
 
 from scaffolder.context import Context
+from scaffolder.render import _strip_zenit_sentinels
 from scaffolder.schema import AddonConfig
 from scaffolder.ui import (
     BOLD,
@@ -19,16 +19,6 @@ from scaffolder.ui import (
     success,
     warn,
 )
-
-
-def _strip_zenit_sentinels(project_dir: Path) -> None:
-    """Remove all # [zenit: ...] sentinel lines from generated source files."""
-    pattern = re.compile(r"^\s*# \[zenit: [^\]]+\]\s*\n", re.MULTILINE)
-    for path in project_dir.rglob("*.py"):
-        text = path.read_text(encoding="utf-8")
-        cleaned = pattern.sub("", text)
-        if cleaned != text:
-            path.write_text(cleaned, encoding="utf-8")
 
 
 def add_addon(addon_id: str, dry_run: bool = False) -> None:

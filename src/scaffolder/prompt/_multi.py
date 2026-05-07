@@ -269,9 +269,11 @@ def _fallback_multi(
     print()
 
     def _build_defaults() -> list[str]:
-        result: list[str] = list(always_locked_names)
-        for name in default_addon_names:
-            if name not in result:
+        seen: set[str] = set()
+        result: list[str] = []
+        for name in list(always_locked_names) + default_addon_names:
+            if name not in seen:
+                seen.add(name)
                 result.append(name)
         return result
 

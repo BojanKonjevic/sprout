@@ -1,6 +1,5 @@
 """Project scaffold pipeline — called by the CLI layer."""
 
-import re
 import secrets
 import shutil
 import sys
@@ -14,6 +13,7 @@ from scaffolder.context import Context
 from scaffolder.generate import generate_all
 from scaffolder.git import init_and_commit
 from scaffolder.prompt import prompt_addons, prompt_template
+from scaffolder.render import _strip_zenit_sentinels
 from scaffolder.rollback import scaffold_or_rollback
 from scaffolder.ui import confirm, info, print_commands_from_just, success
 
@@ -27,16 +27,6 @@ def _load_apply(path: Path) -> Callable[[Context], None]:
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     return mod.apply  # type: ignore[no-any-return]
-
-
-def _strip_zenit_sentinels(project_dir: Path) -> None:
-    """Remove all # [zenit: ...] sentinel lines from generated source files."""
-    pattern = re.compile(r"^\s*# \[zenit: [^\]]+\]\s*\n", re.MULTILINE)
-    for path in project_dir.rglob("*.py"):
-        text = path.read_text(encoding="utf-8")
-        cleaned = pattern.sub("", text)
-        if cleaned != text:
-            path.write_text(cleaned, encoding="utf-8")
 
 
 def scaffold_project(name: str, dry_run: bool = False) -> None:
