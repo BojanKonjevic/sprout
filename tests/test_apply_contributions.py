@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from scaffolder.assembler import (
+from scaffolder.apply import (
     _apply_to_file,
     _merge_compose_volumes,
     _merge_env_vars,

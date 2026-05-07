@@ -65,13 +65,14 @@ def run_dry(ctx: Context) -> None:
         project_dir=ctx.project_dir,
     )
 
-    from scaffolder.main import _load_apply
+    from scaffolder.scaffold import _load_apply
 
     sr = dry_ctx.scaffolder_root
     _load_apply(sr / "templates" / "_common" / "apply.py")(dry_ctx)
 
     from scaffolder.addons._registry import get_available_addons
-    from scaffolder.assembler import apply_contributions, collect_all
+    from scaffolder.apply import apply_contributions
+    from scaffolder.collect import collect_all
     from scaffolder.templates._load_config import load_template_config
 
     available = get_available_addons()

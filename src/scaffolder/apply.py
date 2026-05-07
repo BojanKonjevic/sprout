@@ -1,4 +1,4 @@
-"""Assembles contributions from the template and selected addons, then applies them."""
+"""Apply collected contributions to the project directory."""
 
 from __future__ import annotations
 
@@ -8,88 +8,17 @@ from typing import TYPE_CHECKING
 import yaml
 
 from scaffolder.render import make_env
-from scaffolder.schema import (
-    Contributions,
-    ExtensionPoint,
-    FileContribution,
-    InjectionMode,
-)
+from scaffolder.schema import InjectionMode
 
 if TYPE_CHECKING:
     from scaffolder.context import Context
     from scaffolder.schema import (
-        AddonConfig,
         ComposeService,
+        Contributions,
         EnvVar,
+        ExtensionPoint,
         Injection,
-        TemplateConfig,
     )
-
-
-def collect_all(
-    template_config: TemplateConfig,
-    addon_configs: list[AddonConfig],
-) -> Contributions:
-    """Merge contributions from the template and all selected addons.
-
-    Note: template ``just_recipes`` are intentionally *not* collected here.
-    ``generate_all`` reads them directly from ``template_cfg`` to avoid
-    double-rendering during deduplication.
-    """
-    c = Contributions()
-
-    c.dirs.extend(template_config.dirs)
-    c.files.extend(template_config.files)
-    c.compose_services.extend(template_config.compose_services)
-    c.compose_volumes.extend(template_config.compose_volumes)
-    c.env_vars.extend(template_config.env_vars)
-    c.deps.extend(template_config.deps)
-    c.dev_deps.extend(template_config.dev_deps)
-
-    for inj in template_config.injections:
-        inj.addon_id = "template"
-        c.injections.append(inj)
-
-    for addon in addon_configs:
-        c.files.extend(addon.files)
-        c.compose_services.extend(addon.compose_services)
-        c.compose_volumes.extend(addon.compose_volumes)
-        c.env_vars.extend(addon.env_vars)
-        c.deps.extend(addon.deps)
-        c.dev_deps.extend(addon.dev_deps)
-        c.just_recipes.extend(addon.just_recipes)
-        for inj in addon.injections:
-            inj.addon_id = addon.id
-            c.injections.append(inj)
-
-    c._addon_configs = addon_configs
-
-    seen: dict[str, tuple[str, FileContribution]] = {}
-    all_labeled: list[tuple[str, FileContribution]] = [
-        ("template", fc) for fc in template_config.files
-    ] + [(addon.id, fc) for addon in addon_configs for fc in addon.files]
-    for label, fc in all_labeled:
-        dest = fc.dest
-        if dest not in seen:
-            seen[dest] = (label, fc)
-            continue
-        prev_label, prev_fc = seen[dest]
-        # Two empty stubs (__init__.py) overlapping is fine.
-        if fc.content == "" and prev_fc.content == "":
-            continue
-        # Identical source or content → no conflict.
-        if fc.source is not None and fc.source == prev_fc.source:
-            continue
-        if fc.content is not None and fc.content == prev_fc.content:
-            continue
-        from scaffolder.exceptions import ScaffoldError
-
-        raise ScaffoldError(
-            f"Internal conflict: both '{prev_label}' and '{label}' want to write '{dest}'. "
-            f"Please report this at https://github.com/BojanKonjevic/zenit/issues"
-        )
-
-    return c
 
 
 def apply_contributions(
@@ -98,14 +27,14 @@ def apply_contributions(
     extension_points: dict[str, ExtensionPoint],
     render_vars: dict[str, object],
 ) -> None:
-    """Modify the generated project directory in-place according to *contributions*.
+    """Modify the generated project directory in‑place according to *contributions*.
 
     Assumes common files have already been placed via ``_common/apply.py``.
     Steps (in order):
 
     1. Create directories.
     2. Write / copy / render individual files.
-    3. Apply sentinel-based injections.
+    3. Apply sentinel‑based injections.
     4. Merge compose services and volumes into ``compose.yml`` (if present).
     5. Append env vars to ``.env`` and ``.env.example`` (if present).
     6. Run each addon's optional ``post_apply`` hook.
@@ -116,8 +45,7 @@ def apply_contributions(
     for d in contributions.dirs:
         ctx.create_dir(d.replace("{{pkg_name}}", pkg_name))
 
-    # Pre-render {{pkg_name}} placeholders in compose service fields before
-    # the services are serialised to YAML.
+    # Pre‑render {{pkg_name}} placeholders in compose service fields
     for svc in contributions.compose_services:
         if svc.command and "{{pkg_name}}" in svc.command:
             svc.command = svc.command.replace("{{pkg_name}}", pkg_name)
@@ -179,7 +107,7 @@ def _apply_injections(
     extension_points: dict[str, ExtensionPoint],
     render_vars: dict[str, object],
 ) -> None:
-    """Group injections by extension-point name, then apply each group."""
+    """Group injections by extension‑point name, then apply each group."""
     by_point: dict[str, list[str]] = {}
     for inj in injections:
         by_point.setdefault(inj.point, []).append(inj.content)

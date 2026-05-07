@@ -1,6 +1,6 @@
 """Tests for scaffolder.assembler — collecting and merging contributions."""
 
-from scaffolder.assembler import collect_all
+from scaffolder.collect import collect_all
 from scaffolder.schema import (
     AddonConfig,
     ComposeService,

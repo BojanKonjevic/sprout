@@ -4,7 +4,8 @@ import subprocess
 from pathlib import Path
 
 from scaffolder.addons._registry import get_available_addons
-from scaffolder.assembler import apply_contributions, collect_all
+from scaffolder.apply import apply_contributions
+from scaffolder.collect import collect_all
 from scaffolder.context import Context
 from scaffolder.generate import generate_all
 from scaffolder.git import init_and_commit
@@ -33,7 +34,7 @@ def _scaffold(tmp_path: Path, name: str, template: str, addons: list[str]) -> Pa
     )
 
     # Common files
-    from scaffolder.main import _load_apply
+    from scaffolder.scaffold import _load_apply
 
     _load_apply(SCAFFOLDER_ROOT / "templates" / "_common" / "apply.py")(ctx)
 
