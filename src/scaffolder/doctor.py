@@ -397,12 +397,14 @@ def _check_addon_health(project_dir: Path, lockfile: object) -> HealthResult:
 
 def _check_compose(project_dir: Path, lockfile: object) -> HealthResult:
     """Check compose.yml for expected services and duplicate definitions."""
+    import os
+
+    import yaml
+
     from scaffolder.addons._registry import get_available_addons
     from scaffolder.collect import collect_all
     from scaffolder.lockfile import ZenitLockfile
     from scaffolder.templates._load_config import load_template_config
-    import os
-    import yaml
 
     assert isinstance(lockfile, ZenitLockfile)
     result = HealthResult("Compose")
