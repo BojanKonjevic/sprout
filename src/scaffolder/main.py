@@ -193,6 +193,117 @@ def _add_interactive(dry_run: bool = False) -> None:
     add_addon(selected, dry_run=dry_run)
 
 
+@app.command("remove")
+def cmd_remove(
+    addon: Annotated[
+        str | None,
+        typer.Argument(
+            help="Addon to remove from the current project (omit for interactive selection)"
+        ),
+    ] = None,
+    dry_run: Annotated[
+        bool, typer.Option("--dry-run", help="Preview without writing anything")
+    ] = False,
+) -> None:
+    """Remove an addon from an existing zenit project in the current directory.
+
+    Run without arguments to select an addon interactively.
+    """
+    if addon is None:
+        _remove_interactive(dry_run=dry_run)
+    else:
+        from scaffolder.remove import remove_addon
+
+        remove_addon(addon, dry_run=dry_run)
+
+
+def _remove_interactive(dry_run: bool = False) -> None:
+    """Interactive TUI for removing a single addon from an existing project."""
+    import os
+    from pathlib import Path
+
+    from scaffolder.addons._registry import get_available_addons
+    from scaffolder.lockfile import read_lockfile
+    from scaffolder.prompt import prompt_single_addon
+    from scaffolder.remove import remove_addon
+    from scaffolder.ui import error, info
+
+    project_dir = Path.cwd()
+    lockfile = read_lockfile(project_dir)
+
+    if lockfile is None:
+        error(
+            "No .zenit.toml found. 'zenit remove' only works in projects scaffolded by zenit."
+        )
+        raise typer.Exit(1)
+
+    if not lockfile.template:
+        error(".zenit.toml exists but has no template field — it may be corrupt.")
+        raise typer.Exit(1)
+
+    if not lockfile.addons:
+        info("No addons are installed — nothing to remove.")
+        print()
+        return
+
+    available = get_available_addons()
+
+    # Addons that other *installed* addons depend on.
+    requires_map_reverse: dict[str, list[str]] = {}
+    for cfg in available:
+        for req in cfg.requires:
+            requires_map_reverse.setdefault(req, []).append(cfg.id)
+
+    # Addons the template mandates — they cannot be removed.
+    scaffolder_root = Path(os.environ.get("SCAFFOLDER_ROOT", Path(__file__).parent))
+    template_required: set[str] = set()
+    try:
+        from scaffolder.templates._load_config import load_template_config
+
+        template_config = load_template_config(scaffolder_root, lockfile.template)
+        template_required = set(template_config.requires_addons)
+    except Exception:
+        pass
+
+    items: list[tuple[str, str, list[str]]] = []
+    unavailable_indices: set[int] = set()
+
+    for addon_id in lockfile.addons:
+        cfg = next((c for c in available if c.id == addon_id), None)
+        desc: str = cfg.description if cfg else addon_id
+
+        # Collect the reasons this addon is blocked from removal.
+        blocking: list[str] = []
+
+        # Other installed addons that require this one.
+        blocking.extend(
+            dep
+            for dep in requires_map_reverse.get(addon_id, [])
+            if dep in lockfile.addons
+        )
+
+        # Template mandates it.
+        if addon_id in template_required:
+            blocking.append(f"required by {lockfile.template} template")
+
+        items.append((addon_id, desc, blocking))
+        if blocking:
+            unavailable_indices.add(len(items) - 1)
+
+    selected = prompt_single_addon(
+        items,
+        unavailable_indices=unavailable_indices,
+        already_installed=None,
+    )
+
+    if not selected:
+        info("No addon selected.")
+        print()
+        return
+
+    remove_addon(selected, dry_run=dry_run)
+
+
 @app.command("doctor")
 def cmd_doctor() -> None:
     """Check that the current project matches zenit's expectations."""
