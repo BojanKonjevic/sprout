@@ -2,6 +2,7 @@
 
 from pathlib import Path
 
+from scaffolder.doctor import HealthIssue
 from scaffolder.lockfile import ZenitLockfile
 from scaffolder.schema import (
     AddonConfig,
@@ -117,11 +118,11 @@ def can_apply(project_dir: Path, lockfile: ZenitLockfile) -> str | None:
     return None
 
 
-def health_check(project_dir: Path, lockfile: object) -> list:
+def health_check(project_dir: Path, lockfile: object) -> list[HealthIssue]:
     from scaffolder.doctor import HealthIssue, Severity
 
     pkg_name = project_dir.name.replace("-", "_")
-    issues = []
+    issues: list[HealthIssue] = []
 
     redis_file = project_dir / "src" / pkg_name / "integrations" / "redis.py"
     if not redis_file.exists():

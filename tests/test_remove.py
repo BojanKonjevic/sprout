@@ -107,7 +107,7 @@ class TestRemoveAddonUnit:
         assert (project_dir / "src" / "myapp" / "integrations" / "sentry.py").exists()
 
         with suppress_stdin():
-            remove_addon("sentry")
+            remove_addon("sentry", project_dir=project_dir)
 
         assert not (
             project_dir / "src" / "myapp" / "integrations" / "sentry.py"
@@ -120,7 +120,7 @@ class TestRemoveAddonUnit:
         assert (project_dir / ".dockerignore").exists()
 
         with suppress_stdin():
-            remove_addon("docker")
+            remove_addon("docker", project_dir=project_dir)
 
         assert not (project_dir / "Dockerfile").exists()
         assert not (project_dir / "compose.yml").exists()
@@ -131,7 +131,7 @@ class TestRemoveAddonUnit:
         assert (project_dir / "src" / "myapp" / "integrations" / "redis.py").exists()
 
         with suppress_stdin():
-            remove_addon("redis")
+            remove_addon("redis", project_dir=project_dir)
 
         assert not (
             project_dir / "src" / "myapp" / "integrations" / "redis.py"
@@ -145,7 +145,7 @@ class TestRemoveAddonUnit:
         assert (project_dir / "src" / "myapp" / "tasks" / "example_tasks.py").exists()
 
         with suppress_stdin():
-            remove_addon("celery")
+            remove_addon("celery", project_dir=project_dir)
 
         assert not (project_dir / "src" / "myapp" / "tasks" / "celery_app.py").exists()
         assert not (
@@ -157,7 +157,7 @@ class TestRemoveAddonUnit:
         assert (project_dir / ".github" / "workflows" / "ci.yml").exists()
 
         with suppress_stdin():
-            remove_addon("github-actions")
+            remove_addon("github-actions", project_dir=project_dir)
 
         assert not (project_dir / ".github" / "workflows" / "ci.yml").exists()
         # .github/workflows directory should be removed if empty
@@ -170,7 +170,7 @@ class TestRemoveAddonUnit:
         assert "redis" in lockfile_before.addons
 
         with suppress_stdin():
-            remove_addon("redis")
+            remove_addon("redis", project_dir=project_dir)
 
         lockfile_after = read_lockfile(project_dir)
         assert "redis" not in lockfile_after.addons
@@ -182,7 +182,7 @@ class TestRemoveAddonUnit:
         assert "redis" in compose.get("services", {})
 
         with suppress_stdin():
-            remove_addon("redis")
+            remove_addon("redis", project_dir=project_dir)
 
         compose = yaml.safe_load((project_dir / "compose.yml").read_text())
         assert "redis" not in compose.get("services", {})
@@ -193,7 +193,7 @@ class TestRemoveAddonUnit:
         assert "REDIS_URL" in env
 
         with suppress_stdin():
-            remove_addon("redis")
+            remove_addon("redis", project_dir=project_dir)
 
         env = (project_dir / ".env").read_text()
         assert "REDIS_URL" not in env
@@ -204,7 +204,7 @@ class TestRemoveAddonUnit:
         assert "init_sentry" in main_py
 
         with suppress_stdin():
-            remove_addon("sentry")
+            remove_addon("sentry", project_dir=project_dir)
 
         main_py = (project_dir / "src" / "myapp" / "main.py").read_text()
         assert "init_sentry" not in main_py
@@ -215,7 +215,7 @@ class TestRemoveAddonUnit:
         assert integrations_dir.exists()
 
         with suppress_stdin():
-            remove_addon("sentry")
+            remove_addon("sentry", project_dir=project_dir)
 
         assert not integrations_dir.exists()
 
@@ -229,7 +229,7 @@ class TestRemoveAddonUnit:
         monkeypatch.chdir(project_dir)
 
         with suppress_stdin(), pytest.raises(ScaffoldError):
-            remove_addon("docker")
+            remove_addon("docker", project_dir=project_dir)
 
 
 # ── Integration tests ─────────────────────────────────────────────────────────
@@ -245,7 +245,7 @@ class TestRemoveAddonIntegration:
         monkeypatch.chdir(project_dir)
 
         with suppress_stdin():
-            remove_addon("sentry")
+            remove_addon("sentry", project_dir=project_dir)
 
         # Project should still have valid structure
         assert (project_dir / "src" / "myapp" / "main.py").exists()
@@ -258,7 +258,7 @@ class TestRemoveAddonIntegration:
         monkeypatch.chdir(project_dir)
 
         with suppress_stdin():
-            remove_addon("docker")
+            remove_addon("docker", project_dir=project_dir)
 
         assert (project_dir / "src" / "myapp" / "main.py").exists()
 
@@ -267,10 +267,10 @@ class TestRemoveAddonIntegration:
         monkeypatch.chdir(project_dir)
 
         with suppress_stdin():
-            remove_addon("docker")
+            remove_addon("docker", project_dir=project_dir)
 
         with suppress_stdin():
-            remove_addon("redis")
+            remove_addon("redis", project_dir=project_dir)
 
         # Should be back to basic blank structure
         assert (project_dir / "src" / "myapp" / "main.py").exists()
@@ -282,7 +282,7 @@ class TestRemoveAddonIntegration:
         monkeypatch.chdir(project_dir)
 
         with suppress_stdin():
-            remove_addon("sentry")
+            remove_addon("sentry", project_dir=project_dir)
 
         lifecycle = (project_dir / "src" / "myapi" / "lifecycle.py").read_text()
         assert "init_sentry" not in lifecycle
@@ -294,7 +294,7 @@ class TestRemoveAddonIntegration:
         monkeypatch.chdir(project_dir)
 
         with suppress_stdin():
-            remove_addon("github-actions")
+            remove_addon("github-actions", project_dir=project_dir)
 
         assert not (project_dir / ".github").exists()
 
@@ -303,7 +303,7 @@ class TestRemoveAddonIntegration:
         monkeypatch.chdir(project_dir)
 
         with suppress_stdin():
-            remove_addon("docker")
+            remove_addon("docker", project_dir=project_dir)
 
         # Sentry should still be present
         assert (project_dir / "src" / "myapp" / "integrations" / "sentry.py").exists()
@@ -324,7 +324,7 @@ class TestRemoveAddonIntegration:
         )
 
         with suppress_stdin():
-            remove_addon("sentry")
+            remove_addon("sentry", project_dir=project_dir)
 
         # Should still have git history (removal doesn't delete .git)
         assert (project_dir / ".git").exists()
@@ -345,7 +345,7 @@ class TestRemoveAddonIntegration:
         monkeypatch.chdir(project_dir)
 
         with suppress_stdin():
-            remove_addon("celery")
+            remove_addon("celery", project_dir=project_dir)
 
         # Redis should still be present
         assert (project_dir / "src" / "myapp" / "integrations" / "redis.py").exists()
@@ -358,7 +358,7 @@ class TestRemoveAddonIntegration:
         monkeypatch.chdir(project_dir)
 
         with suppress_stdin():
-            remove_addon("sentry")
+            remove_addon("sentry", project_dir=project_dir)
 
         assert not (
             project_dir / "src" / "myapp" / "integrations" / "sentry.py"
@@ -369,7 +369,7 @@ class TestRemoveAddonIntegration:
         monkeypatch.chdir(project_dir)
 
         with suppress_stdin():
-            remove_addon("redis")
+            remove_addon("redis", project_dir=project_dir)
 
         compose = yaml.safe_load((project_dir / "compose.yml").read_text())
         assert "redis" not in compose.get("services", {})
@@ -385,7 +385,7 @@ class TestRemoveAddonIntegration:
         main_before = (project_dir / "src" / "myapp" / "main.py").read_text()
 
         with suppress_stdin(), pytest.raises(ScaffoldError):
-            remove_addon("nonexistent")
+            remove_addon("nonexistent", project_dir=project_dir)
 
         main_after = (project_dir / "src" / "myapp" / "main.py").read_text()
         assert main_before == main_after
@@ -398,7 +398,7 @@ class TestRemoveAddonIntegration:
         monkeypatch.chdir(project_dir)
 
         with suppress_stdin(), pytest.raises(ScaffoldError):
-            remove_addon("redis")  # celery depends on redis
+            remove_addon("redis", project_dir=project_dir)  # celery depends on redis
 
     def test_remove_sentry_from_fastapi_removes_settings_fields(
         self, tmp_path, monkeypatch
@@ -407,7 +407,7 @@ class TestRemoveAddonIntegration:
         monkeypatch.chdir(project_dir)
 
         with suppress_stdin():
-            remove_addon("sentry")
+            remove_addon("sentry", project_dir=project_dir)
 
         settings = (project_dir / "src" / "myapi" / "settings.py").read_text()
         assert "sentry_dsn" not in settings
@@ -422,4 +422,4 @@ class TestRemoveAddonIntegration:
 
         # Can't remove docker from fastapi since it's required
         with suppress_stdin(), pytest.raises(ScaffoldError):
-            remove_addon("docker")
+            remove_addon("docker", project_dir=project_dir)

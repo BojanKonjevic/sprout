@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from scaffolder.doctor import HealthIssue
 from scaffolder.lockfile import ZenitLockfile
 from scaffolder.schema import AddonConfig, ComposeService, FileContribution
 
@@ -103,11 +104,11 @@ def can_apply(project_dir: Path, lockfile: ZenitLockfile) -> str | None:
     return None
 
 
-def health_check(project_dir: Path, lockfile: object) -> list:
+def health_check(project_dir: Path, lockfile: object) -> list[HealthIssue]:
     from scaffolder.doctor import HealthIssue, Severity
 
     pkg_name = project_dir.name.replace("-", "_")
-    issues = []
+    issues: list[HealthIssue] = []
 
     celery_app = project_dir / "src" / pkg_name / "tasks" / "celery_app.py"
     if not celery_app.exists():

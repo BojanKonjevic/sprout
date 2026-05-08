@@ -429,7 +429,7 @@ def _check_compose(project_dir: Path, lockfile: object) -> HealthResult:
         )
         return result
 
-    services: dict = data.get("services", {})
+    services: dict[str, object] = data.get("services", {})
 
     # check for duplicate service names (yaml.safe_load deduplicates keys silently,
     # so we detect this by counting raw occurrences in the file text)

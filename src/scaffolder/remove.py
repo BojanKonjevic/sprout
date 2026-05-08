@@ -23,7 +23,9 @@ from scaffolder.ui import (
 )
 
 
-def remove_addon(addon_id: str, dry_run: bool = False) -> None:
+def remove_addon(
+    addon_id: str, dry_run: bool = False, project_dir: Path | None = None
+) -> None:
     """Remove a single addon from an existing zenit project."""
     import os
 
@@ -32,16 +34,11 @@ def remove_addon(addon_id: str, dry_run: bool = False) -> None:
     from scaffolder.exceptions import ScaffoldError
     from scaffolder.lockfile import write_lockfile
 
-    project_dir = Path.cwd()
+    if project_dir is None:
+        project_dir = Path.cwd()
     available = get_available_addons()
 
-    try:
-        lockfile = check_can_remove(project_dir, addon_id, available)
-    except ScaffoldError as exc:
-        from scaffolder.ui import error
-
-        error(str(exc))
-        raise typer.Exit(1) from exc
+    lockfile = check_can_remove(project_dir, addon_id, available)
 
     template = lockfile.template
     pkg_name = project_dir.name.replace("-", "_")

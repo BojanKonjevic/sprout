@@ -42,6 +42,10 @@ config = TemplateConfig(
             source=str(_HERE / "files" / "tests" / "test_main.py.j2"),
             template=True,
         ),
+        FileContribution(
+            dest=".env",
+            content="# [zenit: env_vars]\n",
+        ),
     ],
     deps=["python-dotenv"],
     dev_deps=[],

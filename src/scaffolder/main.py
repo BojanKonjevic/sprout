@@ -212,9 +212,16 @@ def cmd_remove(
     if addon is None:
         _remove_interactive(dry_run=dry_run)
     else:
+        from scaffolder.exceptions import ScaffoldError
         from scaffolder.remove import remove_addon
 
-        remove_addon(addon, dry_run=dry_run)
+        try:
+            remove_addon(addon, dry_run=dry_run)
+        except ScaffoldError as exc:
+            from scaffolder.ui import error
+
+            error(str(exc))
+            raise typer.Exit(1) from exc
 
 
 def _remove_interactive(dry_run: bool = False) -> None:
@@ -269,8 +276,10 @@ def _remove_interactive(dry_run: bool = False) -> None:
     unavailable_indices: set[int] = set()
 
     for addon_id in lockfile.addons:
-        cfg = next((c for c in available if c.id == addon_id), None)
-        desc: str = cfg.description if cfg else addon_id
+        addon_cfg = next((c for c in available if c.id == addon_id), None)
+        if addon_cfg is None:
+            continue
+        desc: str = addon_cfg.description
 
         # Collect the reasons this addon is blocked from removal.
         blocking: list[str] = []
@@ -301,7 +310,15 @@ def _remove_interactive(dry_run: bool = False) -> None:
         print()
         return
 
-    remove_addon(selected, dry_run=dry_run)
+    from scaffolder.exceptions import ScaffoldError
+
+    try:
+        remove_addon(selected, dry_run=dry_run)
+    except ScaffoldError as exc:
+        from scaffolder.ui import error
+
+        error(str(exc))
+        raise typer.Exit(1) from exc
 
 
 @app.command("doctor")

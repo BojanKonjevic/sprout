@@ -587,7 +587,7 @@ class TestCheckAddonHealth:
         env_path = project_dir / ".env"
         text = env_path.read_text()
         env_path.write_text(
-            "\n".join(l for l in text.splitlines() if "REDIS_URL" not in l)
+            "\n".join(line for line in text.splitlines() if "REDIS_URL" not in line)
         )
         result = _check_addon_health(project_dir, self._lockfile(project_dir))
         assert result.has_warnings
@@ -781,7 +781,7 @@ class TestCheckEnv:
         env_path = project_dir / ".env"
         text = env_path.read_text()
         env_path.write_text(
-            "\n".join(l for l in text.splitlines() if "DATABASE_URL" not in l)
+            "\n".join(line for line in text.splitlines() if "DATABASE_URL" not in line)
         )
         result = _check_env(project_dir, self._lockfile(project_dir))
         assert result.has_errors
@@ -792,7 +792,7 @@ class TestCheckEnv:
         env_example = project_dir / ".env.example"
         text = env_example.read_text()
         env_example.write_text(
-            "\n".join(l for l in text.splitlines() if "SECRET_KEY" not in l)
+            "\n".join(line for line in text.splitlines() if "SECRET_KEY" not in line)
         )
         result = _check_env(project_dir, self._lockfile(project_dir))
         assert result.has_errors
@@ -819,7 +819,7 @@ class TestCheckEnv:
         env_path = project_dir / ".env"
         text = env_path.read_text()
         env_path.write_text(
-            "\n".join(l for l in text.splitlines() if "REDIS_URL" not in l)
+            "\n".join(line for line in text.splitlines() if "REDIS_URL" not in line)
         )
         result = _check_env(project_dir, self._lockfile(project_dir))
         assert result.has_errors
@@ -832,7 +832,7 @@ class TestCheckEnv:
         env_path = project_dir / ".env"
         text = env_path.read_text()
         env_path.write_text(
-            "\n".join(l for l in text.splitlines() if "SENTRY_DSN" not in l)
+            "\n".join(line for line in text.splitlines() if "SENTRY_DSN" not in line)
         )
         result = _check_env(project_dir, self._lockfile(project_dir))
         assert result.has_errors
@@ -973,7 +973,7 @@ class TestPrintResults:
         out = capsys.readouterr().out
         assert "fine" in out
         # only one line should contain content beyond the category header
-        content_lines = [l for l in out.splitlines() if "fine" in l]
+        content_lines = [line for line in out.splitlines() if "fine" in line]
         assert len(content_lines) == 1
 
     def test_prints_multiple_sections(self, capsys):
