@@ -107,3 +107,44 @@ def can_apply(project_dir: Path, lockfile: ZenitLockfile) -> str | None:
             )
 
     return None
+
+
+def health_check(project_dir: Path, lockfile: object) -> list:
+    from scaffolder.doctor import HealthIssue, Severity
+
+    pkg_name = project_dir.name.replace("-", "_")
+    issues = []
+
+    sentry_file = project_dir / "src" / pkg_name / "integrations" / "sentry.py"
+    if not sentry_file.exists():
+        return issues
+
+    from scaffolder.lockfile import ZenitLockfile
+
+    assert isinstance(lockfile, ZenitLockfile)
+    template = lockfile.template
+
+    if template == "fastapi":
+        target = project_dir / "src" / pkg_name / "lifecycle.py"
+        label = "lifecycle.py"
+    else:
+        target = project_dir / "src" / pkg_name / "main.py"
+        label = "main.py"
+
+    if not target.exists():
+        return issues
+
+    text = target.read_text(encoding="utf-8")
+    if "init_sentry()" in text:
+        issues.append(HealthIssue(Severity.OK, f"Sentry is initialised in '{label}'."))
+    else:
+        issues.append(
+            HealthIssue(
+                Severity.ERROR,
+                f"Sentry is installed but 'init_sentry()' is not called in '{label}'.",
+                hint=f"Add 'from .integrations.sentry import init_sentry; init_sentry()' "
+                f"to the startup block in '{label}'.",
+            )
+        )
+
+    return issues

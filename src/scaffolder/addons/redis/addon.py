@@ -115,3 +115,32 @@ def can_apply(project_dir: Path, lockfile: ZenitLockfile) -> str | None:
             )
 
     return None
+
+
+def health_check(project_dir: Path, lockfile: object) -> list:
+    from scaffolder.doctor import HealthIssue, Severity
+
+    pkg_name = project_dir.name.replace("-", "_")
+    issues = []
+
+    redis_file = project_dir / "src" / pkg_name / "integrations" / "redis.py"
+    if not redis_file.exists():
+        return issues
+
+    for env_file in (".env", ".env.example"):
+        path = project_dir / env_file
+        if path.exists():
+            if "REDIS_URL=" in path.read_text(encoding="utf-8"):
+                issues.append(
+                    HealthIssue(Severity.OK, f"REDIS_URL is defined in '{env_file}'.")
+                )
+            else:
+                issues.append(
+                    HealthIssue(
+                        Severity.WARN,
+                        f"REDIS_URL is missing from '{env_file}'.",
+                        hint=f"Add 'REDIS_URL=redis://localhost:6379/0' to '{env_file}'.",
+                    )
+                )
+
+    return issues

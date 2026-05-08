@@ -44,7 +44,6 @@ class HealthResult:
 
 
 def run_doctor(project_dir: Path) -> list[HealthResult]:
-    """Run all health checks against *project_dir* and return the results."""
     from scaffolder.lockfile import read_lockfile
 
     lockfile = read_lockfile(project_dir)
@@ -55,6 +54,10 @@ def run_doctor(project_dir: Path) -> list[HealthResult]:
     results.append(_check_metadata(project_dir))
     results.append(_check_dependencies(project_dir, lockfile))
     results.append(_check_files(project_dir, lockfile))
+    results.append(_check_sentinels(project_dir, lockfile))
+    results.append(_check_addon_health(project_dir, lockfile))
+    results.append(_check_compose(project_dir, lockfile))
+    results.append(_check_env(project_dir, lockfile))
     return results
 
 
@@ -252,7 +255,6 @@ def _check_files(project_dir: Path, lockfile: object) -> HealthResult:
     available = get_available_addons()
     selected_addon_configs = [cfg for cfg in available if cfg.id in lockfile.addons]
 
-    # collect all expected file destinations from template and addons
     all_files = [("template", fc) for fc in template_config.files] + [
         (addon.id, fc) for addon in selected_addon_configs for fc in addon.files
     ]
@@ -262,22 +264,19 @@ def _check_files(project_dir: Path, lockfile: object) -> HealthResult:
 
     for source, fc in all_files:
         dest = fc.dest.replace("{{pkg_name}}", pkg_name)
-
-        # skip __init__.py stubs — they're trivial and often intentionally removed
         if dest.endswith("__init__.py"):
             continue
-
         checked += 1
-        full_path = project_dir / dest
-        if not full_path.exists():
+        if not (project_dir / dest).exists():
             missing.append((source, dest))
 
     if not missing:
         result.ok(f"All {checked} expected files are present.")
     else:
-        result.ok(
-            f"{checked - len(missing)} of {checked} expected files are present."
-        ) if checked > len(missing) else None
+        if checked > len(missing):
+            result.ok(
+                f"{checked - len(missing)} of {checked} expected files are present."
+            )
         for source, dest in missing:
             label = "template" if source == "template" else f"addon '{source}'"
             result.error(
@@ -286,13 +285,268 @@ def _check_files(project_dir: Path, lockfile: object) -> HealthResult:
                 f"Restore it or re-run 'zenit add {source}' if it was an addon.",
             )
 
-    # check common files
     common_files = [".gitignore", ".gitattributes", ".pre-commit-config.yaml"]
     for fname in common_files:
         if not (project_dir / fname).exists():
             result.warn(
                 f"'{fname}' is missing.",
                 hint="This file is generated for all zenit projects. It may have been deleted.",
+            )
+
+    return result
+
+
+def _check_sentinels(project_dir: Path, lockfile: object) -> HealthResult:
+    """Check that extension point sentinels are still present in generated files."""
+    import os
+
+    from scaffolder.lockfile import ZenitLockfile
+    from scaffolder.templates._load_config import load_template_config
+
+    assert isinstance(lockfile, ZenitLockfile)
+    result = HealthResult("Extension points")
+
+    scaffolder_root = Path(os.environ.get("SCAFFOLDER_ROOT", Path(__file__).parent))
+    pkg_name = project_dir.name.replace("-", "_")
+
+    try:
+        template_config = load_template_config(scaffolder_root, lockfile.template)
+    except Exception:
+        result.warn(
+            f"Could not load template '{lockfile.template}' to verify sentinels.",
+            hint="The template may have changed since this project was scaffolded.",
+        )
+        return result
+
+    if not template_config.extension_points:
+        result.ok("No extension points defined for this template.")
+        return result
+
+    checked = 0
+    missing = 0
+
+    for point_name, ep in template_config.extension_points.items():
+        rel_path = ep.file.replace("{{pkg_name}}", pkg_name)
+
+        # sentinels in .py files are stripped at scaffold time — nothing to check
+        if rel_path.endswith(".py"):
+            continue
+
+        file_path = project_dir / rel_path
+        if not file_path.exists():
+            continue
+
+        checked += 1
+        text = file_path.read_text(encoding="utf-8")
+
+        if ep.sentinel in text:
+            result.ok(f"Sentinel for '{point_name}' is present in '{rel_path}'.")
+        else:
+            missing += 1
+            result.error(
+                f"Sentinel for '{point_name}' is missing from '{rel_path}'.",
+                hint=f"Add '{ep.sentinel}' back to '{rel_path}' to restore injection support.",
+            )
+
+    if checked == 0:
+        result.ok("No sentinel files found to check.")
+
+    return result
+
+
+def _check_addon_health(project_dir: Path, lockfile: object) -> HealthResult:
+    """Call each installed addon's health_check hook if it defines one."""
+    from scaffolder.addons._registry import get_available_addons
+    from scaffolder.lockfile import ZenitLockfile
+
+    assert isinstance(lockfile, ZenitLockfile)
+    result = HealthResult("Addon integrity")
+
+    if not lockfile.addons:
+        result.ok("No addons installed.")
+        return result
+
+    available = get_available_addons()
+    addon_map = {cfg.id: cfg for cfg in available}
+
+    any_checks = False
+    for addon_id in lockfile.addons:
+        cfg = addon_map.get(addon_id)
+        if cfg is None:
+            continue
+        module = getattr(cfg, "_module", None)
+        if module is None or not hasattr(module, "health_check"):
+            continue
+
+        any_checks = True
+        try:
+            issues: list[HealthIssue] = module.health_check(project_dir, lockfile)
+            for issue in issues:
+                result.issues.append(issue)
+        except Exception as e:
+            result.warn(
+                f"health_check for '{addon_id}' raised an error: {e}",
+                hint="This is a bug in the addon's health_check function.",
+            )
+
+    if not any_checks:
+        result.ok("No addon integrity checks defined.")
+
+    return result
+
+
+def _check_compose(project_dir: Path, lockfile: object) -> HealthResult:
+    """Check compose.yml for expected services and duplicate definitions."""
+    from scaffolder.addons._registry import get_available_addons
+    from scaffolder.collect import collect_all
+    from scaffolder.lockfile import ZenitLockfile
+    from scaffolder.templates._load_config import load_template_config
+    import os
+    import yaml
+
+    assert isinstance(lockfile, ZenitLockfile)
+    result = HealthResult("Compose")
+
+    compose_path = project_dir / "compose.yml"
+    if not compose_path.exists():
+        if "docker" in lockfile.addons:
+            result.error(
+                "compose.yml is missing but docker addon is installed.",
+                hint="Restore compose.yml or re-run 'zenit add docker'.",
+            )
+        else:
+            result.ok("No compose.yml — docker addon not installed.")
+        return result
+
+    try:
+        data = yaml.safe_load(compose_path.read_text(encoding="utf-8")) or {}
+    except Exception as e:
+        result.error(
+            f"compose.yml could not be parsed: {e}",
+            hint="Fix the YAML syntax error and re-run 'zenit doctor'.",
+        )
+        return result
+
+    services: dict = data.get("services", {})
+
+    # check for duplicate service names (yaml.safe_load deduplicates keys silently,
+    # so we detect this by counting raw occurrences in the file text)
+    raw_text = compose_path.read_text(encoding="utf-8")
+    import re
+
+    service_name_counts: dict[str, int] = {}
+    in_services = False
+    for line in raw_text.splitlines():
+        if line.strip() == "" or line.strip().startswith("#"):
+            continue
+        if line == "services:":
+            in_services = True
+            continue
+        if in_services:
+            # top-level key at 0 indent means we left the services block
+            if line[0] != " ":
+                in_services = False
+                continue
+            # service names are at exactly 2 spaces indent
+            m = re.match(r"^  ([a-zA-Z0-9_-]+):$", line)
+            if m:
+                name = m.group(1)
+                service_name_counts[name] = service_name_counts.get(name, 0) + 1
+
+    duplicates = [n for n, c in service_name_counts.items() if c > 1]
+    if duplicates:
+        for name in duplicates:
+            result.error(
+                f"Service '{name}' is defined more than once in compose.yml.",
+                hint="Remove the duplicate service definition.",
+            )
+    else:
+        result.ok("No duplicate service definitions in compose.yml.")
+
+    # check expected services are present
+    scaffolder_root = Path(os.environ.get("SCAFFOLDER_ROOT", Path(__file__).parent))
+    try:
+        template_config = load_template_config(scaffolder_root, lockfile.template)
+        available = get_available_addons()
+        selected_addon_configs = [cfg for cfg in available if cfg.id in lockfile.addons]
+        contributions = collect_all(template_config, selected_addon_configs)
+    except Exception:
+        result.warn(
+            "Could not load template/addon config to verify compose services.",
+        )
+        return result
+
+    all_services = [svc.name for svc in template_config.compose_services] + [
+        svc.name for svc in contributions.compose_services
+    ]
+
+    missing_services = [s for s in all_services if s not in services]
+    if missing_services:
+        for name in missing_services:
+            result.error(
+                f"Expected compose service '{name}' is missing from compose.yml.",
+                hint=f"Restore the '{name}' service or re-scaffold the relevant addon.",
+            )
+    else:
+        if all_services:
+            result.ok(
+                f"All expected compose services are present: {', '.join(all_services)}."
+            )
+
+    return result
+
+
+def _check_env(project_dir: Path, lockfile: object) -> HealthResult:
+    """Check that expected env vars are present in .env and .env.example."""
+    import os
+
+    from scaffolder.addons._registry import get_available_addons
+    from scaffolder.collect import collect_all
+    from scaffolder.lockfile import ZenitLockfile
+    from scaffolder.templates._load_config import load_template_config
+
+    assert isinstance(lockfile, ZenitLockfile)
+    result = HealthResult("Environment variables")
+
+    scaffolder_root = Path(os.environ.get("SCAFFOLDER_ROOT", Path(__file__).parent))
+
+    try:
+        template_config = load_template_config(scaffolder_root, lockfile.template)
+        available = get_available_addons()
+        selected_addon_configs = [cfg for cfg in available if cfg.id in lockfile.addons]
+        contributions = collect_all(template_config, selected_addon_configs)
+    except Exception:
+        result.warn("Could not load template/addon config to verify env vars.")
+        return result
+
+    expected_vars = [
+        ev.key for ev in (template_config.env_vars + contributions.env_vars)
+    ]
+
+    if not expected_vars:
+        result.ok("No env vars expected for this template and addons.")
+        return result
+
+    for fname in (".env", ".env.example"):
+        env_path = project_dir / fname
+        if not env_path.exists():
+            result.warn(
+                f"'{fname}' is missing.",
+                hint=f"Create '{fname}' with the required env vars.",
+            )
+            continue
+
+        text = env_path.read_text(encoding="utf-8")
+        missing = [key for key in expected_vars if f"{key}=" not in text]
+        if missing:
+            for key in missing:
+                result.error(
+                    f"'{key}' is missing from '{fname}'.",
+                    hint=f"Add '{key}=<value>' to '{fname}'.",
+                )
+        else:
+            result.ok(
+                f"All {len(expected_vars)} expected env vars are present in '{fname}'."
             )
 
     return result

@@ -101,3 +101,32 @@ def can_apply(project_dir: Path, lockfile: ZenitLockfile) -> str | None:
             )
 
     return None
+
+
+def health_check(project_dir: Path, lockfile: object) -> list:
+    from scaffolder.doctor import HealthIssue, Severity
+
+    pkg_name = project_dir.name.replace("-", "_")
+    issues = []
+
+    celery_app = project_dir / "src" / pkg_name / "tasks" / "celery_app.py"
+    if not celery_app.exists():
+        return issues
+
+    text = celery_app.read_text(encoding="utf-8")
+    if "Celery(" in text:
+        issues.append(
+            HealthIssue(
+                Severity.OK, "Celery app is configured in 'tasks/celery_app.py'."
+            )
+        )
+    else:
+        issues.append(
+            HealthIssue(
+                Severity.ERROR,
+                "Celery app definition is missing from 'tasks/celery_app.py'.",
+                hint="Restore the Celery(...) instantiation in tasks/celery_app.py.",
+            )
+        )
+
+    return issues
