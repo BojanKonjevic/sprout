@@ -31,7 +31,6 @@ def remove_addon(
 
     from scaffolder.addons._registry import get_available_addons
     from scaffolder.checks_remove import check_can_remove
-    from scaffolder.exceptions import ScaffoldError
     from scaffolder.lockfile import write_lockfile
 
     if project_dir is None:
