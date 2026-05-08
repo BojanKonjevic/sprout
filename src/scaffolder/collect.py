@@ -80,3 +80,25 @@ def collect_all(
         )
 
     return c
+
+
+def collect_addon_only(addon_configs: list[AddonConfig]) -> Contributions:
+    """Collect contributions from addons only, no template files/dirs/recipes.
+
+    Used by ``add_addon`` so that adding an addon to an existing project never
+    re-renders and overwrites files that the template already wrote at scaffold time.
+    """
+    c = Contributions()
+    for addon in addon_configs:
+        c.files.extend(addon.files)
+        c.compose_services.extend(addon.compose_services)
+        c.compose_volumes.extend(addon.compose_volumes)
+        c.env_vars.extend(addon.env_vars)
+        c.deps.extend(addon.deps)
+        c.dev_deps.extend(addon.dev_deps)
+        c.just_recipes.extend(addon.just_recipes)
+        for inj in addon.injections:
+            inj.addon_id = addon.id
+            c.injections.append(inj)
+    c._addon_configs = addon_configs
+    return c

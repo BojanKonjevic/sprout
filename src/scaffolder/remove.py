@@ -377,6 +377,7 @@ def _remove_deps(project_dir: Path, addon_cfg: object) -> tuple[list[str], list[
                 new_deps.append(dep)
         if removed_deps:
             arr = tomlkit.array()
+            arr.multiline(True)
             arr.extend(new_deps)
             project_table["dependencies"] = arr
 
@@ -393,6 +394,7 @@ def _remove_deps(project_dir: Path, addon_cfg: object) -> tuple[list[str], list[
                     new_dev.append(dep)
             if removed_dev_deps:
                 arr = tomlkit.array()
+                arr.multiline(True)
                 arr.extend(new_dev)
                 group["dev"] = arr
 

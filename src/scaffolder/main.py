@@ -182,7 +182,6 @@ def _add_interactive(dry_run: bool = False) -> None:
     selected = prompt_single_addon(
         items,
         unavailable_indices=unavailable_indices,
-        already_installed=sorted(already_installed) if already_installed else None,
     )
 
     if not selected:
@@ -302,7 +301,6 @@ def _remove_interactive(dry_run: bool = False) -> None:
     selected = prompt_single_addon(
         items,
         unavailable_indices=unavailable_indices,
-        already_installed=None,
     )
 
     if not selected:

@@ -77,7 +77,7 @@ def add_addon(addon_id: str, dry_run: bool = False) -> None:
         warn("Non‑interactive mode — proceeding automatically.")
 
     from scaffolder.apply import apply_contributions
-    from scaffolder.collect import collect_all
+    from scaffolder.collect import collect_addon_only
     from scaffolder.templates._load_config import load_template_config
 
     template_config = load_template_config(scaffolder_root, template)
@@ -92,7 +92,7 @@ def add_addon(addon_id: str, dry_run: bool = False) -> None:
         "has_redis": "redis" in ctx.addons,
     }
 
-    contributions = collect_all(template_config, selected_addon_configs)
+    contributions = collect_addon_only(selected_addon_configs)
 
     apply_contributions(
         ctx,
@@ -169,7 +169,7 @@ def _dry_add(
 ) -> None:
     """Print what `zenit add` would do without writing anything."""
     from scaffolder.apply import apply_contributions
-    from scaffolder.collect import collect_all
+    from scaffolder.collect import collect_addon_only
     from scaffolder.dryrun import DryRunContext
     from scaffolder.generate import _recipe_name
     from scaffolder.render import make_env
@@ -188,7 +188,7 @@ def _dry_add(
 
     template_config = load_template_config(scaffolder_root, template)
     selected_addon_configs = [a for a in available if a.id == addon_id]
-    contributions = collect_all(template_config, selected_addon_configs)
+    contributions = collect_addon_only(selected_addon_configs)
 
     render_vars: dict[str, object] = {
         "name": ctx.name,

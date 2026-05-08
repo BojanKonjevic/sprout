@@ -60,16 +60,12 @@ def prompt_template(default: str | None = None) -> str:
 def prompt_single_addon(
     items: list[tuple[str, str, list[str]]],
     unavailable_indices: set[int] | None = None,
-    already_installed: list[str] | None = None,
 ) -> str | None:
     if not tty_available():
         return _fallback_single_add(items, unavailable_indices or set())
 
     unavailable_indices = unavailable_indices or set()
     display_items = [(name, desc) for name, desc, _ in items]
-
-    if already_installed:
-        print(f"\n  {DIM}Already installed: {', '.join(already_installed)}{RESET}")
 
     print(f"\n  {BOLD}Select an addon to add:{RESET}\n")
     reserve_lines(len(display_items) + 2)
