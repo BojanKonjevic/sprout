@@ -292,9 +292,10 @@ def _remove_interactive(dry_run: bool = False) -> None:
 
         # Template mandates it.
         if addon_id in template_required:
-            blocking.append(f"required by {lockfile.template} template")
+            blocking.append(f"__template__{lockfile.template}")
 
-        items.append((addon_id, desc, blocking))
+        addon_blockers = [b for b in blocking if b in {c.id for c in available}]
+        items.append((addon_id, desc, addon_blockers))
         if blocking:
             unavailable_indices.add(len(items) - 1)
 

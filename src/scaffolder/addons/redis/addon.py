@@ -48,7 +48,7 @@ config = AddonConfig(
         EnvVar(key="REDIS_URL", default="redis://localhost:6379/0"),
     ],
     deps=["redis>=5", "hiredis"],
-    dev_deps=["fakeredis[aioredis]"],
+    dev_deps=["fakeredis"],
     just_recipes=[
         "# start redis\nredis-up:\n    docker compose up -d redis",
         "# stop redis\nredis-down:\n    docker compose stop redis",

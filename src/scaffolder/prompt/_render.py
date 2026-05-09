@@ -105,7 +105,16 @@ def render_single(
         elif is_unavailable and full_items and i < len(full_items):
             reqs = full_items[i][2]
             if reqs:
-                extra = f"  {DIM}(needs {', '.join(reqs)}){RESET}"
+                template_blocks = [r for r in reqs if r.startswith("__template__")]
+                addon_deps = [r for r in reqs if not r.startswith("__template__")]
+                parts = []
+                if addon_deps:
+                    parts.append(f"needs {', '.join(addon_deps)}")
+                if template_blocks:
+                    tmpl = template_blocks[0].replace("__template__", "")
+                    parts.append(f"required by {tmpl} template")
+                if parts:
+                    extra = f"  {DIM}({', '.join(parts)}){RESET}"
 
         sys.stdout.write(
             f"{prefix}{tick}{padded_label}{DESC_INDENT}{desc_text}{extra}\n"
@@ -176,7 +185,13 @@ def run_fallback(
         if is_unavailable and full_items:
             reqs = full_items[i - 1][2]
             if reqs:
-                markers.append(f"needs {', '.join(reqs)}")
+                template_blocks = [r for r in reqs if r.startswith("__template__")]
+                addon_deps = [r for r in reqs if not r.startswith("__template__")]
+                if addon_deps:
+                    markers.append(f"needs {', '.join(addon_deps)}")
+                if template_blocks:
+                    tmpl = template_blocks[0].replace("__template__", "")
+                    markers.append(f"required by {tmpl} template")
         if name == default_name:
             markers.append("default")
         suffix = f"  {DIM}({', '.join(markers)}){RESET}" if markers else ""

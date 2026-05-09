@@ -93,10 +93,13 @@ def prompt_single_addon(
         elif key in ("\r", "\n", " "):
             if cursor in unavailable_indices:
                 addon_id, _, reqs = items[cursor]
-                flash = (
-                    f"{addon_id} requires: {', '.join(reqs)} "
-                    f"— install first with 'zenit add'"
-                )
+                template_blocks = [r for r in reqs if r.startswith("__template__")]
+                addon_deps = [r for r in reqs if not r.startswith("__template__")]
+                if template_blocks:
+                    tmpl = template_blocks[0].replace("__template__", "")
+                    flash = f"{addon_id} is required by the {tmpl} template and cannot be removed"
+                elif addon_deps:
+                    flash = f"{addon_id} requires: {', '.join(addon_deps)} — remove those first"
                 return None
             return _DONE
         elif key == "\x03":
