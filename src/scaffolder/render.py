@@ -55,13 +55,3 @@ def make_env(loader_path: Path | None = None) -> jinja2.Environment:
         # double-hash comments in generated Python files are never stripped.
         line_comment_prefix=None,
     )
-
-
-def _strip_zenit_sentinels(project_dir: Path) -> None:
-    """Remove all # [zenit: ...] sentinel lines from generated source files."""
-    pattern = re.compile(r"^\s*# \[zenit: [^\]]+\]\s*\n", re.MULTILINE)
-    for path in project_dir.rglob("*.py"):
-        text = path.read_text(encoding="utf-8")
-        cleaned = pattern.sub("", text)
-        if cleaned != text:
-            path.write_text(cleaned, encoding="utf-8")

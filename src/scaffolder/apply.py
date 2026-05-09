@@ -107,10 +107,14 @@ def _apply_injections(
     extension_points: dict[str, ExtensionPoint],
     render_vars: dict[str, object],
 ) -> None:
-    """Group injections by extension‑point name, then apply each group."""
+    from scaffolder.render import make_env
+
+    string_env = make_env()
+
     by_point: dict[str, list[str]] = {}
     for inj in injections:
-        by_point.setdefault(inj.point, []).append(inj.content)
+        rendered = string_env.from_string(inj.content).render(**render_vars)
+        by_point.setdefault(inj.point, []).append(rendered)
 
     for point_name, contents in by_point.items():
         if point_name not in extension_points:

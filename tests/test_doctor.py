@@ -792,11 +792,11 @@ class TestCheckEnv:
         env_example = project_dir / ".env.example"
         text = env_example.read_text()
         env_example.write_text(
-            "\n".join(line for line in text.splitlines() if "SECRET_KEY" not in line)
+            "\n".join(line for line in text.splitlines() if "DATABASE_URL" not in line)
         )
         result = _check_env(project_dir, self._lockfile(project_dir))
         assert result.has_errors
-        assert any("SECRET_KEY" in i.message for i in _errors(result))
+        assert any("DATABASE_URL" in i.message for i in _errors(result))
 
     def test_warn_when_env_file_missing(self, tmp_path):
         project_dir = _scaffold(tmp_path, template="fastapi", addons=["docker"])

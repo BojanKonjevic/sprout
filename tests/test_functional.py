@@ -290,37 +290,6 @@ class TestRenderedContentCorrectness:
                 f"Unrendered (( pkg_name )) in {f.relative_to(project_dir)}"
             )
 
-    def test_secret_key_is_random_hex(self, tmp_path):
-        """Each fastapi scaffold must generate a unique SECRET_KEY."""
-        dir1 = _scaffold(tmp_path / "a", "myapi", "fastapi", ["docker"])
-        dir2 = _scaffold(tmp_path / "b", "myapi", "fastapi", ["docker"])
-        env1 = {
-            k: v
-            for line in (dir1 / ".env").read_text().splitlines()
-            if "=" in line
-            for k, v in [line.split("=", 1)]
-        }
-        env2 = {
-            k: v
-            for line in (dir2 / ".env").read_text().splitlines()
-            if "=" in line
-            for k, v in [line.split("=", 1)]
-        }
-        assert env1["SECRET_KEY"] != env2["SECRET_KEY"], (
-            "Each scaffold run should produce a unique SECRET_KEY"
-        )
-
-    def test_secret_key_is_not_placeholder(self, tmp_path):
-        project_dir = _scaffold(tmp_path, "myapi", "fastapi", ["docker"])
-        env = {
-            k: v
-            for line in (project_dir / ".env").read_text().splitlines()
-            if "=" in line
-            for k, v in [line.split("=", 1)]
-        }
-        assert env["SECRET_KEY"] != "change-me-run-openssl-rand-hex-32"
-        assert len(env["SECRET_KEY"]) == 64  # hex(32 bytes)
-
 
 # ── mypy type checking ────────────────────────────────────────────────────────
 

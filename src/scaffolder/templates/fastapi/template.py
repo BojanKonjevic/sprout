@@ -25,6 +25,30 @@ config = TemplateConfig(
             file=".env",
             sentinel="# [zenit: env_vars]",
         ),
+        "router_imports": ExtensionPoint(
+            file="src/{{pkg_name}}/api/router.py",
+            sentinel="# [zenit: router_imports]",
+        ),
+        "router_includes": ExtensionPoint(
+            file="src/{{pkg_name}}/api/router.py",
+            sentinel="# [zenit: router_includes]",
+        ),
+        "test_imports": ExtensionPoint(
+            file="tests/conftest.py",
+            sentinel="# [zenit: test_imports]",
+        ),
+        "test_fixtures": ExtensionPoint(
+            file="tests/conftest.py",
+            sentinel="# [zenit: test_fixtures]",
+        ),
+        "model_imports": ExtensionPoint(
+            file="src/{{pkg_name}}/models/__init__.py",
+            sentinel="# [zenit: model_imports]",
+        ),
+        "exceptions": ExtensionPoint(
+            file="src/{{pkg_name}}/exceptions.py",
+            sentinel="# [zenit: exceptions]",
+        ),
     },
     dirs=[
         "src/{{pkg_name}}/api/routes",
@@ -51,9 +75,10 @@ config = TemplateConfig(
         FileContribution(dest="src/{{pkg_name}}/schemas/__init__.py", content=""),
         FileContribution(
             dest="src/{{pkg_name}}/models/__init__.py",
-            content="# Import all models here so Alembic can discover them.\n"
-            "# Example:\n"
-            "#   from .user import User\n",
+            content=(
+                "# Import all models here so Alembic can discover them.\n"
+                "# [zenit: model_imports]\n"
+            ),
         ),
         FileContribution(
             dest="src/{{pkg_name}}/main.py",
@@ -70,15 +95,12 @@ config = TemplateConfig(
         ),
         FileContribution(
             dest="src/{{pkg_name}}/api/router.py",
-            source=str(_HERE / "files" / "api" / "router.py"),
+            source=str(_HERE / "files" / "api" / "router.py.j2"),
+            template=True,
         ),
         FileContribution(
             dest="src/{{pkg_name}}/api/routes/health.py",
             source=str(_HERE / "files" / "api" / "routes" / "health.py"),
-        ),
-        FileContribution(
-            dest="src/{{pkg_name}}/core/security.py",
-            source=str(_HERE / "files" / "core" / "security.py"),
         ),
         FileContribution(
             dest="src/{{pkg_name}}/db/base.py",
@@ -145,8 +167,6 @@ config = TemplateConfig(
         "alembic",
         "asyncpg",
         "pydantic-settings",
-        "passlib[bcrypt]",
-        "python-jose[cryptography]",
         "email-validator",
         "python-multipart",
         "python-dotenv",
@@ -167,6 +187,5 @@ config = TemplateConfig(
             default="postgresql+asyncpg://postgres:postgres@localhost:5432/(( pkg_name ))",
         ),
         EnvVar(key="DEBUG", default="false"),
-        EnvVar(key="SECRET_KEY", default="change-me-in-production"),
     ],
 )

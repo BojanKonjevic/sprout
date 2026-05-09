@@ -46,7 +46,12 @@ select = ["E", "F", "I", "UP", "B", "ANN", "SIM"]
 strict = true
 [% if template == "fastapi" %]
 [[tool.mypy.overrides]]
-module = ["jose.*", "passlib.*"]
+module = ["sqlalchemy.*", "alembic.*"]
+ignore_missing_imports = true
+[% endif %]
+[% if "auth" in addons %]
+[[tool.mypy.overrides]]
+module = ["jose.*"]
 ignore_missing_imports = true
 ignore_errors = true
 [% endif %]

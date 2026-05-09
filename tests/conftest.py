@@ -26,10 +26,10 @@ class ExitAssertion:
                 "Expected a typer.Exit to be raised but nothing was raised"
             )
         if not issubclass(exc_type, ClickExit):
-            return False  # let other exceptions propagate
+            return False
         assert isinstance(exc_val, ClickExit)
         assert exc_val.exit_code == 1, f"Expected exit code 1, got {exc_val.exit_code}"
-        return True  # suppress the ClickExit
+        return True
 
 
 @pytest.fixture

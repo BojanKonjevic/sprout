@@ -13,7 +13,6 @@ from scaffolder.context import Context
 from scaffolder.generate import generate_all
 from scaffolder.git import init_and_commit
 from scaffolder.prompt import prompt_addons, prompt_template
-from scaffolder.render import _strip_zenit_sentinels
 from scaffolder.rollback import scaffold_or_rollback
 from scaffolder.ui import confirm, info, print_commands_from_just, success
 
@@ -56,6 +55,19 @@ def scaffold_project(name: str, dry_run: bool = False) -> None:
     available = get_available_addons()
     addons = prompt_addons(available, template, default_addons=cfg.default_addons)
     validate_addon_deps(addons, available)
+
+    from scaffolder.exceptions import ScaffoldError
+    from scaffolder.lockfile import ZenitLockfile
+
+    for addon_cfg in [a for a in available if a.id in addons]:
+        module = getattr(addon_cfg, "_module", None)
+        if module is not None and hasattr(module, "can_apply"):
+            fake_lockfile = ZenitLockfile(template=template, addons=addons)
+            reason = module.can_apply(Path.cwd() / name, fake_lockfile)
+            if reason:
+                raise ScaffoldError(
+                    f"Addon '{addon_cfg.id}' cannot be applied: {reason}"
+                )
 
     ctx = Context(
         name=name,
@@ -109,7 +121,6 @@ def scaffold_project(name: str, dry_run: bool = False) -> None:
             render_vars,
         )
         generate_all(ctx, template_config, contributions)
-        _strip_zenit_sentinels(project_dir)
         init_and_commit(project_dir)
 
         from scaffolder.lockfile import write_lockfile

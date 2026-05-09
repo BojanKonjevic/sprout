@@ -6,7 +6,6 @@ from pathlib import Path
 import typer
 
 from scaffolder.context import Context
-from scaffolder.render import _strip_zenit_sentinels
 from scaffolder.schema import AddonConfig
 from scaffolder.ui import (
     BOLD,
@@ -100,8 +99,6 @@ def add_addon(addon_id: str, dry_run: bool = False) -> None:
         template_config.extension_points,
         render_vars,
     )
-
-    _strip_zenit_sentinels(project_dir)
 
     # ── deps ──────────────────────────────────────────────────────────────
     from scaffolder.deps import inject_deps

@@ -235,12 +235,12 @@ class TestFastapiTemplate:
         assert (project_dir / "alembic.ini").exists()
         assert (project_dir / "alembic" / "env.py").exists()
 
-    def test_env_file_created_with_secret_key(self, tmp_path):
+    def test_env_file_created_with_db_url(self, tmp_path):
         project_dir = _scaffold(tmp_path, "myapi", "fastapi", ["docker"])
         env = (project_dir / ".env").read_text()
-        assert "SECRET_KEY=" in env
-        # Should not contain the placeholder
-        assert "change-me-run-openssl-rand-hex-32" not in env
+        assert "DATABASE_URL=" in env
+        assert "DEBUG=" in env
+        assert "SECRET_KEY" not in env
 
     def test_env_file_contains_database_url(self, tmp_path):
         project_dir = _scaffold(tmp_path, "myapi", "fastapi", ["docker"])
