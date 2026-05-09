@@ -6,6 +6,8 @@ A CLI that scaffolds a new Python project from a template with optional addons �
 zenit my-project
 ```
 
+Once a project exists, zenit is still useful: add or remove addons, run a health check, and preview what any command would do before committing to it.
+
 ---
 
 ## What it does
@@ -146,12 +148,20 @@ zenit will copy `.envrc` regardless, but will warn you if direnv is not found ra
 ```
 zenit <project-name>            scaffold a new project
 zenit <project-name> --dry-run  preview what would be created (nothing is written)
+zenit add [addon]               add an addon to the current project
+zenit add [addon] --dry-run     preview what the addon would change
+zenit remove [addon]            remove an addon from the current project
+zenit remove [addon] --dry-run  preview what would be removed
+zenit doctor                    check project health against zenit's expectations
+zenit config                    show config file path and current settings
 zenit list-templates            show available templates
 zenit list-addons               show available addons
 zenit --version
 ```
 
-The interactive prompt uses arrow keys and space to select. If stdin is not a tty (e.g. piped input or CI), it falls back to numbered selection.
+All interactive prompts use arrow keys and space to select. If stdin is not a tty (e.g. piped input or CI), they fall back to numbered selection.
+
+All commands that modify the filesystem support `--dry-run` — nothing is written, everything that would happen is printed.
 
 ---
 
@@ -172,7 +182,10 @@ my-project/
   pyproject.toml
   justfile
   .gitignore
+  .gitattributes
+  .pre-commit-config.yaml
   .envrc
+  .env
 ```
 
 Includes: pytest, ruff, mypy, pytest-cov, ipython.
@@ -221,7 +234,7 @@ my-project/
 
 ## Addons
 
-Addons are selected interactively and can be mixed freely with either template, with a few constraints noted below.
+Addons are selected interactively at scaffold time and can also be added or removed later with `zenit add` and `zenit remove`. They can be mixed freely with any template, with a few constraints noted below.
 
 ### `docker`
 
@@ -261,6 +274,81 @@ Writes `.github/workflows/ci.yml` that runs lint (`ruff check`), format check (`
 - Spins up a `postgres:16` service automatically when the `fastapi` template is used.
 - Spins up a `redis:7-alpine` service automatically when `redis` is selected.
 - Runs migrations before tests when postgres is present.
+
+---
+
+## Adding and removing addons
+
+After a project is scaffolded, you can add or remove addons without re-scaffolding.
+
+```bash
+cd my-project
+
+# Interactive picker (shows what's installed, what's available, what's blocked)
+zenit add
+zenit remove
+
+# Direct, non-interactive
+zenit add redis
+zenit remove sentry
+
+# Preview first
+zenit add celery --dry-run
+zenit remove docker --dry-run
+```
+
+`zenit add` will refuse to apply an addon if:
+- It's already installed.
+- Its required addons aren't installed yet.
+- The project layout doesn't match what the addon expects (e.g. no `src/` directory).
+
+`zenit remove` will refuse to remove an addon if:
+- It's not installed.
+- Another installed addon depends on it.
+- The template requires it (e.g. `docker` on a `fastapi` project).
+
+Both commands update `.zenit.toml`, `pyproject.toml`, `justfile`, `compose.yml`, and `.env`/`.env.example` as needed. They do not run `uv sync` — do that yourself after.
+
+---
+
+## Health checks
+
+```bash
+cd my-project
+zenit doctor
+```
+
+Runs a series of checks against the current project:
+
+- **Metadata** — `.zenit.toml` is present, valid, and lists known addons with satisfied dependencies. Warns on version skew between the installed zenit and the one that scaffolded the project.
+- **Dependencies** — `pyproject.toml` contains all runtime and dev deps expected by the template and installed addons.
+- **Generated files** — all files that should have been created by the template and addons are still present.
+- **Extension points** — sentinel markers used for addon injection are intact in non-Python files.
+- **Addon integrity** — each installed addon runs its own health check (e.g. verifying `init_sentry()` is called in `lifecycle.py`, checking `REDIS_URL` is set in `.env`).
+- **Compose** — `compose.yml` is valid YAML, has no duplicate service definitions, and contains all expected services.
+- **Environment variables** — all expected keys are present in both `.env` and `.env.example`.
+
+Exits with code 1 if any errors are found.
+
+---
+
+## Configuration
+
+zenit reads an optional config file for personal defaults:
+
+| Platform       | Path                                          |
+|----------------|-----------------------------------------------|
+| Linux / macOS  | `~/.config/zenit/zenit.toml` (or `$XDG_CONFIG_HOME/zenit/zenit.toml`) |
+| Windows        | `%APPDATA%\zenit\zenit.toml`                  |
+
+```toml
+default_template = "fastapi"
+default_addons = ["docker", "github-actions"]
+```
+
+Run `zenit config` to see the resolved path and current settings.
+
+Defaults are applied as pre-selections in the interactive prompt — you can still change them before confirming. The tool always works without a config file.
 
 ---
 
@@ -324,13 +412,15 @@ All generated projects come with a `justfile`. Run `just` with no arguments to l
 
 ## Dry run
 
-Pass `--dry-run` to preview everything that would happen without touching disk:
+Pass `--dry-run` to any command that modifies the filesystem to preview everything without touching disk:
 
-```
+```bash
 zenit my-project --dry-run
+zenit add redis --dry-run
+zenit remove sentry --dry-run
 ```
 
-Output shows every file that would be created or modified, every dependency that would be added to `pyproject.toml`, every `just` recipe, and every git command — then exits without writing anything.
+Output shows every file that would be created, modified, or deleted — every dependency change, every `just` recipe, every git command — then exits without writing anything.
 
 ---
 
@@ -347,9 +437,22 @@ The `fastapi` template lays out the security plumbing but stops short of generat
 
 ---
 
-## Running from source
+## How zenit tracks your project
 
-If you want to hack on zenit itself:
+Every scaffolded project gets a `.zenit.toml` at the root:
+
+```toml
+[project]
+template = "fastapi"
+addons = ["docker", "redis", "sentry"]
+zenit_version = "1.0.6"
+```
+
+This is the source of truth for `zenit add`, `zenit remove`, and `zenit doctor`. It is safe to commit. Do not edit it manually unless you know what you're doing — use `zenit add` and `zenit remove` instead.
+
+---
+
+## Running from source
 
 ```bash
 git clone https://github.com/BojanKonjevic/zenit.git
@@ -369,4 +472,3 @@ python main.py my-project
 ## License
 
 MIT — see [LICENSE](LICENSE).
-
