@@ -6,6 +6,7 @@ from pathlib import Path
 import typer
 
 from scaffolder.context import Context
+from scaffolder.rollback import addon_or_rollback
 from scaffolder.schema import AddonConfig
 from scaffolder.ui import (
     BOLD,
@@ -75,64 +76,66 @@ def add_addon(addon_id: str, dry_run: bool = False) -> None:
     else:
         warn("Non‑interactive mode — proceeding automatically.")
 
-    from scaffolder.apply import apply_contributions
-    from scaffolder.collect import collect_addon_only
-    from scaffolder.templates._load_config import load_template_config
+    with addon_or_rollback(project_dir, addon_id):
+        from scaffolder.apply import apply_contributions
+        from scaffolder.collect import collect_addon_only
+        from scaffolder.templates._load_config import load_template_config
 
-    template_config = load_template_config(scaffolder_root, template)
-    selected_addon_configs = [a for a in available if a.id == addon_id]
+        template_config = load_template_config(scaffolder_root, template)
+        selected_addon_configs = [a for a in available if a.id == addon_id]
 
-    render_vars: dict[str, object] = {
-        "name": project_dir.name,
-        "pkg_name": pkg_name,
-        "template": template,
-        "secret_key": "",
-        "has_postgres": template == "fastapi",
-        "has_redis": "redis" in ctx.addons,
-    }
+        render_vars: dict[str, object] = {
+            "name": project_dir.name,
+            "pkg_name": pkg_name,
+            "template": template,
+            "secret_key": "",
+            "has_postgres": template == "fastapi",
+            "has_redis": "redis" in ctx.addons,
+        }
 
-    contributions = collect_addon_only(selected_addon_configs)
+        contributions = collect_addon_only(selected_addon_configs)
 
-    apply_contributions(
-        ctx,
-        contributions,
-        template_config.extension_points,
-        render_vars,
-    )
-
-    # ── deps ──────────────────────────────────────────────────────────────
-    from scaffolder.deps import inject_deps
-
-    try:
-        added_deps, added_dev_deps = inject_deps(
-            project_dir,
-            contributions.deps,
-            contributions.dev_deps,
+        apply_contributions(
+            ctx,
+            contributions,
+            template_config.extension_points,
+            render_vars,
         )
-    except FileNotFoundError as exc:
-        warn(str(exc))
-        added_deps, added_dev_deps = [], []
 
-    # ── justfile recipes ──────────────────────────────────────────────────
-    from scaffolder.justfile import inject_just_recipes
-    from scaffolder.render import make_env
+        from scaffolder.deps import inject_deps
 
-    recipe_render_vars: dict[str, object] = {
-        "name": project_dir.name,
-        "pkg_name": pkg_name,
-        "template": template,
-        "addons": ctx.addons,
-    }
-    string_env = make_env()
-    rendered_recipes = [
-        string_env.from_string(r).render(**recipe_render_vars)
-        for r in contributions.just_recipes
-    ]
-    added_recipes = inject_just_recipes(project_dir, rendered_recipes)
+        try:
+            added_deps, added_dev_deps = inject_deps(
+                project_dir,
+                contributions.deps,
+                contributions.dev_deps,
+            )
+        except FileNotFoundError as exc:
+            warn(str(exc))
+            added_deps, added_dev_deps = [], []
 
-    # ── lockfile ──────────────────────────────────────────────────────────
-    new_addons = lockfile.addons + [addon_id]
-    write_lockfile(project_dir, template, new_addons)
+        from scaffolder.justfile import inject_just_recipes
+        from scaffolder.render import make_env
+
+        recipe_render_vars: dict[str, object] = {
+            "name": project_dir.name,
+            "pkg_name": pkg_name,
+            "template": template,
+            "addons": ctx.addons,
+        }
+        string_env = make_env()
+        rendered_recipes = [
+            string_env.from_string(r).render(**recipe_render_vars)
+            for r in contributions.just_recipes
+        ]
+        added_recipes = inject_just_recipes(project_dir, rendered_recipes)
+
+        new_addons = lockfile.addons + [addon_id]
+        write_lockfile(project_dir, template, new_addons)
+
+    # ── output ────────────────────────────────────────────────────────────
+    print()
+    success(f"Addon '{addon_id}' added to '{project_dir.name}'.")
 
     # ── output ────────────────────────────────────────────────────────────
     print()

@@ -57,14 +57,15 @@ def scaffold_project(name: str, dry_run: bool = False) -> None:
     validate_addon_deps(addons, available)
 
     from scaffolder.exceptions import ScaffoldError
-    from scaffolder.lockfile import ZenitLockfile
 
     for addon_cfg in [a for a in available if a.id in addons]:
         module = getattr(addon_cfg, "_module", None)
         if module is not None and hasattr(module, "can_apply"):
+            from scaffolder.lockfile import ZenitLockfile
+
             fake_lockfile = ZenitLockfile(template=template, addons=addons)
             reason = module.can_apply(Path.cwd() / name, fake_lockfile)
-            if reason:
+            if reason and "only works with" in reason:
                 raise ScaffoldError(
                     f"Addon '{addon_cfg.id}' cannot be applied: {reason}"
                 )
