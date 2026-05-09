@@ -1,9 +1,9 @@
-import bcrypt as _bcrypt
 import secrets
 from datetime import UTC, datetime, timedelta
 from typing import cast
 from uuid import UUID
 
+import bcrypt as _bcrypt
 from jose import JWTError, jwt
 
 from ..settings import settings

@@ -21,7 +21,6 @@ omitted. Without these options, a conditional block that evaluates to nothing
 still contributes a newline for the tag line itself.
 """
 
-import re
 from pathlib import Path
 
 import jinja2

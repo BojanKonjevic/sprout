@@ -63,6 +63,7 @@ class AddonConfig:
     id: str
     description: str
     requires: list[str] = field(default_factory=list)
+    templates: list[str] = field(default_factory=list)  # empty = all templates allowed
     files: list[FileContribution] = field(default_factory=list)
     compose_services: list[ComposeService] = field(default_factory=list)
     compose_volumes: list[str] = field(default_factory=list)

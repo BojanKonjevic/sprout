@@ -14,6 +14,7 @@ config = AddonConfig(
     id="auth-manual",
     description="JWT auth: register, login, refresh, logout, current user",
     requires=[],
+    templates=["fastapi"],  # only valid for the fastapi template
     files=[
         FileContribution(
             dest="src/{{pkg_name}}/core/security.py",

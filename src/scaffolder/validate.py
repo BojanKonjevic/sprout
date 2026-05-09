@@ -75,10 +75,28 @@ def _check_git() -> list[str]:
     return []
 
 
-def validate_addon_deps(addons: list[str], available: list[AddonConfig]) -> None:
-    """Abort with exit code 1 if any selected addon's requirements are missing."""
+def validate_addon_deps(
+    addons: list[str],
+    available: list[AddonConfig],
+    template: str = "",
+) -> None:
+    """Abort with exit code 1 if any selected addon's requirements are missing
+    or if an addon is incompatible with the selected template."""
     requires_map = {cfg.id: cfg.requires for cfg in available}
+    templates_map = {cfg.id: cfg.templates for cfg in available}
+
     for addon in addons:
+        # Template-compatibility check.
+        allowed_templates = templates_map.get(addon, [])
+        if allowed_templates and template and template not in allowed_templates:
+            allowed_str = ", ".join(allowed_templates)
+            error(
+                f"Addon '{addon}' is only compatible with the {allowed_str} template, "
+                f"not '{template}'."
+            )
+            raise typer.Exit(1)
+
+        # Dependency check.
         for req in requires_map.get(addon, []):
             if req not in addons:
                 error(f"Addon '{addon}' requires '{req}', but it wasn't selected.")

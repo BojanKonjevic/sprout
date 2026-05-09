@@ -66,8 +66,16 @@ def check_can_add(
             "If you removed it manually, edit .zenit.toml to reflect the current state."
         )
 
-    # ── dependency addons are installed ───────────────────────────────────────
+    # ── template compatibility ─────────────────────────────────────────────────
     cfg = next(c for c in available if c.id == addon_id)
+    if cfg.templates and lockfile.template not in cfg.templates:
+        allowed = ", ".join(cfg.templates)
+        raise ScaffoldError(
+            f"'{addon_id}' is only compatible with the {allowed} template, "
+            f"but this project uses '{lockfile.template}'."
+        )
+
+    # ── dependency addons are installed ───────────────────────────────────────
     missing_deps = [r for r in cfg.requires if r not in lockfile.addons]
     if missing_deps:
         missing_str = ", ".join(missing_deps)

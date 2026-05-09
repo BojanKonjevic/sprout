@@ -32,16 +32,20 @@ def _render_multi(
     locked: set[int] | None = None,
     flash: str = "",
     default_selected: set[int] | None = None,
+    incompatible: set[int] | None = None,
 ) -> int:
     """Render the multi-selection TUI."""
     locked = locked or set()
     default_selected = default_selected or set()
+    incompatible = incompatible or set()
     lines = 0
 
     for i, (name, desc) in enumerate(items):
         prefix = f"  {ARROW} " if i == cursor else "     "
 
-        if i in locked:
+        if i in incompatible:
+            tick = "\033[2m—\033[0m  "
+        elif i in locked:
             tick = f"{LOCKED}  "
         elif i in selected:
             tick = f"{CHECK}  "
@@ -49,7 +53,9 @@ def _render_multi(
             tick = f"{EMPTY}  "
 
         padded_name = f"{name:<{LABEL_WIDTH}}"
-        if i == cursor:
+        if i in incompatible:
+            padded_label = f"{DIM}{padded_name}{RESET}"
+        elif i == cursor:
             padded_label = f"{CYAN}{BOLD}{padded_name}{RESET}"
         elif i in selected and i not in locked:
             padded_label = f"{GREEN}{padded_name}{RESET}"
@@ -60,15 +66,17 @@ def _render_multi(
 
         reqs = requires_map.get(name, [])
         req_hint = ""
-        if reqs and i not in locked:
+        if reqs and i not in locked and i not in incompatible:
             req_hint = f"  {DIM}(needs {', '.join(reqs)}){RESET}"
 
-        default_hint = ""
-        if i in default_selected and i not in locked and i != cursor:
-            default_hint = f"  {DIM}(default){RESET}"
+        extra = ""
+        if i in incompatible:
+            extra = f"  {DIM}(fastapi only){RESET}"
+        elif i in default_selected and i not in locked and i != cursor:
+            extra = f"  {DIM}(default){RESET}"
 
         sys.stdout.write(
-            f"{prefix}{tick}{padded_label}{DESC_INDENT}{desc_text}{req_hint}{default_hint}\n"
+            f"{prefix}{tick}{padded_label}{DESC_INDENT}{desc_text}{req_hint}{extra}\n"
         )
         lines += 1
 
@@ -101,19 +109,28 @@ def prompt_addons(
             requires_map,
             template,
             default_addons or [],
+            available=available,
         )
 
     name_to_idx = {cfg.id: i for i, cfg in enumerate(available)}
 
+    # Addons that the selected template auto-selects and locks.
     always_locked: set[int] = set()
     for req in TEMPLATE_REQUIRES.get(template, []):
         if req in name_to_idx:
             always_locked.add(name_to_idx[req])
 
+    # Addons that declare a templates allowlist which doesn't include the
+    # currently selected template — they cannot be used at all this run.
+    incompatible: set[int] = set()
+    for i, cfg in enumerate(available):
+        if cfg.templates and template not in cfg.templates:
+            incompatible.add(i)
+
     default_selected: set[int] = set()
     if default_addons:
         for addon_id in default_addons:
-            if addon_id in name_to_idx:
+            if addon_id in name_to_idx and name_to_idx[addon_id] not in incompatible:
                 default_selected.add(name_to_idx[addon_id])
         for idx in list(default_selected):
             for req in requires_map.get(items[idx][0], []):
@@ -126,6 +143,7 @@ def prompt_addons(
         requires_map,
         always_locked,
         default_selected=default_selected,
+        incompatible=incompatible,
     )
 
 
@@ -135,7 +153,9 @@ def _tui_multi(
     requires_map: dict[str, list[str]],
     always_locked: set[int],
     default_selected: set[int] | None = None,
+    incompatible: set[int] | None = None,
 ) -> list[str]:
+    incompatible = incompatible or set()
     print(f"\n  {BOLD}{prompt}{RESET}\n")
     n_items = len(items)
     reserve_lines(n_items + 2)
@@ -168,6 +188,7 @@ def _tui_multi(
             locked,
             flash,
             default_selected=default_selected,
+            incompatible=incompatible,
         )
 
     def on_key(key: str) -> object:
@@ -179,7 +200,9 @@ def _tui_multi(
             cursor = (cursor + 1) % n_items
         elif key == " ":
             item_name = items[cursor][0]
-            if cursor in locked:
+            if cursor in incompatible:
+                flash = f"{item_name} is not vailable in this template"
+            elif cursor in locked:
                 if cursor in always_locked:
                     flash = f"{item_name} is required by the template"
                 else:
@@ -213,7 +236,9 @@ def _tui_multi(
 
     run_tui(render, on_key)
 
-    chosen = [items[i][0] for i in sorted(selected)]
+    # Strip incompatible addons from the final selection (shouldn't be there,
+    # but guard anyway).
+    chosen = [items[i][0] for i in sorted(selected) if i not in incompatible]
     clear_lines(render())
 
     if chosen:
@@ -229,13 +254,21 @@ def _fallback_multi(
     requires_map: dict[str, list[str]],
     template: str,
     default_addon_names: list[str],
+    available: list[AddonConfig] | None = None,
 ) -> list[str]:
     always_locked_names = set(TEMPLATE_REQUIRES.get(template, []))
+
+    # Build incompatible set by addon id for the fallback path.
+    incompatible_names: set[str] = set()
+    if available:
+        for cfg in available:
+            if cfg.templates and template not in cfg.templates:
+                incompatible_names.add(cfg.id)
 
     if not items:
         return list(always_locked_names)
 
-    default_set = set(default_addon_names)
+    default_set = set(default_addon_names) - incompatible_names
     has_defaults = bool(default_set - always_locked_names)
 
     print(
@@ -248,8 +281,12 @@ def _fallback_multi(
         + f"){RESET}\n"
     )
     for i, (addon_id, desc) in enumerate(items, 1):
+        is_incompatible = addon_id in incompatible_names
         locked_mark = (
             f" {DIM}(required){RESET}" if addon_id in always_locked_names else ""
+        )
+        incompat_mark = (
+            f" {DIM}(fastapi only — not available){RESET}" if is_incompatible else ""
         )
         default_mark = (
             f" {DIM}(default){RESET}"
@@ -257,15 +294,16 @@ def _fallback_multi(
             else ""
         )
         print(
-            f"    {CYAN}{i}){RESET} {addon_id:<18} {DIM}—{RESET} {desc}{locked_mark}{default_mark}"
+            f"    {CYAN}{i}){RESET} {addon_id:<18} {DIM}—{RESET} {desc}"
+            f"{locked_mark}{incompat_mark}{default_mark}"
         )
     print()
 
     def _build_defaults() -> list[str]:
         seen: set[str] = set()
         result: list[str] = []
-        for name in list(always_locked_names) + default_addon_names:
-            if name not in seen:
+        for name in list(always_locked_names) + list(default_set):
+            if name not in seen and name not in incompatible_names:
                 seen.add(name)
                 result.append(name)
         return result
@@ -297,6 +335,10 @@ def _fallback_multi(
                 valid = False
                 break
             addon_id = items[idx][0]
+            if addon_id in incompatible_names:
+                warn(f"'{addon_id}' is not available for the '{template}' template.")
+                valid = False
+                break
             if addon_id not in selected:
                 selected.append(addon_id)
                 for req in requires_map.get(addon_id, []):

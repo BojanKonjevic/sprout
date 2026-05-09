@@ -54,7 +54,7 @@ def scaffold_project(name: str, dry_run: bool = False) -> None:
 
     available = get_available_addons()
     addons = prompt_addons(available, template, default_addons=cfg.default_addons)
-    validate_addon_deps(addons, available)
+    validate_addon_deps(addons, available, template=template)
 
     from scaffolder.exceptions import ScaffoldError
 
