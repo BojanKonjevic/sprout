@@ -53,6 +53,12 @@ where = ["src"]
     "generate/*",
 ]
 
+[tool.ruff]
+exclude = [
+    "src/scaffolder/addons/**/files",
+    "src/scaffolder/templates/**/files",
+]
+
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
 ignore = ["E501"]
@@ -66,8 +72,8 @@ strict = true
 exclude = [
     "src/scaffolder/templates/",
     "src/scaffolder/addons/.*/files/",
+    "src/scaffolder/addons/[^_][^/]*/",
 ]
-
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
