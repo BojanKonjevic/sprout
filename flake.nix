@@ -29,7 +29,7 @@
             --with "pyyaml" \
             --with "tomli-w" \
             --with "tomlkit" \
-            python "$${self}/src/scaffolder/main.py" "$$@"
+            python "${self}/src/scaffolder/main.py" "$$@"
         '');
       };
 
