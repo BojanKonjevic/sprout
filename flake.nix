@@ -22,7 +22,14 @@
           export UV_PYTHON="${python}/bin/python3"
           export PATH="${python}/bin:${pkgs.uv}/bin:$PATH"
           export UV_PROJECT_ENVIRONMENT="$HOME/.cache/zenit-venv"
-          exec uv run --no-project --with "jinja2" --with "typer" python314 "${self}/main.py" "$@"
+          export PYTHONPATH="$${self}/src:$${PYTHONPATH}"
+          exec uv run --no-project \
+            --with "jinja2" \
+            --with "typer" \
+            --with "pyyaml" \
+            --with "tomli-w" \
+            --with "tomlkit" \
+            python "$${self}/src/scaffolder/main.py" "$$@"
         '');
       };
 
