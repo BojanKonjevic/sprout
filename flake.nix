@@ -15,24 +15,6 @@
       pkgs = nixpkgs.legacyPackages.${system};
       python = pkgs.python314;
     in {
-      apps.default = {
-        type = "app";
-        program = toString (pkgs.writeShellScript "zenit" ''
-          export UV_PYTHON_DOWNLOADS=never
-          export UV_PYTHON="${python}/bin/python3"
-          export PATH="${python}/bin:${pkgs.uv}/bin:$PATH"
-          export UV_PROJECT_ENVIRONMENT="$HOME/.cache/zenit-venv"
-          cd "${self}/src"
-          exec uv run --no-project \
-            --with "jinja2" \
-            --with "typer" \
-            --with "pyyaml" \
-            --with "tomli-w" \
-            --with "tomlkit" \
-            python -m scaffolder.main "$@"
-        '');
-      };
-
       devShells.default = pkgs.mkShell {
         shellHook = ''
           export UV_PYTHON_DOWNLOADS=never

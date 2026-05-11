@@ -85,21 +85,13 @@ eval "$(direnv hook bash)"   # or zsh
 
 ### NixOS
 
-NixOS does not allow uv to download or manage its own Python binaries — `UV_PYTHON_DOWNLOADS` must be set to `never` and uv must use the system Python. zenit handles this for you when run via the Nix flake, but you need Python 3.14+ available in your environment first.
+NixOS does not allow uv to download or manage its own Python binaries — 
+`UV_PYTHON_DOWNLOADS` must be set to `never` and uv must use the system Python.
 
-**Option A — run directly from the flake (recommended):**
-
-```bash
-nix run github:BojanKonjevic/zenit -- my-project
-```
-
-This uses the bundled flake which sets `UV_PYTHON_DOWNLOADS=never` and points uv at the Nix-provided Python 3.14 automatically.
-
-**Option B — install and run manually:**
+**Install and run:**
 
 ```bash
 # Make sure python3.14 is in your PATH (via nix-shell, home-manager, etc.)
-# Then:
 UV_PYTHON_DOWNLOADS=never uv tool install zenit
 UV_PYTHON_DOWNLOADS=never zenit my-project
 ```
