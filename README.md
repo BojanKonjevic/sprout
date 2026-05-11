@@ -13,7 +13,7 @@ Once a project exists, zenit is still useful: add or remove addons, run a health
 ## What it does
 
 1. Asks you to pick a **template** (blank or FastAPI)
-2. Asks you to pick **addons** (Docker, Redis, Celery, Sentry, GitHub Actions)
+2. Asks you to pick **addons** (Docker, Redis, GitHub Actions...)
 3. Generates the project directory, all files, `pyproject.toml`, and `justfile`
 4. Runs `git init` and makes the first commit
 
@@ -267,6 +267,20 @@ Writes `.github/workflows/ci.yml` that runs lint (`ruff check`), format check (`
 - Spins up a `redis:7-alpine` service automatically when `redis` is selected.
 - Runs migrations before tests when postgres is present.
 
+### `auth-manual`
+
+Adds JWT-based authentication to a FastAPI project: user registration, login, token refresh, logout, and a `/auth/me` endpoint.
+
+- Only compatible with the `fastapi` template.
+- Generates `User` and `RefreshToken` SQLAlchemy models, Pydantic schemas, and a `core/dependencies.py` with `get_current_user`.
+- Patches `core/security.py` with password hashing (bcrypt) and JWT encode/decode (python-jose).
+- Injects `SECRET_KEY`, `ACCESS_TOKEN_EXPIRE_MINUTES`, and `REFRESH_TOKEN_EXPIRE_DAYS` into `.env` and `settings.py`.
+- Injects `UnauthorizedError` and `ForbiddenError` exception classes into `exceptions.py`.
+- Injects an authenticated `auth_client` fixture into `tests/conftest.py`.
+- Refresh tokens are rotated on use (old token is revoked).
+- Adds a `just gen-secret` recipe for generating a production-ready `SECRET_KEY`.
+
+
 ---
 
 ## Adding and removing addons
@@ -413,19 +427,6 @@ zenit remove sentry --dry-run
 ```
 
 Output shows every file that would be created, modified, or deleted — every dependency change, every `just` recipe, every git command — then exits without writing anything.
-
----
-
-## Adding auth to a FastAPI project
-
-The `fastapi` template lays out the security plumbing but stops short of generating auth routes (everyone's auth is different). When you're ready:
-
-1. Define `User` and `RefreshToken` models in `models/` — import them in `models/__init__.py` so Alembic discovers them.
-2. Add `core/dependencies.py` with a `get_current_user` dependency using `decode_access_token` from `core/security.py`.
-3. Add `api/routes/auth.py` with register, login, and refresh endpoints.
-4. Register it in `api/router.py`.
-5. Uncomment the auth block in `tests/conftest.py` to enable the authenticated `client` fixture.
-6. Run `just db-create && just migrate "add users" && just upgrade`.
 
 ---
 

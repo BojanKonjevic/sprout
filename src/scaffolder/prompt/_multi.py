@@ -201,7 +201,7 @@ def _tui_multi(
         elif key == " ":
             item_name = items[cursor][0]
             if cursor in incompatible:
-                flash = f"{item_name} is not vailable in this template"
+                flash = f"{item_name} is not available in this template"
             elif cursor in locked:
                 if cursor in always_locked:
                     flash = f"{item_name} is required by the template"
