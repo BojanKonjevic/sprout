@@ -11,6 +11,7 @@ from pathlib import Path
 
 import pytest
 import yaml
+from conftest import SCAFFOLDER_ROOT
 
 from scaffolder.apply import (
     _apply_to_file,
@@ -42,7 +43,7 @@ def _ctx(tmp_path: Path, name: str = "myapp") -> Context:
         pkg_name=name.replace("-", "_"),
         template="blank",
         addons=[],
-        scaffolder_root=Path(__file__).parent.parent / "src" / "scaffolder",
+        scaffolder_root=SCAFFOLDER_ROOT,
         project_dir=project_dir,
     )
 

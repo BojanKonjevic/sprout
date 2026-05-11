@@ -1,11 +1,9 @@
 """Tests for scaffolder.validate — name validation and addon dependency checks."""
 
-import pytest
-from click.exceptions import Exit as ClickExit
+from conftest import ExitAssertion
 
 from scaffolder.schema import AddonConfig
 from scaffolder.validate import validate_addon_deps, validate_name
-from conftest import ExitAssertion
 
 
 def _assert_exits(fn, *args, **kwargs) -> None:

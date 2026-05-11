@@ -518,9 +518,7 @@ def _check_env(project_dir: Path, lockfile: object) -> HealthResult:
                     hint=f"Add '{key}=<value>' to '{fname}'.",
                 )
         else:
-            result.ok(
-                f"All {len(expected_vars)} expected env vars are present in '{fname}'."
-            )
+            result.ok(f"All expected env vars are present in '{fname}'.")
 
     return result
 

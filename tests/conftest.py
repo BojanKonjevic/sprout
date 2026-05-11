@@ -1,5 +1,7 @@
 """Shared pytest fixtures and helpers."""
 
+from pathlib import Path
+
 import pytest
 from click.exceptions import Exit as ClickExit
 
@@ -30,3 +32,6 @@ class ExitAssertion:
         assert isinstance(exc_val, ClickExit)
         assert exc_val.exit_code == 1, f"Expected exit code 1, got {exc_val.exit_code}"
         return True
+
+
+SCAFFOLDER_ROOT = Path(__file__).parent.parent / "src" / "scaffolder"

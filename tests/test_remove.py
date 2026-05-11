@@ -10,6 +10,7 @@ from pathlib import Path
 
 import pytest
 import yaml
+from conftest import SCAFFOLDER_ROOT
 
 from scaffolder._apply_loader import load_apply
 from scaffolder.addons._registry import get_available_addons
@@ -22,8 +23,6 @@ from scaffolder.git import init_and_commit
 from scaffolder.lockfile import read_lockfile, write_lockfile
 from scaffolder.remove import remove_addon
 from scaffolder.templates._load_config import load_template_config
-
-SCAFFOLDER_ROOT = Path(__file__).parent.parent / "src" / "scaffolder"
 
 
 @contextmanager

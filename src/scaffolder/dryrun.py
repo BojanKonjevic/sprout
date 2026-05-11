@@ -127,15 +127,6 @@ def run_dry(ctx: Context) -> None:
     for dep in contributions.deps:
         dry_dep(dep, "addon")
     dry_section("  dev")
-    for dep in [
-        "pytest>=8",
-        "pytest-cov",
-        "pytest-asyncio",
-        "httpx",
-        "mypy",
-        "ipython",
-    ]:
-        dry_dep(dep)
     for dep in template_config.dev_deps:
         dry_dep(dep, "template")
     for dep in contributions.dev_deps:

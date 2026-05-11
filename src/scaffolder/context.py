@@ -48,7 +48,6 @@ class Context:
         dest = self.project_dir / dest_relative
         dest.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy(src, dest)
-        dest.chmod(dest.stat().st_mode | 0o600)
 
     def append_to_file(self, path: str, content: str) -> None:
         if self.dry_run:

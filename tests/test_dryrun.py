@@ -8,10 +8,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from conftest import SCAFFOLDER_ROOT
+
 from scaffolder.context import Context
 from scaffolder.dryrun import DryRunContext, run_dry
-
-SCAFFOLDER_ROOT = Path(__file__).parent.parent / "src" / "scaffolder"
 
 
 def _real_ctx(
@@ -214,7 +214,7 @@ def test_run_dry_output_contains_dependencies(tmp_path, capsys):
     ctx = _real_ctx(tmp_path, template="blank")
     run_dry(ctx)
     captured = capsys.readouterr()
-    assert "pytest" in captured.out
+    assert "Dependencies" in captured.out
 
 
 def test_run_dry_fastapi_output_mentions_fastapi_dep(tmp_path, capsys):

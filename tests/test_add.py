@@ -9,6 +9,8 @@ from contextlib import contextmanager
 from pathlib import Path
 from unittest.mock import patch
 
+from conftest import SCAFFOLDER_ROOT
+
 from scaffolder._apply_loader import load_apply
 from scaffolder.add import add_addon, add_addon_interactive
 from scaffolder.addons._registry import get_available_addons
@@ -21,8 +23,6 @@ from scaffolder.lockfile import write_lockfile
 from scaffolder.prompt._single import prompt_single_addon
 from scaffolder.remove import remove_addon
 from scaffolder.templates._load_config import load_template_config
-
-SCAFFOLDER_ROOT = Path(__file__).parent.parent / "src" / "scaffolder"
 
 
 @contextmanager

@@ -4,6 +4,8 @@ import secrets
 import subprocess
 from pathlib import Path
 
+from conftest import SCAFFOLDER_ROOT
+
 from scaffolder._apply_loader import load_apply
 from scaffolder.addons._registry import get_available_addons
 from scaffolder.apply import apply_contributions
@@ -14,9 +16,6 @@ from scaffolder.git import init_and_commit
 from scaffolder.templates._load_config import load_template_config
 
 # ── fixture ───────────────────────────────────────────────────────────────────
-
-
-SCAFFOLDER_ROOT = Path(__file__).parent.parent / "src" / "scaffolder"
 
 
 def _scaffold(tmp_path: Path, name: str, template: str, addons: list[str]) -> Path:

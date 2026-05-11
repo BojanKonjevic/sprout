@@ -17,6 +17,7 @@ import subprocess
 from pathlib import Path
 
 import pytest
+from conftest import SCAFFOLDER_ROOT
 
 from scaffolder._apply_loader import load_apply
 from scaffolder.addons._registry import get_available_addons
@@ -26,8 +27,6 @@ from scaffolder.context import Context
 from scaffolder.generate import generate_all
 from scaffolder.git import init_and_commit
 from scaffolder.templates._load_config import load_template_config
-
-SCAFFOLDER_ROOT = Path(__file__).parent.parent / "src" / "scaffolder"
 
 pytestmark = pytest.mark.slow
 
