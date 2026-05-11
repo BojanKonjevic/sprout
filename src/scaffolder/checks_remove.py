@@ -21,6 +21,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from scaffolder._paths import get_scaffolder_root
 from scaffolder.exceptions import ScaffoldError
 from scaffolder.lockfile import ZenitLockfile, read_lockfile
 from scaffolder.schema import AddonConfig
@@ -78,11 +79,9 @@ def check_can_remove(
         )
 
     # ── template does not require this addon ──────────────────────────────────
-    import os
-
     from scaffolder.templates._load_config import load_template_config
 
-    scaffolder_root = Path(os.environ.get("SCAFFOLDER_ROOT", Path(__file__).parent))
+    scaffolder_root = get_scaffolder_root()
     try:
         template_config = load_template_config(scaffolder_root, lockfile.template)
         if addon_id in template_config.requires_addons:

@@ -6,6 +6,7 @@ from typing import Annotated
 
 import typer
 
+from scaffolder._paths import get_scaffolder_root
 from scaffolder.add import add_addon
 from scaffolder.config import config_path, load_config
 from scaffolder.doctor import print_results, run_doctor
@@ -225,7 +226,6 @@ def cmd_remove(
 
 def _remove_interactive(dry_run: bool = False) -> None:
     """Interactive TUI for removing a single addon from an existing project."""
-    import os
     from pathlib import Path
 
     from scaffolder.addons._registry import get_available_addons
@@ -261,7 +261,7 @@ def _remove_interactive(dry_run: bool = False) -> None:
             requires_map_reverse.setdefault(req, []).append(cfg.id)
 
     # Addons the template mandates — they cannot be removed.
-    scaffolder_root = Path(os.environ.get("SCAFFOLDER_ROOT", Path(__file__).parent))
+    scaffolder_root = get_scaffolder_root()
     template_required: set[str] = set()
     try:
         from scaffolder.templates._load_config import load_template_config

@@ -9,6 +9,7 @@ from typing import Any
 
 import typer
 
+from scaffolder._paths import get_scaffolder_root
 from scaffolder.schema import ExtensionPoint
 from scaffolder.ui import (
     BOLD,
@@ -27,7 +28,6 @@ def remove_addon(
     addon_id: str, dry_run: bool = False, project_dir: Path | None = None
 ) -> None:
     """Remove a single addon from an existing zenit project."""
-    import os
 
     from scaffolder.addons._registry import get_available_addons
     from scaffolder.checks_remove import check_can_remove
@@ -41,8 +41,7 @@ def remove_addon(
 
     template = lockfile.template
     pkg_name = project_dir.name.replace("-", "_")
-    scaffolder_root = Path(os.environ.get("SCAFFOLDER_ROOT", Path(__file__).parent))
-
+    scaffolder_root = get_scaffolder_root()
     addon_cfg = next(cfg for cfg in available if cfg.id == addon_id)
 
     if dry_run:
@@ -96,7 +95,7 @@ def remove_addon(
     _remove_compose_volumes(project_dir, addon_cfg)
 
     # ── env vars ─────────────────────────────────────────────────────────────
-    _remove_env_vars(project_dir, addon_cfg)
+    removed_env_vars = _remove_env_vars(project_dir, addon_cfg)
 
     # ── deps ──────────────────────────────────────────────────────────────
     removed_deps, removed_dev_deps = _remove_deps(project_dir, addon_cfg)
@@ -138,6 +137,12 @@ def remove_addon(
         print(f"  {BOLD}Compose services removed:{RESET}")
         for svc in removed_services:
             print(f"    {RED}-{RESET} {svc}")
+
+    if removed_env_vars:
+        print()
+        print(f"  {BOLD}Env vars removed:{RESET}")
+        for key in removed_env_vars:
+            print(f"    {RED}-{RESET} {key}")
 
     print()
 

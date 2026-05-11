@@ -5,6 +5,7 @@ from pathlib import Path
 
 import typer
 
+from scaffolder._paths import get_scaffolder_root
 from scaffolder.context import Context
 from scaffolder.rollback import addon_or_rollback
 from scaffolder.schema import AddonConfig
@@ -23,7 +24,6 @@ from scaffolder.ui import (
 
 def add_addon(addon_id: str, dry_run: bool = False) -> None:
     """Apply a single addon to an existing zenit project."""
-    import os
 
     from scaffolder.addons._registry import get_available_addons
     from scaffolder.checks import check_can_add
@@ -43,7 +43,7 @@ def add_addon(addon_id: str, dry_run: bool = False) -> None:
 
     template = lockfile.template
     pkg_name = project_dir.name.replace("-", "_")
-    scaffolder_root = Path(os.environ.get("SCAFFOLDER_ROOT", Path(__file__).parent))
+    scaffolder_root = get_scaffolder_root()
 
     ctx = Context(
         name=project_dir.name,

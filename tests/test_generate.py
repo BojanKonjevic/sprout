@@ -3,6 +3,7 @@
 from pathlib import Path
 from unittest.mock import MagicMock
 
+from scaffolder._paths import get_scaffolder_root
 from scaffolder.generate import _recipe_name, generate_all
 from scaffolder.schema import Contributions, TemplateConfig
 
@@ -64,7 +65,7 @@ def _make_ctx(tmp_path: Path) -> MagicMock:
     ctx.template = "blank"
     ctx.addons = []
     ctx.dry_run = False
-    ctx.scaffolder_root = Path(__file__).parent.parent / "src" / "scaffolder"
+    ctx.scaffolder_root = get_scaffolder_root()
     ctx.project_dir = tmp_path
     written: dict[str, str] = {}
     ctx._written = written

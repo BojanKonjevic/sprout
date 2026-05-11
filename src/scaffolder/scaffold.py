@@ -8,6 +8,7 @@ from pathlib import Path
 
 import typer
 
+from scaffolder._paths import get_scaffolder_root
 from scaffolder.config import load_config
 from scaffolder.context import Context
 from scaffolder.generate import generate_all
@@ -30,9 +31,8 @@ def _load_apply(path: Path) -> Callable[[Context], None]:
 
 def scaffold_project(name: str, dry_run: bool = False) -> None:
     """Core scaffold pipeline — called by the main CLI command."""
-    import os
 
-    scaffolder_root = Path(os.environ.get("SCAFFOLDER_ROOT", Path(__file__).parent))
+    scaffolder_root = get_scaffolder_root()
     pkg_name = name.replace("-", "_")
 
     from scaffolder.validate import (
