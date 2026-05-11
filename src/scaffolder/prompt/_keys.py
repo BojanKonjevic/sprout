@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import sys
+import termios
+import tty
 
 
 def read_key() -> str:
@@ -22,9 +24,6 @@ def read_key() -> str:
             raise KeyboardInterrupt
         return ch
     else:
-        import termios
-        import tty
-
         fd = sys.stdin.fileno()
         old = termios.tcgetattr(fd)
         try:

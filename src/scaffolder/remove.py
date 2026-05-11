@@ -7,17 +7,29 @@ import sys
 from pathlib import Path
 from typing import Any
 
+import tomlkit
 import typer
+import yaml
 
 from scaffolder._paths import get_scaffolder_root
-from scaffolder.schema import ExtensionPoint
+from scaffolder.addons._registry import get_available_addons
+from scaffolder.checks_remove import check_can_remove
+from scaffolder.exceptions import ScaffoldError
+from scaffolder.lockfile import ZenitLockfile, read_lockfile, write_lockfile
+from scaffolder.prompt import prompt_single_addon
+from scaffolder.render import make_env
+from scaffolder.schema import AddonConfig, ExtensionPoint
+from scaffolder.templates._load_config import load_template_config
 from scaffolder.ui import (
     BOLD,
     CYAN,
     DIM,
+    MAGENTA,
     RED,
     RESET,
     YELLOW,
+    dry_header,
+    error,
     info,
     success,
     warn,
@@ -28,10 +40,6 @@ def remove_addon(
     addon_id: str, dry_run: bool = False, project_dir: Path | None = None
 ) -> None:
     """Remove a single addon from an existing zenit project."""
-
-    from scaffolder.addons._registry import get_available_addons
-    from scaffolder.checks_remove import check_can_remove
-    from scaffolder.lockfile import write_lockfile
 
     if project_dir is None:
         project_dir = Path.cwd()
@@ -65,8 +73,6 @@ def remove_addon(
             raise typer.Exit(0)
     else:
         warn("Non-interactive mode — proceeding automatically.")
-
-    from scaffolder.templates._load_config import load_template_config
 
     template_config = load_template_config(scaffolder_root, template)
 
@@ -152,7 +158,6 @@ def remove_addon(
 
 def _remove_files(project_dir: Path, addon_cfg: object, pkg_name: str) -> list[str]:
     """Delete files that were created by this addon. Returns list of removed paths."""
-    from scaffolder.schema import AddonConfig
 
     assert isinstance(addon_cfg, AddonConfig)
 
@@ -215,7 +220,6 @@ def _undo_injections(
     pkg_name: str,
 ) -> None:
     """Remove lines injected by this addon from extension-point files."""
-    from scaffolder.schema import AddonConfig
 
     assert isinstance(addon_cfg, AddonConfig)
 
@@ -253,9 +257,6 @@ def _remove_compose_services(
     addon_cfg: object,
 ) -> list[str]:
     """Remove compose services that belong to this addon. Returns removed service names."""
-    import yaml
-
-    from scaffolder.schema import AddonConfig
 
     assert isinstance(addon_cfg, AddonConfig)
 
@@ -287,9 +288,6 @@ def _remove_compose_volumes(
     addon_cfg: object,
 ) -> None:
     """Remove named volumes that belong solely to this addon."""
-    import yaml
-
-    from scaffolder.schema import AddonConfig
 
     assert isinstance(addon_cfg, AddonConfig)
 
@@ -318,7 +316,6 @@ def _remove_compose_volumes(
 
 def _remove_env_vars(project_dir: Path, addon_cfg: object) -> list[str]:
     """Remove env var lines added by this addon. Returns list of removed keys."""
-    from scaffolder.schema import AddonConfig
 
     assert isinstance(addon_cfg, AddonConfig)
 
@@ -346,11 +343,6 @@ def _remove_env_vars(project_dir: Path, addon_cfg: object) -> list[str]:
 
 def _remove_deps(project_dir: Path, addon_cfg: object) -> tuple[list[str], list[str]]:
     """Remove addon deps from pyproject.toml. Returns (removed_deps, removed_dev_deps)."""
-    import re as _re
-
-    import tomlkit
-
-    from scaffolder.schema import AddonConfig
 
     assert isinstance(addon_cfg, AddonConfig)
 
@@ -361,7 +353,7 @@ def _remove_deps(project_dir: Path, addon_cfg: object) -> tuple[list[str], list[
     doc = tomlkit.parse(pyproject_path.read_text(encoding="utf-8"))
 
     def pkg_name(dep: str) -> str:
-        m = _re.match(r"^([a-zA-Z0-9_.-]+)", dep)
+        m = re.match(r"^([a-zA-Z0-9_.-]+)", dep)
         return m.group(1).lower() if m else dep.lower()
 
     addon_dep_names = {pkg_name(d) for d in addon_cfg.deps}
@@ -413,8 +405,6 @@ def _remove_just_recipes(
     render_vars: dict[str, object],
 ) -> list[str]:
     """Remove just recipes contributed by this addon. Returns list of removed recipe names."""
-    from scaffolder.render import make_env
-    from scaffolder.schema import AddonConfig
 
     assert isinstance(addon_cfg, AddonConfig)
 
@@ -514,10 +504,6 @@ def _dry_remove(
     pkg_name: str,
 ) -> None:
     """Print what `zenit remove` would do without writing anything."""
-    from scaffolder.lockfile import ZenitLockfile
-    from scaffolder.render import make_env
-    from scaffolder.schema import AddonConfig
-    from scaffolder.ui import BOLD, DIM, MAGENTA, RED, RESET, dry_header
 
     assert isinstance(addon_cfg, AddonConfig)
     assert isinstance(lockfile, ZenitLockfile)
@@ -595,15 +581,6 @@ def _dry_remove(
 
 def remove_addon_interactive(dry_run: bool = False) -> None:
     """Interactive TUI for removing a single addon from an existing project."""
-    import os
-    from pathlib import Path
-
-    from scaffolder.addons._registry import get_available_addons
-    from scaffolder.exceptions import ScaffoldError
-    from scaffolder.lockfile import read_lockfile
-    from scaffolder.prompt import prompt_single_addon
-    from scaffolder.templates._load_config import load_template_config
-    from scaffolder.ui import error, info
 
     project_dir = Path.cwd()
     lockfile = read_lockfile(project_dir)

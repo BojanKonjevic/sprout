@@ -1,8 +1,10 @@
 """Integration tests — scaffold real projects into tmp_path and verify the results."""
 
+import secrets
 import subprocess
 from pathlib import Path
 
+from scaffolder._apply_loader import load_apply
 from scaffolder.addons._registry import get_available_addons
 from scaffolder.apply import apply_contributions
 from scaffolder.collect import collect_all
@@ -34,16 +36,13 @@ def _scaffold(tmp_path: Path, name: str, template: str, addons: list[str]) -> Pa
     )
 
     # Common files
-    from scaffolder.scaffold import _load_apply
 
-    _load_apply(SCAFFOLDER_ROOT / "templates" / "_common" / "apply.py")(ctx)
+    load_apply(SCAFFOLDER_ROOT / "templates" / "_common" / "apply.py")(ctx)
 
     # Template + addon contributions
     available = get_available_addons()
     template_config = load_template_config(SCAFFOLDER_ROOT, template)
     selected_addon_configs = [cfg for cfg in available if cfg.id in addons]
-
-    import secrets
 
     secret_key = secrets.token_hex(32) if template == "fastapi" else None
 

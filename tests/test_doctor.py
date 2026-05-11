@@ -2,10 +2,18 @@
 
 from __future__ import annotations
 
+import secrets
+import unittest.mock as mock
 from pathlib import Path
 
+import tomlkit
 import yaml
 
+from scaffolder._apply_loader import load_apply
+from scaffolder.addons._registry import get_available_addons
+from scaffolder.apply import apply_contributions
+from scaffolder.collect import collect_all
+from scaffolder.context import Context
 from scaffolder.doctor import (
     HealthIssue,
     HealthResult,
@@ -20,7 +28,11 @@ from scaffolder.doctor import (
     print_results,
     run_doctor,
 )
-from scaffolder.lockfile import write_lockfile
+from scaffolder.generate import generate_all
+from scaffolder.git import init_and_commit
+from scaffolder.lockfile import ZenitLockfile, read_lockfile, write_lockfile
+from scaffolder.schema import AddonConfig, AddonHooks
+from scaffolder.templates._load_config import load_template_config
 
 SCAFFOLDER_ROOT = Path(__file__).parent.parent / "src" / "scaffolder"
 
@@ -34,16 +46,6 @@ def _scaffold(
     addons: list[str] | None = None,
 ) -> Path:
     """Scaffold a real project and return its directory."""
-    import secrets
-
-    from scaffolder.addons._registry import get_available_addons
-    from scaffolder.apply import apply_contributions
-    from scaffolder.collect import collect_all
-    from scaffolder.context import Context
-    from scaffolder.generate import generate_all
-    from scaffolder.git import init_and_commit
-    from scaffolder.scaffold import _load_apply
-    from scaffolder.templates._load_config import load_template_config
 
     addons = addons or []
     project_dir = tmp_path / name
@@ -59,7 +61,7 @@ def _scaffold(
         project_dir=project_dir,
     )
 
-    _load_apply(SCAFFOLDER_ROOT / "templates" / "_common" / "apply.py")(ctx)
+    load_apply(SCAFFOLDER_ROOT / "templates" / "_common" / "apply.py")(ctx)
     available = get_available_addons()
     template_config = load_template_config(SCAFFOLDER_ROOT, template)
     selected_addon_configs = [cfg for cfg in available if cfg.id in addons]
@@ -219,7 +221,6 @@ class TestCheckMetadata:
 
     def test_warn_when_version_skew(self, tmp_path):
         project_dir = _scaffold(tmp_path, template="blank")
-        write_lockfile.__wrapped__ = None  # ensure we write directly
         (project_dir / ".zenit.toml").write_text(
             '[project]\ntemplate = "blank"\naddons = []\nzenit_version = "0.0.1"\n'
         )
@@ -266,7 +267,6 @@ class TestCheckMetadata:
 
 class TestCheckDependencies:
     def _lockfile(self, project_dir: Path) -> object:
-        from scaffolder.lockfile import read_lockfile
 
         lf = read_lockfile(project_dir)
         assert lf is not None
@@ -308,7 +308,6 @@ class TestCheckDependencies:
         assert any("parsed" in i.message for i in _errors(result))
 
     def test_error_when_runtime_dep_removed(self, tmp_path):
-        import tomlkit
 
         project_dir = _scaffold(tmp_path, template="fastapi", addons=["docker"])
         pyproject_path = project_dir / "pyproject.toml"
@@ -342,7 +341,6 @@ class TestCheckDependencies:
 
 class TestCheckFiles:
     def _lockfile(self, project_dir: Path) -> object:
-        from scaffolder.lockfile import read_lockfile
 
         lf = read_lockfile(project_dir)
         assert lf is not None
@@ -468,7 +466,6 @@ class TestCheckFiles:
 
 class TestCheckSentinels:
     def _lockfile(self, project_dir: Path) -> object:
-        from scaffolder.lockfile import read_lockfile
 
         lf = read_lockfile(project_dir)
         assert lf is not None
@@ -531,7 +528,6 @@ class TestCheckSentinels:
 
 class TestCheckAddonHealth:
     def _lockfile(self, project_dir: Path) -> object:
-        from scaffolder.lockfile import read_lockfile
 
         lf = read_lockfile(project_dir)
         assert lf is not None
@@ -619,27 +615,20 @@ class TestCheckAddonHealth:
         assert not result.has_errors
 
     def test_health_check_exception_reported_as_warning(self, tmp_path):
-        from scaffolder.lockfile import ZenitLockfile
 
         project_dir = _scaffold(tmp_path, template="blank")
         lockfile = ZenitLockfile(template="blank", addons=["docker"])
 
-        from scaffolder.schema import AddonConfig
+        def broken_health_check(project_dir: Path, lockfile: object) -> list:
+            raise RuntimeError("something went wrong")
 
-        class BrokenModule:
-            @staticmethod
-            def health_check(project_dir: Path, lockfile: object) -> list:
-                raise RuntimeError("something went wrong")
-
+        hooks = AddonHooks(health_check=broken_health_check)
         cfg = AddonConfig(id="docker", description="")
-        cfg._module = BrokenModule()
+        cfg._module = hooks
 
         # patch available addons
-        import unittest.mock as mock
 
-        with mock.patch(
-            "scaffolder.addons._registry.get_available_addons", return_value=[cfg]
-        ):
+        with mock.patch("scaffolder.doctor.get_available_addons", return_value=[cfg]):
             result = _check_addon_health(project_dir, lockfile)
         assert result.has_warnings
         assert any("health_check" in i.message for i in _warnings(result))
@@ -650,7 +639,6 @@ class TestCheckAddonHealth:
 
 class TestCheckCompose:
     def _lockfile(self, project_dir: Path) -> object:
-        from scaffolder.lockfile import read_lockfile
 
         lf = read_lockfile(project_dir)
         assert lf is not None
@@ -749,7 +737,6 @@ class TestCheckCompose:
 
 class TestCheckEnv:
     def _lockfile(self, project_dir: Path) -> object:
-        from scaffolder.lockfile import read_lockfile
 
         lf = read_lockfile(project_dir)
         assert lf is not None
@@ -906,7 +893,6 @@ class TestRunDoctor:
         assert any("main.py" in i.message for i in all_errors)
 
     def test_detects_removed_runtime_dep(self, tmp_path):
-        import tomlkit
 
         project_dir = _scaffold(tmp_path, template="fastapi", addons=["docker"])
         pyproject_path = project_dir / "pyproject.toml"

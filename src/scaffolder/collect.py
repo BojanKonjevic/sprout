@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from scaffolder.exceptions import ScaffoldError
 from scaffolder.schema import (
     Contributions,
     FileContribution,
@@ -70,8 +71,6 @@ def collect_all(
             continue
         if fc.content is not None and fc.content == prev_fc.content:
             continue
-
-        from scaffolder.exceptions import ScaffoldError
 
         raise ScaffoldError(
             f"Internal conflict: both '{prev_label}' and '{label}' want "

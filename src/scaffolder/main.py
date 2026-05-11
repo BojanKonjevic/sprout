@@ -6,7 +6,6 @@ from typing import Annotated
 
 import typer
 
-from scaffolder._paths import get_scaffolder_root
 from scaffolder.add import add_addon
 from scaffolder.config import config_path, load_config
 from scaffolder.doctor import print_results, run_doctor

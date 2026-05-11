@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import secrets
 import subprocess
 from contextlib import contextmanager
 from pathlib import Path
@@ -10,12 +11,14 @@ from pathlib import Path
 import pytest
 import yaml
 
+from scaffolder._apply_loader import load_apply
 from scaffolder.addons._registry import get_available_addons
 from scaffolder.apply import apply_contributions
 from scaffolder.collect import collect_all
 from scaffolder.context import Context
 from scaffolder.exceptions import ScaffoldError
 from scaffolder.generate import generate_all
+from scaffolder.git import init_and_commit
 from scaffolder.lockfile import read_lockfile, write_lockfile
 from scaffolder.remove import remove_addon
 from scaffolder.templates._load_config import load_template_config
@@ -57,16 +60,13 @@ def _scaffold(tmp_path: Path, name: str, template: str, addons: list[str]) -> Pa
     )
 
     # Common files
-    from scaffolder.scaffold import _load_apply
 
-    _load_apply(SCAFFOLDER_ROOT / "templates" / "_common" / "apply.py")(ctx)
+    load_apply(SCAFFOLDER_ROOT / "templates" / "_common" / "apply.py")(ctx)
 
     # Template + addon contributions
     available = get_available_addons()
     template_config = load_template_config(SCAFFOLDER_ROOT, template)
     selected_addon_configs = [cfg for cfg in available if cfg.id in addons]
-
-    import secrets
 
     secret_key = secrets.token_hex(32) if template == "fastapi" else None
 
@@ -86,7 +86,6 @@ def _scaffold(tmp_path: Path, name: str, template: str, addons: list[str]) -> Pa
     generate_all(ctx, template_config, contributions)
 
     # Initialize git repo
-    from scaffolder.git import init_and_commit
 
     init_and_commit(project_dir)
 

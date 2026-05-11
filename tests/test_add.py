@@ -3,15 +3,23 @@
 from __future__ import annotations
 
 import os
+import re
+import secrets
 from contextlib import contextmanager
 from pathlib import Path
 from unittest.mock import patch
 
+from scaffolder._apply_loader import load_apply
+from scaffolder.add import add_addon, add_addon_interactive
 from scaffolder.addons._registry import get_available_addons
 from scaffolder.apply import apply_contributions
+from scaffolder.collect import collect_all
 from scaffolder.context import Context
 from scaffolder.generate import generate_all
+from scaffolder.git import init_and_commit
 from scaffolder.lockfile import write_lockfile
+from scaffolder.prompt._single import prompt_single_addon
+from scaffolder.remove import remove_addon
 from scaffolder.templates._load_config import load_template_config
 
 SCAFFOLDER_ROOT = Path(__file__).parent.parent / "src" / "scaffolder"
@@ -46,11 +54,7 @@ def _scaffold(tmp_path: Path, name: str, template: str, addons: list[str]) -> Pa
         project_dir=project_dir,
     )
 
-    from scaffolder.scaffold import _load_apply
-
-    _load_apply(SCAFFOLDER_ROOT / "templates" / "_common" / "apply.py")(ctx)
-
-    import secrets
+    load_apply(SCAFFOLDER_ROOT / "templates" / "_common" / "apply.py")(ctx)
 
     available = get_available_addons()
     template_config = load_template_config(SCAFFOLDER_ROOT, template)
@@ -63,15 +67,12 @@ def _scaffold(tmp_path: Path, name: str, template: str, addons: list[str]) -> Pa
         "has_postgres": template == "fastapi",
         "has_redis": "redis" in addons,
     }
-    from scaffolder.collect import collect_all
 
     contributions = collect_all(template_config, selected)
     apply_contributions(
         ctx, contributions, template_config.extension_points, render_vars
     )
     generate_all(ctx, template_config, contributions)
-
-    from scaffolder.git import init_and_commit
 
     init_and_commit(project_dir)
     write_lockfile(project_dir, template, addons)
@@ -86,7 +87,6 @@ class TestPyprojectFormatPreservation:
 
     def _dep_lines(self, project_dir: Path) -> list[str]:
         """Return lines inside the [project] dependencies = [...] block."""
-        import re
 
         text = (project_dir / "pyproject.toml").read_text()
         marker = "dependencies = ["
@@ -101,7 +101,6 @@ class TestPyprojectFormatPreservation:
         ]
 
     def test_remove_leaves_deps_multiline(self, tmp_path, monkeypatch):
-        from scaffolder.remove import remove_addon
 
         project_dir = _scaffold(tmp_path, "myapp", "blank", ["docker", "redis"])
         monkeypatch.chdir(project_dir)
@@ -116,8 +115,6 @@ class TestPyprojectFormatPreservation:
             assert line.count('"') == 2, f"Multiple deps on one line: {line!r}"
 
     def test_remove_then_add_deps_still_multiline(self, tmp_path, monkeypatch):
-        from scaffolder.add import add_addon
-        from scaffolder.remove import remove_addon
 
         project_dir = _scaffold(tmp_path, "myapp", "blank", ["docker", "redis"])
         monkeypatch.chdir(project_dir)
@@ -137,8 +134,6 @@ class TestPyprojectFormatPreservation:
             )
 
     def test_readded_dep_is_present_and_on_its_own_line(self, tmp_path, monkeypatch):
-        from scaffolder.add import add_addon
-        from scaffolder.remove import remove_addon
 
         project_dir = _scaffold(tmp_path, "myapp", "blank", ["docker", "redis"])
         monkeypatch.chdir(project_dir)
@@ -156,8 +151,6 @@ class TestPyprojectFormatPreservation:
 
     def test_dev_deps_also_stay_multiline_after_remove_add(self, tmp_path, monkeypatch):
         """Dev deps array should also be multiline after a remove+add cycle."""
-        from scaffolder.add import add_addon
-        from scaffolder.remove import remove_addon
 
         project_dir = _scaffold(tmp_path, "myapp", "blank", ["docker", "redis"])
         monkeypatch.chdir(project_dir)
@@ -180,8 +173,6 @@ class TestPyprojectFormatPreservation:
 
     def test_full_fastapi_remove_add_cycle(self, tmp_path, monkeypatch):
         """Celery remove+add on a full fastapi project preserves multiline deps."""
-        from scaffolder.add import add_addon
-        from scaffolder.remove import remove_addon
 
         project_dir = _scaffold(
             tmp_path,
@@ -212,7 +203,6 @@ class TestAlreadyInstalledMessage:
 
     def test_prompt_single_addon_does_not_print_already_installed(self, capsys):
         """prompt_single_addon is a selection widget; the caller owns the header."""
-        from scaffolder.prompt._single import prompt_single_addon
 
         items = [
             ("docker", "Docker description", []),
@@ -238,14 +228,12 @@ class TestAlreadyInstalledMessage:
         project_dir = _scaffold(tmp_path, "myapp", "blank", ["docker"])
         monkeypatch.chdir(project_dir)
 
-        from scaffolder.main import _add_interactive
-
         # Non-tty fallback: input="" → no addon selected → returns cleanly
         with (
             patch("scaffolder.prompt._keys.tty_available", return_value=False),
             patch("builtins.input", return_value=""),
         ):
-            _add_interactive()
+            add_addon_interactive()
 
         out = capsys.readouterr().out
         assert out.count("Already installed") == 1, (

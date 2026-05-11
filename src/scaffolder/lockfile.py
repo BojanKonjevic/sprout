@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import tomllib
 from dataclasses import dataclass, field
+from importlib.metadata import version as get_version
 from pathlib import Path
 
 import tomli_w
@@ -35,7 +36,6 @@ class ZenitLockfile:
 
 def write_lockfile(project_dir: Path, template: str, addons: list[str]) -> None:
     """Write .zenit.toml into *project_dir*."""
-    from importlib.metadata import version as get_version
 
     try:
         zenit_version = get_version("zenit")

@@ -3,30 +3,30 @@
 import secrets
 import shutil
 import sys
-from collections.abc import Callable
 from pathlib import Path
 
 import typer
 
+from scaffolder._apply_loader import load_apply
 from scaffolder._paths import get_scaffolder_root
+from scaffolder.addons._registry import get_available_addons
+from scaffolder.apply import apply_contributions
+from scaffolder.collect import collect_all
 from scaffolder.config import load_config
 from scaffolder.context import Context
+from scaffolder.dryrun import run_dry
 from scaffolder.generate import generate_all
 from scaffolder.git import init_and_commit
+from scaffolder.lockfile import write_lockfile
 from scaffolder.prompt import prompt_addons, prompt_template
 from scaffolder.rollback import scaffold_or_rollback
+from scaffolder.templates._load_config import load_template_config
 from scaffolder.ui import confirm, info, print_commands_from_just, success
-
-
-def _load_apply(path: Path) -> Callable[[Context], None]:
-    """Import and return the ``apply()`` function from an ``apply.py`` file."""
-    import importlib.util
-
-    spec = importlib.util.spec_from_file_location("apply", path)
-    assert spec is not None and spec.loader is not None
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod.apply  # type: ignore[no-any-return]
+from scaffolder.validate import (
+    check_preflight,
+    validate_addon_deps,
+    validate_name,
+)
 
 
 def scaffold_project(name: str, dry_run: bool = False) -> None:
@@ -34,12 +34,6 @@ def scaffold_project(name: str, dry_run: bool = False) -> None:
 
     scaffolder_root = get_scaffolder_root()
     pkg_name = name.replace("-", "_")
-
-    from scaffolder.validate import (
-        check_preflight,
-        validate_addon_deps,
-        validate_name,
-    )
 
     validate_name(name, pkg_name)
 
@@ -49,8 +43,6 @@ def scaffold_project(name: str, dry_run: bool = False) -> None:
     cfg = load_config()
 
     template = prompt_template(default=cfg.default_template)
-
-    from scaffolder.addons._registry import get_available_addons
 
     available = get_available_addons()
     addons = prompt_addons(available, template, default_addons=cfg.default_addons)
@@ -66,8 +58,6 @@ def scaffold_project(name: str, dry_run: bool = False) -> None:
     )
 
     if dry_run:
-        from scaffolder.dryrun import run_dry
-
         run_dry(ctx)
         return
 
@@ -79,11 +69,7 @@ def scaffold_project(name: str, dry_run: bool = False) -> None:
     with scaffold_or_rollback(project_dir):
         project_dir.mkdir()
 
-        _load_apply(scaffolder_root / "templates" / "_common" / "apply.py")(ctx)
-
-        from scaffolder.apply import apply_contributions
-        from scaffolder.collect import collect_all
-        from scaffolder.templates._load_config import load_template_config
+        load_apply(scaffolder_root / "templates" / "_common" / "apply.py")(ctx)
 
         template_config = load_template_config(scaffolder_root, template)
         selected_addon_configs = [a for a in available if a.id in addons]
@@ -109,8 +95,6 @@ def scaffold_project(name: str, dry_run: bool = False) -> None:
         )
         generate_all(ctx, template_config, contributions)
         init_and_commit(project_dir)
-
-        from scaffolder.lockfile import write_lockfile
 
         write_lockfile(project_dir, template, addons)
 

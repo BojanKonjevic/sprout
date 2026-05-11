@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from scaffolder.context import Context
 from scaffolder.lockfile import ZenitLockfile
 from scaffolder.schema import (
     AddonConfig,
@@ -7,6 +8,7 @@ from scaffolder.schema import (
     FileContribution,
     Injection,
 )
+from scaffolder.ui import info
 
 _HERE = Path(__file__).parent.absolute()
 
@@ -171,8 +173,6 @@ def can_apply(project_dir: Path, lockfile: ZenitLockfile) -> str | None:
 
 
 def post_apply(ctx: object) -> None:
-    from scaffolder.context import Context
-    from scaffolder.ui import info
 
     assert isinstance(ctx, Context)
     info("Run 'just migrate \"add users\"' then 'just upgrade' to create auth tables.")

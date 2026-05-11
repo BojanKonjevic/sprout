@@ -5,7 +5,9 @@ from __future__ import annotations
 import sys
 from collections.abc import Callable
 
-from scaffolder.ui import BOLD, CYAN, DIM, GREEN, MAGENTA, RESET, YELLOW
+from scaffolder.ui import BOLD, CYAN, DIM, GREEN, MAGENTA, RESET, YELLOW, warn
+
+from ._keys import read_key
 
 # ── ANSI escape sequences ─────────────────────────────────────────────────────
 
@@ -144,7 +146,6 @@ def run_tui(
     on_key should return _DONE to exit the loop, anything else to continue.
     Handles ctrl-c and cursor show/hide.
     """
-    from ._keys import read_key
 
     hide_cursor()
     rendered = render()
@@ -175,7 +176,6 @@ def run_fallback(
 
     Returns the selected index, or None if the user cancels.
     """
-    from scaffolder.ui import warn
 
     unavailable = unavailable or set()
 

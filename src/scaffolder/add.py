@@ -6,16 +6,33 @@ from pathlib import Path
 import typer
 
 from scaffolder._paths import get_scaffolder_root
+from scaffolder.addons._registry import get_available_addons
+from scaffolder.apply import apply_contributions
+from scaffolder.checks import check_can_add
+from scaffolder.collect import collect_addon_only
 from scaffolder.context import Context
+from scaffolder.deps import inject_deps
+from scaffolder.dryrun import DryRunContext
+from scaffolder.exceptions import ScaffoldError
+from scaffolder.generate import _recipe_name
+from scaffolder.justfile import inject_just_recipes
+from scaffolder.lockfile import read_lockfile, write_lockfile
+from scaffolder.prompt import prompt_single_addon
+from scaffolder.render import make_env
 from scaffolder.rollback import addon_or_rollback
 from scaffolder.schema import AddonConfig
+from scaffolder.templates._load_config import load_template_config
 from scaffolder.ui import (
     BOLD,
     CYAN,
     DIM,
     GREEN,
+    MAGENTA,
     RESET,
     YELLOW,
+    dry_dep,
+    dry_header,
+    error,
     info,
     success,
     warn,
@@ -25,19 +42,12 @@ from scaffolder.ui import (
 def add_addon(addon_id: str, dry_run: bool = False) -> None:
     """Apply a single addon to an existing zenit project."""
 
-    from scaffolder.addons._registry import get_available_addons
-    from scaffolder.checks import check_can_add
-    from scaffolder.exceptions import ScaffoldError
-    from scaffolder.lockfile import write_lockfile
-
     project_dir = Path.cwd()
     available = get_available_addons()
 
     try:
         lockfile = check_can_add(project_dir, addon_id, available)
     except ScaffoldError as exc:
-        from scaffolder.ui import error
-
         error(str(exc))
         raise typer.Exit(1) from exc
 
@@ -77,10 +87,6 @@ def add_addon(addon_id: str, dry_run: bool = False) -> None:
         warn("Non‑interactive mode — proceeding automatically.")
 
     with addon_or_rollback(project_dir, addon_id):
-        from scaffolder.apply import apply_contributions
-        from scaffolder.collect import collect_addon_only
-        from scaffolder.templates._load_config import load_template_config
-
         template_config = load_template_config(scaffolder_root, template)
         selected_addon_configs = [a for a in available if a.id == addon_id]
 
@@ -102,8 +108,6 @@ def add_addon(addon_id: str, dry_run: bool = False) -> None:
             render_vars,
         )
 
-        from scaffolder.deps import inject_deps
-
         try:
             added_deps, added_dev_deps = inject_deps(
                 project_dir,
@@ -113,9 +117,6 @@ def add_addon(addon_id: str, dry_run: bool = False) -> None:
         except FileNotFoundError as exc:
             warn(str(exc))
             added_deps, added_dev_deps = [], []
-
-        from scaffolder.justfile import inject_just_recipes
-        from scaffolder.render import make_env
 
         recipe_render_vars: dict[str, object] = {
             "name": project_dir.name,
@@ -164,13 +165,6 @@ def _dry_add(
     template: str,
 ) -> None:
     """Print what `zenit add` would do without writing anything."""
-    from scaffolder.apply import apply_contributions
-    from scaffolder.collect import collect_addon_only
-    from scaffolder.dryrun import DryRunContext
-    from scaffolder.generate import _recipe_name
-    from scaffolder.render import make_env
-    from scaffolder.templates._load_config import load_template_config
-    from scaffolder.ui import BOLD, DIM, GREEN, MAGENTA, RESET, dry_dep, dry_header
 
     scaffolder_root = ctx.scaffolder_root
     dry_ctx = DryRunContext(
@@ -243,12 +237,6 @@ def _dry_add(
 
 def add_addon_interactive(dry_run: bool = False) -> None:
     """Interactive TUI for adding a single addon to an existing project."""
-    from pathlib import Path
-
-    from scaffolder.addons._registry import get_available_addons
-    from scaffolder.lockfile import read_lockfile
-    from scaffolder.prompt import prompt_single_addon
-    from scaffolder.ui import DIM, RESET, error, info
 
     project_dir = Path.cwd()
     lockfile = read_lockfile(project_dir)

@@ -25,6 +25,7 @@ from scaffolder._paths import get_scaffolder_root
 from scaffolder.exceptions import ScaffoldError
 from scaffolder.lockfile import ZenitLockfile, read_lockfile
 from scaffolder.schema import AddonConfig
+from scaffolder.templates._load_config import load_template_config
 
 
 def check_can_remove(
@@ -79,7 +80,6 @@ def check_can_remove(
         )
 
     # ── template does not require this addon ──────────────────────────────────
-    from scaffolder.templates._load_config import load_template_config
 
     scaffolder_root = get_scaffolder_root()
     try:

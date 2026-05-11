@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from scaffolder.doctor import HealthIssue
+from scaffolder.doctor import HealthIssue, Severity
 from scaffolder.lockfile import ZenitLockfile
 from scaffolder.schema import AddonConfig, EnvVar, FileContribution, Injection
 
@@ -111,7 +111,6 @@ def can_apply(project_dir: Path, lockfile: ZenitLockfile) -> str | None:
 
 
 def health_check(project_dir: Path, lockfile: object) -> list[HealthIssue]:
-    from scaffolder.doctor import HealthIssue, Severity
 
     pkg_name = project_dir.name.replace("-", "_")
     issues: list[HealthIssue] = []
@@ -119,8 +118,6 @@ def health_check(project_dir: Path, lockfile: object) -> list[HealthIssue]:
     sentry_file = project_dir / "src" / pkg_name / "integrations" / "sentry.py"
     if not sentry_file.exists():
         return issues
-
-    from scaffolder.lockfile import ZenitLockfile
 
     assert isinstance(lockfile, ZenitLockfile)
     template = lockfile.template

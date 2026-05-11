@@ -6,8 +6,13 @@ from __future__ import annotations
 import secrets
 from typing import Any
 
+from scaffolder._apply_loader import load_apply
+from scaffolder.addons._registry import get_available_addons
+from scaffolder.apply import apply_contributions
+from scaffolder.collect import collect_all
 from scaffolder.context import Context
 from scaffolder.generate import generate_all
+from scaffolder.templates._load_config import load_template_config
 from scaffolder.ui import (
     BOLD,
     DIM,
@@ -65,15 +70,8 @@ def run_dry(ctx: Context) -> None:
         project_dir=ctx.project_dir,
     )
 
-    from scaffolder.scaffold import _load_apply
-
     sr = dry_ctx.scaffolder_root
-    _load_apply(sr / "templates" / "_common" / "apply.py")(dry_ctx)
-
-    from scaffolder.addons._registry import get_available_addons
-    from scaffolder.apply import apply_contributions
-    from scaffolder.collect import collect_all
-    from scaffolder.templates._load_config import load_template_config
+    load_apply(sr / "templates" / "_common" / "apply.py")(dry_ctx)
 
     available = get_available_addons()
     template_config = load_template_config(sr, dry_ctx.template)

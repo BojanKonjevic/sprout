@@ -21,6 +21,7 @@ from scaffolder.apply import (
 from scaffolder.context import Context
 from scaffolder.schema import (
     AddonConfig,
+    AddonHooks,
     ComposeService,
     Contributions,
     EnvVar,
@@ -496,13 +497,12 @@ def test_post_apply_hook_is_called(tmp_path):
     ctx = _ctx(tmp_path)
     calls: list[str] = []
 
-    class FakeModule:
-        @staticmethod
-        def post_apply(c: Context) -> None:
-            calls.append("called")
+    def my_post_apply(c: Context) -> None:
+        calls.append("called")
 
+    hooks = AddonHooks(post_apply=my_post_apply)
     addon = AddonConfig(id="fake", description="")
-    addon._module = FakeModule()
+    addon._module = hooks
 
     contributions = Contributions(_addon_configs=[addon])
     apply_contributions(ctx, contributions, {}, _render_vars(ctx))
@@ -513,15 +513,13 @@ def test_post_apply_hook_is_called(tmp_path):
 def test_post_apply_hook_not_required(tmp_path):
     ctx = _ctx(tmp_path)
 
-    class FakeModuleNoHook:
-        pass
-
+    hooks = AddonHooks()  # all fields are None by default
     addon = AddonConfig(id="fake", description="")
-    addon._module = FakeModuleNoHook()
+    addon._module = hooks
 
-    # Should not raise
     contributions = Contributions(_addon_configs=[addon])
     apply_contributions(ctx, contributions, {}, _render_vars(ctx))
+    # Should not raise
 
 
 # ── _apply_to_file unit tests ─────────────────────────────────────────────────

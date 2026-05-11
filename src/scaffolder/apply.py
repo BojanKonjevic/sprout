@@ -107,7 +107,6 @@ def _apply_injections(
     extension_points: dict[str, ExtensionPoint],
     render_vars: dict[str, object],
 ) -> None:
-    from scaffolder.render import make_env
 
     string_env = make_env()
 
