@@ -30,9 +30,3 @@ class ExitAssertion:
         assert isinstance(exc_val, ClickExit)
         assert exc_val.exit_code == 1, f"Expected exit code 1, got {exc_val.exit_code}"
         return True
-
-
-@pytest.fixture
-def assert_exits() -> type[ExitAssertion]:
-    """Fixture that returns an ExitAssertion context manager."""
-    return ExitAssertion

@@ -5,16 +5,13 @@ from click.exceptions import Exit as ClickExit
 
 from scaffolder.schema import AddonConfig
 from scaffolder.validate import validate_addon_deps, validate_name
+from conftest import ExitAssertion
 
 
-def _assert_exits(fn, *args, **kwargs) -> None:  # type: ignore[no-untyped-def]
+def _assert_exits(fn, *args, **kwargs) -> None:
     """Assert that calling ``fn(*args, **kwargs)`` raises ``typer.Exit(1)``."""
-    with pytest.raises(ClickExit) as exc_info:
+    with ExitAssertion():
         fn(*args, **kwargs)
-    assert exc_info.value.exit_code == 1
-
-
-# ── validate_name ─────────────────────────────────────────────────────────────
 
 
 def test_validate_name_accepts_simple_name(tmp_path, monkeypatch):
@@ -65,7 +62,6 @@ def test_validate_name_rejects_stdlib_module_os(tmp_path, monkeypatch):
 
 def test_validate_name_rejects_empty_string(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
-    # Path("").exists() is True on all platforms, so this always exits.
     _assert_exits(validate_name, "", "")
 
 
