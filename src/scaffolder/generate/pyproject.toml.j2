@@ -49,7 +49,7 @@ strict = true
 module = ["sqlalchemy.*", "alembic.*"]
 ignore_missing_imports = true
 [% endif %]
-[% if "auth" in addons %]
+[% if "auth-manual" in addons %]
 [[tool.mypy.overrides]]
 module = ["jose.*"]
 ignore_missing_imports = true

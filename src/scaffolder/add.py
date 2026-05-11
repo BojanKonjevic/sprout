@@ -137,10 +137,6 @@ def add_addon(addon_id: str, dry_run: bool = False) -> None:
     print()
     success(f"Addon '{addon_id}' added to '{project_dir.name}'.")
 
-    # ── output ────────────────────────────────────────────────────────────
-    print()
-    success(f"Addon '{addon_id}' added to '{project_dir.name}'.")
-
     if added_deps or added_dev_deps:
         print()
         print(f"  {BOLD}Dependencies added to pyproject.toml:{RESET}")
