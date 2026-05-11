@@ -239,3 +239,64 @@ def _dry_add(
                 dry_dep(name)
 
     print()
+
+
+def add_addon_interactive(dry_run: bool = False) -> None:
+    """Interactive TUI for adding a single addon to an existing project."""
+    from pathlib import Path
+
+    from scaffolder.addons._registry import get_available_addons
+    from scaffolder.lockfile import read_lockfile
+    from scaffolder.prompt import prompt_single_addon
+    from scaffolder.ui import DIM, RESET, error, info
+
+    project_dir = Path.cwd()
+    lockfile = read_lockfile(project_dir)
+
+    if lockfile is None:
+        error(
+            "No .zenit.toml found. 'zenit add' only works in projects scaffolded by zenit."
+        )
+        raise typer.Exit(1)
+
+    if not lockfile.template:
+        error(".zenit.toml exists but has no template field — it may be corrupt.")
+        raise typer.Exit(1)
+
+    available = get_available_addons()
+
+    already_installed = set(lockfile.addons)
+    if already_installed:
+        print(
+            f"\n  {DIM}Already installed: {', '.join(sorted(already_installed))}{RESET}"
+        )
+
+    items = []
+    unavailable_indices = set()
+
+    for addon in available:
+        if addon.id in already_installed:
+            continue
+
+        deps_met = all(req in lockfile.addons for req in addon.requires)
+        items.append((addon.id, addon.description, addon.requires))
+
+        if not deps_met:
+            unavailable_indices.add(len(items) - 1)
+
+    if not items:
+        info("All available addons are already installed.")
+        print()
+        return
+
+    selected = prompt_single_addon(
+        items,
+        unavailable_indices=unavailable_indices,
+    )
+
+    if not selected:
+        info("No addon selected.")
+        print()
+        return
+
+    add_addon(selected, dry_run=dry_run)

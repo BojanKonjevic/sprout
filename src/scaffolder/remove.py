@@ -591,3 +591,95 @@ def _dry_remove(
             print(f"  {RED}-{RESET} [{inj.point}] {DIM}{preview}…{RESET}")
 
     print()
+
+
+def remove_addon_interactive(dry_run: bool = False) -> None:
+    """Interactive TUI for removing a single addon from an existing project."""
+    import os
+    from pathlib import Path
+
+    from scaffolder.addons._registry import get_available_addons
+    from scaffolder.exceptions import ScaffoldError
+    from scaffolder.lockfile import read_lockfile
+    from scaffolder.prompt import prompt_single_addon
+    from scaffolder.templates._load_config import load_template_config
+    from scaffolder.ui import error, info
+
+    project_dir = Path.cwd()
+    lockfile = read_lockfile(project_dir)
+
+    if lockfile is None:
+        error(
+            "No .zenit.toml found. 'zenit remove' only works in projects scaffolded by zenit."
+        )
+        raise typer.Exit(1)
+
+    if not lockfile.template:
+        error(".zenit.toml exists but has no template field — it may be corrupt.")
+        raise typer.Exit(1)
+
+    if not lockfile.addons:
+        info("No addons are installed — nothing to remove.")
+        print()
+        return
+
+    available = get_available_addons()
+
+    # Addons that other *installed* addons depend on.
+    requires_map_reverse: dict[str, list[str]] = {}
+    for cfg in available:
+        for req in cfg.requires:
+            requires_map_reverse.setdefault(req, []).append(cfg.id)
+
+    # Addons the template mandates — they cannot be removed.
+    scaffolder_root = get_scaffolder_root()
+    template_required: set[str] = set()
+    try:
+        template_config = load_template_config(scaffolder_root, lockfile.template)
+        template_required = set(template_config.requires_addons)
+    except Exception:
+        pass
+
+    items: list[tuple[str, str, list[str]]] = []
+    unavailable_indices: set[int] = set()
+
+    for addon_id in lockfile.addons:
+        addon_cfg = next((c for c in available if c.id == addon_id), None)
+        if addon_cfg is None:
+            continue
+        desc: str = addon_cfg.description
+
+        # Collect the reasons this addon is blocked from removal.
+        blocking: list[str] = []
+
+        # Other installed addons that require this one.
+        blocking.extend(
+            dep
+            for dep in requires_map_reverse.get(addon_id, [])
+            if dep in lockfile.addons
+        )
+
+        # Template mandates it.
+        if addon_id in template_required:
+            blocking.append(f"__template__{lockfile.template}")
+
+        addon_blockers = [b for b in blocking if b in {c.id for c in available}]
+        items.append((addon_id, desc, addon_blockers))
+        if blocking:
+            unavailable_indices.add(len(items) - 1)
+
+    selected = prompt_single_addon(
+        items,
+        unavailable_indices=unavailable_indices,
+    )
+
+    if not selected:
+        info("No addon selected.")
+        print()
+        return
+
+    try:
+        remove_addon(selected, dry_run=dry_run)
+    except ScaffoldError as exc:
+        error(str(exc))
+        raise typer.Exit(1) from exc
