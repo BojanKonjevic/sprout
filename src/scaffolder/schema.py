@@ -2,8 +2,16 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
+from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from scaffolder.context import Context
+    from scaffolder.doctor import HealthIssue
+    from scaffolder.lockfile import ZenitLockfile
 
 
 class InjectionMode(Enum):
@@ -57,6 +65,21 @@ class Injection:
 
 
 @dataclass
+class AddonHooks:
+    """Typed container for optional addon module callbacks.
+
+    Every addon module is expected to have these four attributes after
+    the registry has processed it; they are ``None`` when the addon
+    does not provide the corresponding function.
+    """
+
+    post_apply: Callable[[Context], None] | None = None
+    health_check: Callable[[Path, ZenitLockfile], list[HealthIssue]] | None = None
+    can_apply: Callable[[Path, ZenitLockfile], str | None] | None = None
+    can_remove: Callable[[Path, ZenitLockfile], str | None] | None = None
+
+
+@dataclass
 class AddonConfig:
     """All contributions made by a single addon."""
 
@@ -72,7 +95,7 @@ class AddonConfig:
     dev_deps: list[str] = field(default_factory=list)
     just_recipes: list[str] = field(default_factory=list)
     injections: list[Injection] = field(default_factory=list)
-    _module: object = field(default=None, repr=False, compare=False)
+    _module: AddonHooks | None = field(default=None, repr=False, compare=False)
 
 
 @dataclass

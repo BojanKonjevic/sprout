@@ -94,9 +94,9 @@ def check_can_remove(
 
     # ── addon's own can_remove check ──────────────────────────────────────────
     cfg = next(c for c in available if c.id == addon_id)
-    module = getattr(cfg, "_module", None)
-    if module is not None and hasattr(module, "can_remove"):
-        reason = module.can_remove(project_dir, lockfile)
+    hooks = cfg._module
+    if hooks is not None and hooks.can_remove is not None:
+        reason = hooks.can_remove(project_dir, lockfile)
         if reason:
             raise ScaffoldError(reason)
 

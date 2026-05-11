@@ -372,13 +372,13 @@ def _check_addon_health(project_dir: Path, lockfile: object) -> HealthResult:
         cfg = addon_map.get(addon_id)
         if cfg is None:
             continue
-        module = getattr(cfg, "_module", None)
-        if module is None or not hasattr(module, "health_check"):
+        hooks = cfg._module
+        if hooks is None or hooks.health_check is None:
             continue
 
         any_checks = True
         try:
-            issues: list[HealthIssue] = module.health_check(project_dir, lockfile)
+            issues = hooks.health_check(project_dir, lockfile)
             for issue in issues:
                 result.issues.append(issue)
         except Exception as e:

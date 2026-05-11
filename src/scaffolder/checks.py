@@ -85,9 +85,9 @@ def check_can_add(
         )
 
     # ── addon's own can_apply check ───────────────────────────────────────────
-    module = getattr(cfg, "_module", None)
-    if module is not None and hasattr(module, "can_apply"):
-        reason = module.can_apply(project_dir, lockfile)
+    hooks = cfg._module
+    if hooks is not None and hooks.can_apply is not None:
+        reason = hooks.can_apply(project_dir, lockfile)
         if reason:
             raise ScaffoldError(reason)
 

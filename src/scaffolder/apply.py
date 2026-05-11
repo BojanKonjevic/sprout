@@ -93,9 +93,9 @@ def apply_contributions(
             _merge_env_vars(env_path, contributions.env_vars)
 
     for addon_cfg in contributions._addon_configs:
-        module = getattr(addon_cfg, "_module", None)
-        if module is not None and hasattr(module, "post_apply"):
-            module.post_apply(ctx)
+        hooks = addon_cfg._module
+        if hooks is not None and hooks.post_apply is not None:
+            hooks.post_apply(ctx)
 
 
 # ── Internal helpers ──────────────────────────────────────────────────────────

@@ -3,7 +3,7 @@
 import importlib.util
 from pathlib import Path
 
-from scaffolder.schema import AddonConfig
+from scaffolder.schema import AddonConfig, AddonHooks
 
 _HERE = Path(__file__).parent.absolute()
 
@@ -22,8 +22,15 @@ def get_available_addons() -> list[AddonConfig]:
                 continue
             mod = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(mod)  # type: ignore[union-attr]
+
             cfg: AddonConfig = mod.config
-            cfg._module = mod  # attach module so post_apply can be called later
+            hooks = AddonHooks(
+                post_apply=getattr(mod, "post_apply", None),
+                health_check=getattr(mod, "health_check", None),
+                can_apply=getattr(mod, "can_apply", None),
+                can_remove=getattr(mod, "can_remove", None),
+            )
+            cfg._module = hooks
             addons.append(cfg)
         except FileNotFoundError, AttributeError:
             continue
