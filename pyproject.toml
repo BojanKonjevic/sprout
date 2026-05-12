@@ -63,10 +63,6 @@ exclude = [
 select = ["E", "F", "I", "UP", "B", "SIM"]
 ignore = ["E501"]
 
-[tool.ruff.lint.per-file-ignores]
-"addons/celery/apply.py" = ["E501"]
-"addons/sentry/apply.py" = ["E501"]
-
 [tool.mypy]
 strict = true
 exclude = [
