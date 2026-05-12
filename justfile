@@ -11,6 +11,8 @@ test:
     uv run python -m pytest -v -m "not slow"
 test-full:
     uv run python -m pytest -v
+test-cov:
+    uv run python -m pytest --cov=src --cov-report=term-missing -v
 re:
     uv tool install --reinstall .
 publish:
