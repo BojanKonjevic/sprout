@@ -1,14 +1,14 @@
 from pathlib import Path
 
-from scaffolder.context import Context
-from scaffolder.lockfile import ZenitLockfile
-from scaffolder.schema import (
+from scaffolder.cli.ui import info
+from scaffolder.core.context import Context
+from scaffolder.core.lockfile import ZenitLockfile
+from scaffolder.schema.models import (
     AddonConfig,
     EnvVar,
     FileContribution,
     Injection,
 )
-from scaffolder.ui import info
 
 _HERE = Path(__file__).parent.absolute()
 

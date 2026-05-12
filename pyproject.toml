@@ -29,8 +29,8 @@ Repository = "https://github.com/BojanKonjevic/zenit"
 Issues = "https://github.com/BojanKonjevic/zenit/issues"
 
 [project.scripts]
-zenit = "scaffolder.main:main"
-zn = "scaffolder.main:main"
+zenit = "scaffolder.cli.main:main"
+zn = "scaffolder.cli.main:main"
 
 [dependency-groups]
 dev = [

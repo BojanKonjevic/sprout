@@ -3,7 +3,7 @@
 import importlib.util
 from pathlib import Path
 
-from scaffolder.schema import AddonConfig, AddonHooks
+from scaffolder.schema.models import AddonConfig, AddonHooks
 
 _HERE = Path(__file__).parent.absolute()
 

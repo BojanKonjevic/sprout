@@ -19,13 +19,13 @@ from pathlib import Path
 import pytest
 from conftest import SCAFFOLDER_ROOT
 
-from scaffolder._apply_loader import load_apply
 from scaffolder.addons._registry import get_available_addons
-from scaffolder.apply import apply_contributions
-from scaffolder.collect import collect_all
-from scaffolder.context import Context
-from scaffolder.generate import generate_all
-from scaffolder.git import init_and_commit
+from scaffolder.core._apply_loader import load_apply
+from scaffolder.core.apply import apply_contributions
+from scaffolder.core.collect import collect_all
+from scaffolder.core.context import Context
+from scaffolder.core.generate import generate_all
+from scaffolder.core.git import init
 from scaffolder.templates._load_config import load_template_config
 
 pytestmark = pytest.mark.slow
@@ -70,7 +70,7 @@ def _scaffold(tmp_path: Path, name: str, template: str, addons: list[str]) -> Pa
         ctx, contributions, template_config.extension_points, render_vars
     )
     generate_all(ctx, template_config, contributions)
-    init_and_commit(project_dir)
+    init(project_dir)
 
     return project_dir
 

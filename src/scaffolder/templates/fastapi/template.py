@@ -1,6 +1,11 @@
 from pathlib import Path
 
-from scaffolder.schema import EnvVar, ExtensionPoint, FileContribution, TemplateConfig
+from scaffolder.schema.models import (
+    EnvVar,
+    ExtensionPoint,
+    FileContribution,
+    TemplateConfig,
+)
 
 _HERE = Path(__file__).parent.absolute()
 

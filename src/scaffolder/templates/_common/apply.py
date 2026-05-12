@@ -2,8 +2,8 @@ import os
 import shutil
 import sys
 
-from scaffolder.context import Context
-from scaffolder.ui import step, success, warn
+from scaffolder.cli.ui import step, success, warn
+from scaffolder.core.context import Context
 
 
 def apply(ctx: Context) -> None:

@@ -1,6 +1,6 @@
 # zenit
 
-A CLI that scaffolds a new Python project from a template with optional addons — sets up the package structure, dev tooling, config files, and an initial git commit, then tells you what to run next.
+A CLI that scaffolds a new Python project from a template with optional addons — sets up the package structure, dev tooling, config files, and an initial git repo, then tells you what to run next.
 
 ```
 zenit my-project
@@ -15,7 +15,7 @@ Once a project exists, zenit is still useful: add or remove addons, run a health
 1. Asks you to pick a **template** (blank or FastAPI)
 2. Asks you to pick **addons** (Docker, Redis, GitHub Actions...)
 3. Generates the project directory, all files, `pyproject.toml`, and `justfile`
-4. Runs `git init` and makes the first commit
+4. Runs `git init`
 
 It does not run `uv sync`, start servers, or do anything network-dependent. You get a directory you can immediately `cd` into and start working.
 

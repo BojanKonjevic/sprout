@@ -1,7 +1,7 @@
 from pathlib import Path
 
-from scaffolder.lockfile import ZenitLockfile
-from scaffolder.schema import AddonConfig, FileContribution
+from scaffolder.core.lockfile import ZenitLockfile
+from scaffolder.schema.models import AddonConfig, FileContribution
 
 _HERE = Path(__file__).parent.absolute()
 

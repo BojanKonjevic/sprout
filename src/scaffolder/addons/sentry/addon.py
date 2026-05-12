@@ -1,8 +1,8 @@
 from pathlib import Path
 
-from scaffolder.doctor import HealthIssue, Severity
-from scaffolder.lockfile import ZenitLockfile
-from scaffolder.schema import AddonConfig, EnvVar, FileContribution, Injection
+from scaffolder.core.lockfile import ZenitLockfile
+from scaffolder.doctor.doctor import HealthIssue, Severity
+from scaffolder.schema.models import AddonConfig, EnvVar, FileContribution, Injection
 
 _HERE = Path(__file__).parent.absolute()
 

@@ -3,7 +3,7 @@
 import importlib.util
 from pathlib import Path
 
-from scaffolder.schema import TemplateConfig
+from scaffolder.schema.models import TemplateConfig
 
 
 def load_template_config(scaffolder_root: Path, template_id: str) -> TemplateConfig:
