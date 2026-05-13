@@ -1,7 +1,6 @@
 import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-# [zenit: test_imports]
 
 from (( pkg_name )).db.base import Base
 from (( pkg_name )).db.session import get_session
@@ -34,5 +33,3 @@ async def client(session: AsyncSession) -> AsyncClient:  # type: ignore[misc]
     ) as ac:
         yield ac
     app.dependency_overrides.clear()
-
-# [zenit: test_fixtures]
