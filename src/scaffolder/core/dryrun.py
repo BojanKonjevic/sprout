@@ -93,7 +93,7 @@ def run_dry(ctx: Context) -> None:
     apply_contributions(
         dry_ctx,
         contributions,
-        template_config.extension_points,
+        template_config.injection_points,
         render_vars,
     )
 

@@ -104,7 +104,7 @@ def add_addon(addon_id: str, dry_run: bool = False) -> None:
         apply_contributions(
             ctx,
             contributions,
-            template_config.extension_points,
+            template_config.injection_points,
             render_vars,
         )
 
@@ -192,7 +192,7 @@ def _dry_add(
     apply_contributions(
         dry_ctx,
         contributions,
-        template_config.extension_points,
+        template_config.injection_points,
         render_vars,
     )
 
