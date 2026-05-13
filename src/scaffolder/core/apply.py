@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import yaml
 
@@ -101,23 +101,23 @@ def apply_contributions(
 # ── Internal helpers ──────────────────────────────────────────────────────────
 
 
-def _apply_injections_noop(injections: list[Injection]) -> None:  # type: ignore[type-arg]
+def _apply_injections_noop(injections: list[Injection]) -> None:
     """Placeholder — replaced in Step 9 by HandlerDispatcher."""
     pass
 
 
-def _merge_compose_services(project_dir: Path, services: list[ComposeService]) -> None:  # type: ignore[type-arg]
+def _merge_compose_services(project_dir: Path, services: list[ComposeService]) -> None:
     """Add *services* to ``compose.yml``, skipping any that already exist."""
     compose_path = project_dir / "compose.yml"
-    data: dict[str, object] = (
+    data: dict[str, Any] = (
         yaml.safe_load(compose_path.read_text(encoding="utf-8")) or {}
     )
-    existing: dict[str, object] = data.setdefault("services", {})  # type: ignore[assignment]
+    existing: dict[str, Any] = data.setdefault("services", {})
 
     for svc in services:
         if svc.name in existing:
             continue
-        block: dict[str, object] = {}
+        block: dict[str, Any] = {}
         if svc.image:
             block["image"] = svc.image
         if svc.build:
@@ -135,7 +135,9 @@ def _merge_compose_services(project_dir: Path, services: list[ComposeService]) -
         if svc.depends_on:
             block["depends_on"] = svc.depends_on
         if svc.develop_watch:
-            block.setdefault("develop", {})["watch"] = svc.develop_watch  # type: ignore[index]
+            develop = block.setdefault("develop", {})
+            if isinstance(develop, dict):
+                develop["watch"] = svc.develop_watch
         if svc.healthcheck:
             block["healthcheck"] = svc.healthcheck
         existing[svc.name] = block
@@ -149,10 +151,10 @@ def _merge_compose_services(project_dir: Path, services: list[ComposeService]) -
 def _merge_compose_volumes(project_dir: Path, volumes: list[str]) -> None:
     """Add named volumes to ``compose.yml``, skipping duplicates."""
     compose_path = project_dir / "compose.yml"
-    data: dict[str, object] = (
+    data: dict[str, Any] = (
         yaml.safe_load(compose_path.read_text(encoding="utf-8")) or {}
     )
-    vols_section: dict[str, None] = data.setdefault("volumes", {})  # type: ignore[assignment]
+    vols_section: dict[str, Any] = data.setdefault("volumes", {})
     for vol_name in volumes:
         if vol_name not in vols_section:
             vols_section[vol_name] = None
@@ -162,7 +164,7 @@ def _merge_compose_volumes(project_dir: Path, volumes: list[str]) -> None:
     )
 
 
-def _merge_env_vars(env_path: Path, env_vars: list[EnvVar]) -> None:  # type: ignore[type-arg]
+def _merge_env_vars(env_path: Path, env_vars: list[EnvVar]) -> None:
     """Append missing env vars to the end of the file."""
     text = env_path.read_text(encoding="utf-8")
 

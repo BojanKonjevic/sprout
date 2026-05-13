@@ -28,6 +28,7 @@ in_function_body           — inside a named function, before/after an anchor s
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
 from typing import Any
 
 import libcst as cst
@@ -123,9 +124,9 @@ def after_last_class_attribute(module: cst.Module, *, class_name: str) -> int:
     )
 
 
-def after_last_import(module: cst.Module) -> int:  # type: ignore[return]
+def after_last_import(module: cst.Module) -> int:
     """Return the index after the last import statement at module level."""
-    last_import_idx = -1
+    last_import_idx: int = -1
     for i, stmt in enumerate(module.body):
         if _is_import(stmt):
             last_import_idx = i
@@ -289,7 +290,8 @@ def _is_docstring(stmt: cst.BaseStatement) -> bool:
 
 # ── Registry ──────────────────────────────────────────────────────────────────
 
-_REGISTRY: dict[str, Any] = {
+
+_REGISTRY: dict[str, Callable[..., int]] = {
     "before_yield_in_function": before_yield_in_function,
     "after_last_class_attribute": after_last_class_attribute,
     "after_last_import": after_last_import,

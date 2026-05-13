@@ -32,7 +32,7 @@ from scaffolder.core._paths import get_scaffolder_root
 from scaffolder.core.lockfile import ZenitLockfile, read_lockfile, write_lockfile
 from scaffolder.core.render import make_env
 from scaffolder.schema.exceptions import ScaffoldError
-from scaffolder.schema.models import AddonConfig
+from scaffolder.schema.models import AddonConfig, InjectionPoint
 from scaffolder.templates._load_config import load_template_config
 
 
@@ -216,7 +216,7 @@ def _prune_empty_parents(directory: Path, stop_at: Path) -> None:
 def _undo_injections(
     project_dir: Path,
     addon_cfg: object,
-    injection_points: dict[str, object],
+    injection_points: dict[str, InjectionPoint],
     pkg_name: str,
 ) -> None:
     """Remove lines injected by this addon.

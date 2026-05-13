@@ -5,8 +5,10 @@ from difflib import SequenceMatcher
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from scaffolder.core.handlers.locators import LocatorError, locate
+import libcst as cst
+
 from scaffolder.core.handlers import FileHandler
+from scaffolder.core.handlers.locators import LocatorError, locate
 from scaffolder.schema.exceptions import ScaffoldError
 
 if TYPE_CHECKING:
@@ -74,8 +76,9 @@ def apply(
     Raises ``InjectionError`` if the locator cannot find an insertion point.
     """
     source = file.read_text(encoding="utf-8")
+    module = cst.parse_module(source)
     try:
-        insert_index = locate(locator_name, source, locator_args)
+        insert_index = locate(module, locator_name, locator_args)
     except LocatorError as exc:
         raise InjectionError(
             f"Cannot inject at '{locator_name}' in {file}.\n  Reason: {exc}"

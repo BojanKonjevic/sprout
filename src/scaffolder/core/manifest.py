@@ -84,7 +84,7 @@ def write_manifest(project_dir: Path, manifest: Manifest) -> None:
     else:
         doc = tomlkit.document()
 
-    doc["manifest"] = _encode_manifest(manifest)  # type: ignore[index]
+    doc["manifest"] = _encode_manifest(manifest)
     path.write_text(tomlkit.dumps(doc), encoding="utf-8")
 
 

@@ -68,9 +68,10 @@ ignore = ["E501"]
 strict = true
 exclude = [
     "src/scaffolder/templates/",
-    "src/scaffolder/addons/.*/files/",
-    "src/scaffolder/addons/[^_][^/]*/",
+    "src/scaffolder/templates/.*/addons/",
+    "src/scaffolder/addons/[^/]+/",
 ]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"

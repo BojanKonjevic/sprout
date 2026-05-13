@@ -2,8 +2,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import yaml
-
 from scaffolder.core.handlers import FileHandler
 from scaffolder.schema.models import ManifestBlock
 
