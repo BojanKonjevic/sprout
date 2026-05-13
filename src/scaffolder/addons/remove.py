@@ -32,7 +32,7 @@ from scaffolder.core._paths import get_scaffolder_root
 from scaffolder.core.lockfile import ZenitLockfile, read_lockfile, write_lockfile
 from scaffolder.core.render import make_env
 from scaffolder.schema.exceptions import ScaffoldError
-from scaffolder.schema.models import AddonConfig, ExtensionPoint
+from scaffolder.schema.models import AddonConfig
 from scaffolder.templates._load_config import load_template_config
 
 
@@ -92,7 +92,7 @@ def remove_addon(
     _undo_injections(
         project_dir,
         addon_cfg,
-        template_config.extension_points,
+        template_config.injection_points,
         pkg_name,
     )
 
@@ -216,40 +216,15 @@ def _prune_empty_parents(directory: Path, stop_at: Path) -> None:
 def _undo_injections(
     project_dir: Path,
     addon_cfg: object,
-    extension_points: dict[str, ExtensionPoint],
+    injection_points: dict[str, object],
     pkg_name: str,
 ) -> None:
-    """Remove lines injected by this addon from extension-point files."""
+    """Remove lines injected by this addon.
 
-    assert isinstance(addon_cfg, AddonConfig)
-
-    # Group injected content by target file so we touch each file once.
-    by_file: dict[str, list[str]] = {}
-    for inj in addon_cfg.injections:
-        if inj.point not in extension_points:
-            continue
-        ep = extension_points[inj.point]
-        rel_path = ep.file.replace("{{pkg_name}}", pkg_name)
-        by_file.setdefault(rel_path, []).append(inj.content)
-
-    for rel_path, contents in by_file.items():
-        target = project_dir / rel_path
-        if not target.exists():
-            continue
-        text = target.read_text(encoding="utf-8")
-        for content in contents:
-            # Strip the injected block exactly as written (plus surrounding newlines).
-            text = _strip_injected_block(text, content)
-        target.write_text(text, encoding="utf-8")
-
-
-def _strip_injected_block(text: str, block: str) -> str:
-    """Remove *block* from *text*, cleaning up the surrounding blank lines."""
-    # Escape the block for use in a regex, then look for it with
-    # optional leading/trailing newline so we don't leave double blank lines.
-    escaped = re.escape(block)
-    pattern = re.compile(r"\n?" + escaped + r"\n?")
-    return pattern.sub("", text)
+    TODO(step-9): replace with HandlerDispatcher.remove() call.
+    Until then this is a no-op — injections are not yet applied structurally.
+    """
+    pass
 
 
 def _remove_compose_services(

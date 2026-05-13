@@ -1,6 +1,11 @@
 from pathlib import Path
 
-from scaffolder.schema.models import ExtensionPoint, FileContribution, TemplateConfig
+from scaffolder.schema.models import (
+    FileContribution,
+    InjectionPoint,
+    LocatorSpec,
+    TemplateConfig,
+)
 
 _HERE = Path(__file__).parent.absolute()
 
@@ -8,14 +13,17 @@ config = TemplateConfig(
     id="blank",
     description="dev tools only (pytest, ruff, mypy)",
     requires_addons=[],
-    extension_points={
-        "main_startup": ExtensionPoint(
+    injection_points={
+        "main_startup": InjectionPoint(
             file="src/{{pkg_name}}/main.py",
-            sentinel="    # [zenit: main_startup]",
+            locator=LocatorSpec(
+                name="before_return_in_function",
+                args={"function": "main"},
+            ),
         ),
-        "env_vars": ExtensionPoint(
+        "env_vars": InjectionPoint(
             file=".env",
-            sentinel="# [zenit: env_vars]",
+            locator=LocatorSpec(name="at_file_end", args={}),
         ),
     },
     dirs=[
@@ -26,7 +34,7 @@ config = TemplateConfig(
         FileContribution(
             dest="src/{{pkg_name}}/__init__.py",
             content='"""(( name ))"""\n\n__version__ = "0.1.0"\n',
-            template=True,  # uses (( name ))
+            template=True,
         ),
         FileContribution(
             dest="src/{{pkg_name}}/main.py",
@@ -44,7 +52,7 @@ config = TemplateConfig(
         ),
         FileContribution(
             dest=".env",
-            content="# [zenit: env_vars]\n",
+            content="",
         ),
     ],
     deps=["python-dotenv"],

@@ -65,7 +65,6 @@ def run_doctor(project_dir: Path) -> list[HealthResult]:
     results.append(_check_metadata(project_dir))
     results.append(_check_dependencies(project_dir, lockfile))
     results.append(_check_files(project_dir, lockfile))
-    results.append(_check_sentinels(project_dir, lockfile))
     results.append(_check_addon_health(project_dir, lockfile))
     results.append(_check_compose(project_dir, lockfile))
     results.append(_check_env(project_dir, lockfile))
@@ -284,60 +283,6 @@ def _check_files(project_dir: Path, lockfile: object) -> HealthResult:
                 f"'{fname}' is missing.",
                 hint="This file is generated for all zenit projects. It may have been deleted.",
             )
-
-    return result
-
-
-def _check_sentinels(project_dir: Path, lockfile: object) -> HealthResult:
-    """Check that extension point sentinels are still present in generated files."""
-
-    assert isinstance(lockfile, ZenitLockfile)
-    result = HealthResult("Extension points")
-
-    scaffolder_root = get_scaffolder_root()
-    pkg_name = project_dir.name.replace("-", "_")
-
-    try:
-        template_config = load_template_config(scaffolder_root, lockfile.template)
-    except Exception:
-        result.warn(
-            f"Could not load template '{lockfile.template}' to verify sentinels.",
-            hint="The template may have changed since this project was scaffolded.",
-        )
-        return result
-
-    if not template_config.extension_points:
-        result.ok("No extension points defined for this template.")
-        return result
-
-    checked = 0
-    missing = 0
-
-    for point_name, ep in template_config.extension_points.items():
-        rel_path = ep.file.replace("{{pkg_name}}", pkg_name)
-
-        # sentinels in .py files are stripped at scaffold time — nothing to check
-        if rel_path.endswith(".py"):
-            continue
-
-        file_path = project_dir / rel_path
-        if not file_path.exists():
-            continue
-
-        checked += 1
-        text = file_path.read_text(encoding="utf-8")
-
-        if ep.sentinel in text:
-            result.ok(f"Sentinel for '{point_name}' is present in '{rel_path}'.")
-        else:
-            missing += 1
-            result.error(
-                f"Sentinel for '{point_name}' is missing from '{rel_path}'.",
-                hint=f"Add '{ep.sentinel}' back to '{rel_path}' to restore injection support.",
-            )
-
-    if checked == 0:
-        result.ok("No sentinel files found to check.")
 
     return result
 

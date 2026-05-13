@@ -90,7 +90,7 @@ def scaffold_project(name: str, dry_run: bool = False) -> None:
         apply_contributions(
             ctx,
             contributions,
-            template_config.extension_points,
+            template_config.injection_points,
             render_vars,
         )
         generate_all(ctx, template_config, contributions)

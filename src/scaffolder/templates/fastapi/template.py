@@ -2,8 +2,9 @@ from pathlib import Path
 
 from scaffolder.schema.models import (
     EnvVar,
-    ExtensionPoint,
     FileContribution,
+    InjectionPoint,
+    LocatorSpec,
     TemplateConfig,
 )
 
@@ -13,46 +14,58 @@ config = TemplateConfig(
     id="fastapi",
     description="FastAPI + SQLAlchemy + Alembic + asyncpg",
     requires_addons=["docker"],
-    extension_points={
-        "settings_fields": ExtensionPoint(
+    injection_points={
+        "settings_fields": InjectionPoint(
             file="src/{{pkg_name}}/settings.py",
-            sentinel="    # [zenit: settings_fields]",
+            locator=LocatorSpec(
+                name="after_last_class_attribute",
+                args={"class_name": "Settings"},
+            ),
         ),
-        "lifespan_startup": ExtensionPoint(
+        "lifespan_startup": InjectionPoint(
             file="src/{{pkg_name}}/lifecycle.py",
-            sentinel="    # [zenit: lifespan_startup]",
+            locator=LocatorSpec(
+                name="before_yield_in_function",
+                args={"function": "lifespan"},
+            ),
         ),
-        "lifespan_shutdown": ExtensionPoint(
+        "lifespan_shutdown": InjectionPoint(
             file="src/{{pkg_name}}/lifecycle.py",
-            sentinel="    # [zenit: lifespan_shutdown]",
+            locator=LocatorSpec(
+                name="before_return_in_function",
+                args={"function": "lifespan"},
+            ),
         ),
-        "env_vars": ExtensionPoint(
+        "env_vars": InjectionPoint(
             file=".env",
-            sentinel="# [zenit: env_vars]",
+            locator=LocatorSpec(name="at_file_end", args={}),
         ),
-        "router_imports": ExtensionPoint(
+        "router_imports": InjectionPoint(
             file="src/{{pkg_name}}/api/router.py",
-            sentinel="# [zenit: router_imports]",
+            locator=LocatorSpec(name="after_last_import", args={}),
         ),
-        "router_includes": ExtensionPoint(
+        "router_includes": InjectionPoint(
             file="src/{{pkg_name}}/api/router.py",
-            sentinel="# [zenit: router_includes]",
+            locator=LocatorSpec(
+                name="after_statement_matching",
+                args={"pattern": r"router\.include_router\("},
+            ),
         ),
-        "test_imports": ExtensionPoint(
+        "test_imports": InjectionPoint(
             file="tests/conftest.py",
-            sentinel="# [zenit: test_imports]",
+            locator=LocatorSpec(name="after_last_import", args={}),
         ),
-        "test_fixtures": ExtensionPoint(
+        "test_fixtures": InjectionPoint(
             file="tests/conftest.py",
-            sentinel="# [zenit: test_fixtures]",
+            locator=LocatorSpec(name="at_module_end", args={}),
         ),
-        "model_imports": ExtensionPoint(
+        "model_imports": InjectionPoint(
             file="src/{{pkg_name}}/models/__init__.py",
-            sentinel="# [zenit: model_imports]",
+            locator=LocatorSpec(name="at_module_end", args={}),
         ),
-        "exceptions": ExtensionPoint(
+        "exceptions": InjectionPoint(
             file="src/{{pkg_name}}/exceptions.py",
-            sentinel="# [zenit: exceptions]",
+            locator=LocatorSpec(name="at_module_end", args={}),
         ),
     },
     dirs=[
@@ -80,10 +93,7 @@ config = TemplateConfig(
         FileContribution(dest="src/{{pkg_name}}/schemas/__init__.py", content=""),
         FileContribution(
             dest="src/{{pkg_name}}/models/__init__.py",
-            content=(
-                "# Import all models here so Alembic can discover them.\n"
-                "# [zenit: model_imports]\n"
-            ),
+            content="# Import all models here so Alembic can discover them.\n",
         ),
         FileContribution(
             dest="src/{{pkg_name}}/main.py",
