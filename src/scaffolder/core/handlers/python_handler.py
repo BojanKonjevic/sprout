@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from scaffolder.core.handlers.locators import LocatorError, locate
+from scaffolder.core.handlers import FileHandler
 from scaffolder.schema.exceptions import ScaffoldError
 
 if TYPE_CHECKING:
@@ -197,3 +198,20 @@ def _remove_lines(
         prev_blank = is_blank
 
     file.write_text("".join(cleaned), encoding="utf-8")
+
+
+class PythonHandler(FileHandler):
+    def can_handle(self, path: Path) -> bool:
+        return path.suffix == ".py"
+
+    def apply(
+        self,
+        file: Path,
+        content: str,
+        locator_name: str,
+        locator_args: dict[str, object],
+    ) -> tuple[str, int, int]:
+        return apply(file, content, locator_name, locator_args)
+
+    def remove(self, file: Path, block: ManifestBlock) -> None:
+        remove(file, block)
