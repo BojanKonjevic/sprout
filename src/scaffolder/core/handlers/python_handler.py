@@ -77,8 +77,11 @@ def _locate_line(
             if isinstance(node, cst.FunctionDef) and node.name.value == fn_name:
                 return _split_for(node.body.body, insert_index)
 
-    # Unknown locator — fall back; wrong but won't crash.
-    return insert_index
+    # Unknown locator — fail loudly so developers add it to the dispatch table.
+    raise InjectionError(
+        f"Locator '{locator_name}' is not supported by _locate_line. "
+        f"Add it to the dispatch table in python_handler.py."
+    )
 
 
 # ── Constants ────────────────────────────────────────────────────────────────

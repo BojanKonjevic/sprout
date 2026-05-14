@@ -312,10 +312,12 @@ def _remove_env_vars(project_dir: Path, addon_cfg: object) -> list[str]:
         lines = env_path.read_text(encoding="utf-8").splitlines(keepends=True)
         new_lines: list[str] = []
         for line in lines:
-            key = line.split("=")[0].strip()
+            if "=" not in line:
+                new_lines.append(line)
+                continue
+            key = line.split("=", 1)[0].strip()
             if key in keys_to_remove:
-                if file_name == ".env":
-                    removed.append(key)
+                removed.append(key)  # report regardless of which file
                 continue
             new_lines.append(line)
         env_path.write_text("".join(new_lines), encoding="utf-8")

@@ -725,7 +725,7 @@ def _check_compose(project_dir: Path, lockfile: object) -> HealthResult:
             if line[0] != " ":
                 in_services = False
                 continue
-            m = re.match(r"^  ([a-zA-Z0-9_-]+):$", line)
+            m = re.match(r"^ +([a-zA-Z0-9_-]+):$", line)
             if m:
                 name = m.group(1)
                 service_name_counts[name] = service_name_counts.get(name, 0) + 1
