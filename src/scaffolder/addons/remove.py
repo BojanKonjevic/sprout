@@ -8,8 +8,10 @@ from pathlib import Path
 from typing import Any
 
 import tomlkit
+from collections.abc import Mapping
 import typer
 import yaml
+from tomlkit.items import Array
 
 from scaffolder.addons._registry import get_available_addons
 from scaffolder.addons.checks_remove import check_can_remove
@@ -351,7 +353,7 @@ def _remove_deps(project_dir: Path, addon_cfg: object) -> tuple[list[str], list[
     removed_dev: list[str] = []
 
     project_deps = doc.get("project", {}).get("dependencies", [])
-    if isinstance(project_deps, list):
+    if isinstance(project_deps, (list, Array)):
         new_deps = []
         for d in project_deps:
             if _normalise(str(d)) in deps_to_remove:
@@ -361,10 +363,12 @@ def _remove_deps(project_dir: Path, addon_cfg: object) -> tuple[list[str], list[
         if removed:
             doc["project"]["dependencies"] = new_deps  # type: ignore[index]
 
-    dev_group = doc.get("dependency-groups", {}).get("dev") or doc.get(
-        "project", {}
-    ).get("optional-dependencies", {}).get("dev")
-    if isinstance(dev_group, list):
+    _dev_doc = doc.get("dependency-groups", {})
+    _dev_group = _dev_doc.get("dev") if hasattr(_dev_doc, "get") else None
+    dev_group = _dev_group or doc.get("project", {}).get(
+        "optional-dependencies", {}
+    ).get("dev")
+    if isinstance(dev_group, (list, Array)):
         new_dev = []
         for d in dev_group:
             if _normalise(str(d)) in dev_deps_to_remove:
@@ -372,7 +376,8 @@ def _remove_deps(project_dir: Path, addon_cfg: object) -> tuple[list[str], list[
             else:
                 new_dev.append(d)
         if removed_dev:
-            if "dependency-groups" in doc and "dev" in doc["dependency-groups"]:
+            dep_groups = doc.get("dependency-groups")
+            if isinstance(dep_groups, Mapping) and "dev" in dep_groups:
                 doc["dependency-groups"]["dev"] = new_dev  # type: ignore[index]
             else:
                 doc["project"]["optional-dependencies"]["dev"] = new_dev  # type: ignore[index]
@@ -501,7 +506,9 @@ def remove_addon_interactive(dry_run: bool = False) -> None:
     available = get_available_addons()
     installed = [cfg for cfg in available if cfg.id in lockfile.addons]
 
-    addon_id = prompt_single_addon(installed)
+    addon_id = prompt_single_addon(
+        [(cfg.id, cfg.description, cfg.requires) for cfg in installed]
+    )
     if addon_id is None:
         raise typer.Exit(0)
 

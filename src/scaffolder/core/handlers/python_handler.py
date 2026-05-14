@@ -37,7 +37,7 @@ def _locate_line(
     wrapper = MetadataWrapper(module, unsafe_skip_copy=True)
     positions = wrapper.resolve(PositionProvider)
 
-    def _split_for(body: _Seq, idx: int) -> int:  # type: ignore[type-arg]
+    def _split_for(body: _Seq[cst.CSTNode], idx: int) -> int:
         # Insert BEFORE body[idx].
         # Positions are 1-based; splitlines() is 0-based.
         if idx < len(body):
@@ -109,7 +109,7 @@ def _normalise_for_fuzzy(source: str) -> str:
     try:
         from scaffolder.core.manifest import _normalise as _manifest_normalise
 
-        module = cst.parse_module(source)  # type: ignore[attr-defined]
+        module = cst.parse_module(source)
         return _manifest_normalise(module.code)
     except Exception:
         lines = [ln.rstrip() for ln in source.splitlines()]

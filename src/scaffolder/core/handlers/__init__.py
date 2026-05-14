@@ -1,4 +1,3 @@
-# src/scaffolder/core/handlers/__init__.py
 from __future__ import annotations
 
 from scaffolder.core.handlers.base import FileHandler, HandlerDispatcher
@@ -9,4 +8,13 @@ from scaffolder.core.handlers.toml_handler import TomlHandler
 from scaffolder.core.handlers.yaml_handler import YamlHandler
 from scaffolder.schema.models import ManifestBlock
 
-__all__ = ["FileHandler", "HandlerDispatcher", "PythonHandler"]
+__all__ = [
+    "FileHandler",
+    "HandlerDispatcher",
+    "PythonHandler",
+    "EnvHandler",
+    "JustfileHandler",
+    "TomlHandler",
+    "YamlHandler",
+    "ManifestBlock",
+]
