@@ -61,6 +61,10 @@ def _locate_line(
         for node in module.body:
             if isinstance(node, cst.ClassDef) and node.name.value == class_name:
                 return _split_for(node.body.body, insert_index)
+        raise InjectionError(
+            f"_locate_line: class '{class_name}' not found in module. "
+            "Cannot convert CST index to line number."
+        )
 
     if locator_name in (
         "before_yield_in_function",
