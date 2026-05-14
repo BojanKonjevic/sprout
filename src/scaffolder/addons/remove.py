@@ -14,6 +14,7 @@ import yaml
 from tomlkit.items import Array
 
 from scaffolder.addons._registry import get_available_addons
+from scaffolder.core.handlers.justfile_handler import _RECIPE_NAME_RE
 from scaffolder.addons.checks_remove import check_can_remove
 from scaffolder.cli.prompt import prompt_single_addon
 from scaffolder.cli.ui import (
@@ -397,17 +398,11 @@ def _remove_just_recipes(
     recipe_names: set[str] = set()
     for raw in addon_cfg.just_recipes:
         rendered = string_env.from_string(raw).render(**render_vars)
+        # Use the same regex as apply.py for consistent name extraction
         for line in rendered.splitlines():
-            stripped = line.rstrip()
-            if (
-                stripped
-                and not stripped.startswith(" ")
-                and not stripped.startswith("\t")
-                and not stripped.startswith("#")
-            ):
-                name = stripped.split(":")[0].strip().lstrip("@")
-                if name:
-                    recipe_names.add(name)
+            m = _RECIPE_NAME_RE.search(line)
+            if m:
+                recipe_names.add(m.group(1))
 
     if not recipe_names:
         return []
@@ -426,7 +421,8 @@ def _remove_just_recipes(
             and not stripped.startswith("#")
         )
         if is_recipe_header:
-            name = stripped.split(":")[0].strip().lstrip("@")
+            m = _RECIPE_NAME_RE.search(stripped)
+            name = m.group(1) if m else ""
             skip = name in recipe_names
         if not skip:
             new_lines.append(line)
