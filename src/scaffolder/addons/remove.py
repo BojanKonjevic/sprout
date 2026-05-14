@@ -14,7 +14,6 @@ import yaml
 from tomlkit.items import Array
 
 from scaffolder.addons._registry import get_available_addons
-from scaffolder.core.handlers.justfile_handler import _RECIPE_NAME_RE
 from scaffolder.addons.checks_remove import check_can_remove
 from scaffolder.cli.prompt import prompt_single_addon
 from scaffolder.cli.ui import (
@@ -32,6 +31,7 @@ from scaffolder.cli.ui import (
     warn,
 )
 from scaffolder.core.handlers import HandlerDispatcher
+from scaffolder.core.handlers.justfile_handler import _RECIPE_NAME_RE
 from scaffolder.core.lockfile import ZenitLockfile, read_lockfile, write_lockfile
 from scaffolder.core.manifest import (
     read_manifest,
@@ -317,7 +317,7 @@ def _remove_env_vars(project_dir: Path, addon_cfg: object) -> list[str]:
                 continue
             key = line.split("=", 1)[0].strip()
             if key in keys_to_remove:
-                removed.append(key)  # report regardless of which file
+                removed.append(key)
                 continue
             new_lines.append(line)
         env_path.write_text("".join(new_lines), encoding="utf-8")

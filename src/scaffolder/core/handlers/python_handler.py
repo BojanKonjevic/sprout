@@ -246,17 +246,32 @@ def _remove_lines(
 ) -> None:
     """Delete lines[start:end+1] from *file*, cleaning up surrounding blank lines."""
     new_lines = lines[:start] + lines[end + 1 :]
-
-    cleaned: list[str] = []
-    prev_blank = False
-    for ln in new_lines:
-        is_blank = ln.strip() == ""
-        if is_blank and prev_blank:
-            continue
-        cleaned.append(ln)
-        prev_blank = is_blank
+    cleaned = _collapse_blank_lines(new_lines)
 
     file.write_text("".join(cleaned), encoding="utf-8")
+
+
+def _collapse_blank_lines(lines: list[str]) -> list[str]:
+    """Collapse runs of 3+ consecutive blank lines to exactly 2.
+
+    Matches the normalisation contract in manifest._normalise():
+      'Collapse runs of 3+ consecutive newlines to exactly two newlines.'
+    """
+    cleaned: list[str] = []
+    blank_run = 0
+
+    for ln in lines:
+        is_blank = ln.strip() == ""
+        if is_blank:
+            blank_run += 1
+            if blank_run <= 2:
+                cleaned.append(ln)
+            # else: drop the line (3rd+ consecutive blank)
+        else:
+            blank_run = 0
+            cleaned.append(ln)
+
+    return cleaned
 
 
 class PythonHandler(FileHandler):
