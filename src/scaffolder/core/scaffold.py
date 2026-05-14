@@ -1,5 +1,8 @@
 """Project scaffold pipeline — called by the CLI layer."""
 
+from __future__ import annotations
+
+import re
 import secrets
 import shutil
 import sys
@@ -20,13 +23,25 @@ from scaffolder.core.dryrun import run_dry
 from scaffolder.core.generate import generate_all
 from scaffolder.core.git import init
 from scaffolder.core.lockfile import write_lockfile
+from scaffolder.core.manifest import (
+    add_compose_service,
+    add_compose_volume,
+    add_dependency,
+    add_env_entry,
+    add_just_recipe,
+    read_manifest,
+    write_manifest,
+)
 from scaffolder.core.rollback import scaffold_or_rollback
 from scaffolder.core.validate import (
     check_preflight,
     validate_addon_deps,
     validate_name,
 )
+from scaffolder.schema.models import TemplateConfig
 from scaffolder.templates._load_config import load_template_config
+
+_RECIPE_NAME_RE = re.compile(r"^([a-zA-Z0-9_-]+)\s*:", re.MULTILINE)
 
 
 def scaffold_project(name: str, dry_run: bool = False) -> None:
@@ -98,6 +113,8 @@ def scaffold_project(name: str, dry_run: bool = False) -> None:
 
         write_lockfile(project_dir, template, addons)
 
+        _stamp_template_manifest(project_dir, template_config)
+
     print()
     addon_suffix = (" + " + ", ".join(addons)) if addons else ""
     success(f"Project '{name}' ready!  ({template}{addon_suffix})")
@@ -113,11 +130,52 @@ def scaffold_project(name: str, dry_run: bool = False) -> None:
     elif not shutil.which("direnv"):
         print()
         info("direnv not detected — run 'uv sync' once to set up your environment,")
-        info("or install direnv and run 'direnv allow' for auto‑activation on cd.")
+        info("or install direnv and run 'direnv allow' for auto-activation on cd.")
 
     if "github-actions" in addons:
         print()
         info("GitHub Actions CI is set up at .github/workflows/ci.yml")
         print(
-            "    Push to GitHub and it will lint, type‑check, and test automatically."
+            "    Push to GitHub and it will lint, type-check, and test automatically."
         )
+
+
+def _stamp_template_manifest(
+    project_dir: Path,
+    template_config: TemplateConfig,
+) -> None:
+    """Record template-owned entries in the manifest with source='template', addon=''.
+
+    ``apply_contributions`` writes addon entries during the scaffold run.
+    This function is called once after ``write_lockfile`` to stamp all
+    template-owned env vars, compose services/volumes, dependencies, and
+    just recipes with the correct ownership metadata.
+
+    The ``add_*`` helpers are idempotent — calling them on already-recorded
+    entries is safe.
+    """
+    manifest = read_manifest(project_dir)
+
+    for ev in template_config.env_vars:
+        add_env_entry(manifest, ev.key, source="template", addon="")
+
+    for svc in template_config.compose_services:
+        add_compose_service(manifest, svc.name, source="template", addon="")
+
+    for vol in template_config.compose_volumes:
+        add_compose_volume(manifest, vol, source="template", addon="")
+
+    for dep in template_config.deps:
+        pkg = dep.split(">=")[0].split("==")[0].split("[")[0].strip()
+        add_dependency(manifest, pkg, dep, source="template", addon="", dev=False)
+
+    for dep in template_config.dev_deps:
+        pkg = dep.split(">=")[0].split("==")[0].split("[")[0].strip()
+        add_dependency(manifest, pkg, dep, source="template", addon="", dev=True)
+
+    for recipe_raw in template_config.just_recipes:
+        m = _RECIPE_NAME_RE.search(recipe_raw)
+        if m:
+            add_just_recipe(manifest, m.group(1), source="template", addon="")
+
+    write_manifest(project_dir, manifest)

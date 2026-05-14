@@ -154,9 +154,16 @@ def fingerprint(code: str) -> tuple[str, str]:
 
     See module docstring for the exact normalisation contract.
     Do NOT change ``_normalise`` without bumping ``MANIFEST_SCHEMA_VERSION``.
+
+    If *code* is not a valid Python module (e.g. a class-body fragment such as
+    a single annotated attribute), libcst round-tripping is skipped and the
+    raw text is hashed directly.
     """
-    module = libcst.parse_module(code)
-    canonical = module.code
+    try:
+        module = libcst.parse_module(code)
+        canonical = module.code
+    except Exception:
+        canonical = code
     raw_hash = hashlib.sha256(canonical.encode()).hexdigest()
     norm_hash = hashlib.sha256(_normalise(canonical).encode()).hexdigest()
     return f"sha256:{raw_hash}", f"sha256:{norm_hash}"

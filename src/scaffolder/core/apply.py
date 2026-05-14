@@ -2,12 +2,26 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import yaml
 
+from scaffolder.core.handlers.base import HandlerDispatcher
+from scaffolder.core.manifest import (
+    add_compose_service,
+    add_compose_volume,
+    add_dependency,
+    add_env_entry,
+    add_just_recipe,
+    add_python_block,
+    fingerprint,
+    read_manifest,
+    write_manifest,
+)
 from scaffolder.core.render import make_env
+from scaffolder.schema.models import ManifestBlock
 
 if TYPE_CHECKING:
     from scaffolder.core.context import Context
@@ -15,9 +29,10 @@ if TYPE_CHECKING:
         ComposeService,
         Contributions,
         EnvVar,
-        Injection,
         InjectionPoint,
     )
+
+_RECIPE_NAME_RE = re.compile(r"^([a-zA-Z0-9_-]+)\s*:", re.MULTILINE)
 
 
 def apply_contributions(
@@ -33,10 +48,11 @@ def apply_contributions(
 
     1. Create directories.
     2. Write / copy / render individual files.
-    3. Apply structural injections (via HandlerDispatcher).
+    3. Apply structural injections (via HandlerDispatcher) and record in manifest.
     4. Merge compose services and volumes into ``compose.yml`` (if present).
     5. Append env vars to ``.env`` and ``.env.example`` (if present).
     6. Run each addon's optional ``post_apply`` hook.
+    7. Write updated manifest to .zenit.toml.
     """
     project_dir = ctx.project_dir
     pkg_name = str(render_vars["pkg_name"])
@@ -78,10 +94,52 @@ def apply_contributions(
             else:
                 ctx.copy_file(src_path, dest)
 
-    # Injections are now handled by the HandlerDispatcher (Step 9).
-    # Until that step is wired in, injections are a no-op here.
-    # TODO(step-9): wire HandlerDispatcher
-    _apply_injections_noop(contributions.injections)
+    manifest = read_manifest(project_dir)
+    dispatcher = HandlerDispatcher()
+
+    for inj in contributions.injections:
+        point = injection_points.get(inj.point)
+        if point is None:
+            continue
+
+        resolved_file = point.file.replace("{{pkg_name}}", pkg_name)
+        file_path = project_dir / resolved_file
+
+        if not file_path.exists():
+            continue
+
+        string_env = make_env()
+        rendered_content = string_env.from_string(inj.content).render(**render_vars)
+
+        _, start_line, end_line = dispatcher.apply(
+            file_path,
+            rendered_content,
+            point.locator.name,
+            dict(point.locator.args),
+        )
+
+        # Only Python files get fingerprint-tracked ManifestBlocks.
+        if file_path.suffix == ".py":
+            # Extract the actual injected lines from the file so libcst has
+            # full module context (class body fragments are not valid modules).
+            fresh_lines = file_path.read_text(encoding="utf-8").splitlines(
+                keepends=True
+            )
+            block_text = "".join(fresh_lines[start_line - 1 : end_line])
+            fp, fp_norm = fingerprint(block_text)
+            block = ManifestBlock(
+                addon=inj.addon_id,
+                point=inj.point,
+                file=resolved_file,
+                lines=f"{start_line}-{end_line}",
+                fingerprint=fp,
+                fingerprint_normalised=fp_norm,
+                locator={
+                    "name": point.locator.name,
+                    "args": dict(point.locator.args),
+                },
+            )
+            add_python_block(manifest, block)
 
     if contributions.compose_services and (project_dir / "compose.yml").exists():
         _merge_compose_services(project_dir, contributions.compose_services)
@@ -92,18 +150,48 @@ def apply_contributions(
         if env_path.exists() and contributions.env_vars:
             _merge_env_vars(env_path, contributions.env_vars)
 
+    # Record non-Python manifest entries.
+    source = "addon" if contributions._addon_configs else "template"
+    addon_id = (
+        contributions._addon_configs[0].id if contributions._addon_configs else ""
+    )
+
+    for ev in contributions.env_vars:
+        add_env_entry(manifest, ev.key, source, addon_id)
+
+    for svc in contributions.compose_services:
+        add_compose_service(manifest, svc.name, source, addon_id)
+
+    for vol in contributions.compose_volumes:
+        add_compose_volume(manifest, vol, source, addon_id)
+
+    for dep in contributions.deps:
+        pkg = dep.split(">=")[0].split("==")[0].split("[")[0].strip()
+        add_dependency(manifest, pkg, dep, source, addon_id, dev=False)
+
+    for dep in contributions.dev_deps:
+        pkg = dep.split(">=")[0].split("==")[0].split("[")[0].strip()
+        add_dependency(manifest, pkg, dep, source, addon_id, dev=True)
+
+    string_env = make_env()
+    recipe_render_vars: dict[str, object] = dict(render_vars)
+    for recipe_raw in contributions.just_recipes:
+        rendered_recipe = string_env.from_string(recipe_raw).render(
+            **recipe_render_vars
+        )
+        m = _RECIPE_NAME_RE.search(rendered_recipe)
+        if m:
+            add_just_recipe(manifest, m.group(1), source, addon_id)
+
     for addon_cfg in contributions._addon_configs:
         hooks = addon_cfg._module
         if hooks is not None and hooks.post_apply is not None:
             hooks.post_apply(ctx)
 
+    write_manifest(project_dir, manifest)
+
 
 # ── Internal helpers ──────────────────────────────────────────────────────────
-
-
-def _apply_injections_noop(injections: list[Injection]) -> None:
-    """Placeholder — replaced in Step 9 by HandlerDispatcher."""
-    pass
 
 
 def _merge_compose_services(project_dir: Path, services: list[ComposeService]) -> None:

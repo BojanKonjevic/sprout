@@ -10,6 +10,7 @@ Format
     template = "fastapi"
     addons = ["docker", "redis"]
     zenit_version = "1.0.1"
+    schema_version = 2
 
 All fields are optional when reading — the lockfile may be absent (project
 was not scaffolded by zenit, or was scaffolded before lockfiles existed).
@@ -25,6 +26,7 @@ from pathlib import Path
 import tomli_w
 
 LOCKFILE_NAME = ".zenit.toml"
+SCHEMA_VERSION = 2
 
 
 @dataclass
@@ -32,6 +34,7 @@ class ZenitLockfile:
     template: str = ""
     addons: list[str] = field(default_factory=list)
     zenit_version: str = ""
+    schema_version: int = 0
 
 
 def write_lockfile(project_dir: Path, template: str, addons: list[str]) -> None:
@@ -47,6 +50,7 @@ def write_lockfile(project_dir: Path, template: str, addons: list[str]) -> None:
             "template": template,
             "addons": list(addons),
             "zenit_version": zenit_version,
+            "schema_version": SCHEMA_VERSION,
         }
     }
     path = project_dir / LOCKFILE_NAME
@@ -76,6 +80,7 @@ def read_lockfile(project_dir: Path) -> ZenitLockfile | None:
     template = project.get("template", "")
     addons = project.get("addons", [])
     zenit_version = project.get("zenit_version", "")
+    schema_version = project.get("schema_version", 0)
 
     if not isinstance(template, str):
         template = ""
@@ -84,9 +89,12 @@ def read_lockfile(project_dir: Path) -> ZenitLockfile | None:
     addons = [a for a in addons if isinstance(a, str)]
     if not isinstance(zenit_version, str):
         zenit_version = ""
+    if not isinstance(schema_version, int):
+        schema_version = 0
 
     return ZenitLockfile(
         template=template,
         addons=addons,
         zenit_version=zenit_version,
+        schema_version=schema_version,
     )
