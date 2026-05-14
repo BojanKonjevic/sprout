@@ -315,9 +315,17 @@ def _merge_env_vars(env_path: Path, env_vars: list[EnvVar]) -> None:
     """Append missing env vars to the end of the file."""
     text = env_path.read_text(encoding="utf-8")
 
+    # Extract existing keys properly to avoid substring false-positives
+    # (e.g. "DB=" must not match inside "DB_HOST=")
+    existing_keys = {
+        line.split("=", 1)[0].strip()
+        for line in text.splitlines()
+        if "=" in line and not line.strip().startswith("#")
+    }
+
     new_lines: list[str] = []
     for v in env_vars:
-        if f"{v.key}=" not in text:
+        if v.key not in existing_keys:
             line = f"{v.key}={v.default}"
             if v.comment:
                 line += f"  # {v.comment}"

@@ -137,12 +137,18 @@ def _check_manifest_env(project_dir: Path) -> HealthResult:
             continue
 
         text = env_path.read_text(encoding="utf-8")
+        # Extract keys properly to avoid substring false-positives
+        file_keys = {
+            line.split("=", 1)[0].strip()
+            for line in text.splitlines()
+            if "=" in line and not line.strip().startswith("#")
+        }
         for entry in manifest.env:
-            if f"{entry.key}=" not in text:
+            if entry.key not in file_keys:
                 result.error(
                     f"Manifest env key '{entry.key}' (owned by '{entry.addon or 'template'}') "
                     f"is missing from '{file_name}'.",
-                    hint=f"Add '{entry.key}=<value>' to '{file_name}', "
+                    hint=f"Add '{entry.key}=<<value>' to '{file_name}', "
                     f"or run 'zenit remove {entry.addon}' to clean up the manifest.",
                 )
             else:
@@ -320,7 +326,8 @@ def _check_python_line_presence(project_dir: Path) -> HealthResult:
             )
             continue
 
-        line_count = file_path.read_text(encoding="utf-8").count("\n")
+        text = file_path.read_text(encoding="utf-8")
+        line_count = text.count("\n") + (1 if text and not text.endswith("\n") else 0)
         if end_line > line_count:
             result.error(
                 f"Block '{block.point}' for addon '{block.addon}' records lines up to "
@@ -791,11 +798,16 @@ def _check_env(project_dir: Path, lockfile: object) -> HealthResult:
             continue
 
         text = env_path.read_text(encoding="utf-8")
+        file_keys = {
+            line.split("=", 1)[0].strip()
+            for line in text.splitlines()
+            if "=" in line and not line.strip().startswith("#")
+        }
         for key in expected_keys:
-            if f"{key}=" not in text:
+            if key not in file_keys:
                 result.error(
                     f"'{key}' is missing from '{file_name}'.",
-                    hint=f"Add '{key}=<value>' to '{file_name}'.",
+                    hint=f"Add '{key}=<<value>' to '{file_name}'.",
                 )
             else:
                 result.ok(f"'{key}' is present in '{file_name}'.")
