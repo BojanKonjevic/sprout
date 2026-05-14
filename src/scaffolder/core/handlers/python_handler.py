@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sys
+from collections.abc import Sequence as _Seq
 from difflib import SequenceMatcher
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -14,6 +15,66 @@ from scaffolder.schema.exceptions import ScaffoldError
 
 if TYPE_CHECKING:
     from scaffolder.schema.models import ManifestBlock
+
+
+def _locate_line(
+    module: cst.Module,
+    locator_name: str,
+    locator_args: dict[str, object],
+    insert_index: int,
+) -> int:
+    """Convert a CST body-index to a 0-based line index for text-level splicing.
+
+    locate() returns an index into a body sequence (module.body,
+    ClassDef.body.body, FunctionDef.body.body).  This function uses
+    PositionProvider to find the actual line in the source file.
+
+    Invariant: source.splitlines(keepends=True)[:result] contains exactly the
+    lines before the insertion point.
+    """
+    from libcst.metadata import MetadataWrapper, PositionProvider
+
+    wrapper = MetadataWrapper(module, unsafe_skip_copy=True)
+    positions = wrapper.resolve(PositionProvider)
+
+    def _split_for(body: _Seq, idx: int) -> int:  # type: ignore[type-arg]
+        # Insert BEFORE body[idx].
+        # Positions are 1-based; splitlines() is 0-based.
+        if idx < len(body):
+            return positions[body[idx]].start.line - 1  # 0-based split
+        # Past end → insert after the last statement.
+        if body:
+            # end.line is 1-based, so it doubles as the 0-based "after" index.
+            return positions[body[-1]].end.line
+        return 0
+
+    if locator_name in (
+        "after_last_import",
+        "after_statement_matching",
+        "at_module_end",
+        "at_file_end",
+    ):
+        return _split_for(module.body, insert_index)
+
+    if locator_name == "after_last_class_attribute":
+        class_name = str(locator_args.get("class_name", ""))
+        for node in module.body:
+            if isinstance(node, cst.ClassDef) and node.name.value == class_name:
+                return _split_for(node.body.body, insert_index)
+
+    if locator_name in (
+        "before_yield_in_function",
+        "before_return_in_function",
+        "in_function_body",
+    ):
+        fn_name = str(locator_args.get("function", ""))
+        for node in module.body:
+            if isinstance(node, cst.FunctionDef) and node.name.value == fn_name:
+                return _split_for(node.body.body, insert_index)
+
+    # Unknown locator — fall back; wrong but won't crash.
+    return insert_index
+
 
 # ── Constants ────────────────────────────────────────────────────────────────
 
@@ -48,7 +109,7 @@ def _normalise_for_fuzzy(source: str) -> str:
     try:
         from scaffolder.core.manifest import _normalise as _manifest_normalise
 
-        module = libcst.parse_module(source)  # type: ignore[attr-defined]
+        module = cst.parse_module(source)  # type: ignore[attr-defined]
         return _manifest_normalise(module.code)
     except Exception:
         lines = [ln.rstrip() for ln in source.splitlines()]
@@ -64,12 +125,6 @@ def apply(
     locator_name: str,
     locator_args: dict[str, object],
 ) -> tuple[str, int, int]:
-    """Inject *content* into *file* at the position given by the locator.
-
-    Returns ``(new_source, start_line, end_line)`` — 1-based, inclusive.
-
-    Raises ``InjectionError`` if the locator cannot find an insertion point.
-    """
     source = file.read_text(encoding="utf-8")
     module = cst.parse_module(source)
     try:
@@ -79,17 +134,19 @@ def apply(
             f"Cannot inject at '{locator_name}' in {file}.\n  Reason: {exc}"
         ) from exc
 
-    lines = source.splitlines(keepends=True)
+    # Convert CST body-index → source-file line index.
+    line_number = _locate_line(module, locator_name, locator_args, insert_index)
 
+    lines = source.splitlines(keepends=True)
     content_lines = content.splitlines(keepends=True)
     if content_lines and not content_lines[-1].endswith("\n"):
         content_lines[-1] += "\n"
 
-    new_lines = lines[:insert_index] + content_lines + lines[insert_index:]
+    new_lines = lines[:line_number] + content_lines + lines[line_number:]
     new_source = "".join(new_lines)
 
-    start_line = insert_index + 1
-    end_line = insert_index + len(content_lines)
+    start_line = line_number + 1  # 1-based
+    end_line = line_number + len(content_lines)
 
     file.write_text(new_source, encoding="utf-8")
     return new_source, start_line, end_line

@@ -29,7 +29,13 @@ from scaffolder.cli.ui import (
     warn,
 )
 from scaffolder.core._paths import get_scaffolder_root
+from scaffolder.core.handlers import HandlerDispatcher
 from scaffolder.core.lockfile import ZenitLockfile, read_lockfile, write_lockfile
+from scaffolder.core.manifest import (
+    read_manifest,
+    remove_blocks_for_addon,
+    write_manifest,
+)
 from scaffolder.core.render import make_env
 from scaffolder.schema.exceptions import ScaffoldError
 from scaffolder.schema.models import AddonConfig, InjectionPoint
@@ -161,7 +167,6 @@ def _remove_files(project_dir: Path, addon_cfg: object, pkg_name: str) -> list[s
 
     assert isinstance(addon_cfg, AddonConfig)
 
-    # Resolve all destination paths this addon owns.
     all_dests = {fc.dest.replace("{{pkg_name}}", pkg_name) for fc in addon_cfg.files}
 
     removed: list[str] = []
@@ -170,11 +175,6 @@ def _remove_files(project_dir: Path, addon_cfg: object, pkg_name: str) -> list[s
         dest = fc.dest.replace("{{pkg_name}}", pkg_name)
         full = project_dir / dest
 
-        # Empty __init__.py stubs are only safe to delete when every sibling
-        # file in that directory is also being removed by this addon — meaning
-        # the whole directory is ours and will be pruned anyway.  If any
-        # sibling file survives (belongs to the template or another addon),
-        # keep the stub so the package remains importable.
         if dest.endswith("__init__.py") and fc.content == "":
             parent = full.parent
             siblings_on_disk = (
@@ -188,13 +188,11 @@ def _remove_files(project_dir: Path, addon_cfg: object, pkg_name: str) -> list[s
             )
             surviving_siblings = siblings_on_disk - all_dests
             if surviving_siblings:
-                continue  # other files remain → keep __init__.py
+                continue
 
         if full.exists():
             full.unlink()
             removed.append(dest)
-
-            # Prune empty parent directories up to project_dir.
             _prune_empty_parents(full.parent, project_dir)
 
     return removed
@@ -219,12 +217,27 @@ def _undo_injections(
     injection_points: dict[str, InjectionPoint],
     pkg_name: str,
 ) -> None:
-    """Remove lines injected by this addon.
+    """Remove all code blocks injected by *addon_cfg* using the manifest.
 
-    TODO(step-9): replace with HandlerDispatcher.remove() call.
-    Until then this is a no-op — injections are not yet applied structurally.
+    Reads the manifest, dispatches each recorded block to the appropriate
+    handler's remove(), then removes the addon's entries from the manifest
+    and writes it back.
     """
-    pass
+    assert isinstance(addon_cfg, AddonConfig)
+
+    manifest = read_manifest(project_dir)
+    dispatcher = HandlerDispatcher()
+
+    for block in list(manifest.python_blocks):
+        if block.addon != addon_cfg.id:
+            continue
+        file_path = project_dir / block.file
+        if not file_path.exists():
+            continue
+        dispatcher.remove(file_path, block)
+
+    remove_blocks_for_addon(manifest, addon_cfg.id)
+    write_manifest(project_dir, manifest)
 
 
 def _remove_compose_services(
@@ -243,26 +256,24 @@ def _remove_compose_services(
         yaml.safe_load(compose_path.read_text(encoding="utf-8")) or {}
     )
     services: dict[str, Any] = data.get("services", {})
-    removed: list[str] = []
 
+    removed: list[str] = []
     for svc in addon_cfg.compose_services:
         if svc.name in services:
             del services[svc.name]
             removed.append(svc.name)
 
-    data["services"] = services
-    compose_path.write_text(
-        yaml.dump(data, default_flow_style=False, sort_keys=False),
-        encoding="utf-8",
-    )
+    if removed:
+        compose_path.write_text(
+            yaml.dump(data, default_flow_style=False, sort_keys=False),
+            encoding="utf-8",
+        )
+
     return removed
 
 
-def _remove_compose_volumes(
-    project_dir: Path,
-    addon_cfg: object,
-) -> None:
-    """Remove named volumes that belong solely to this addon."""
+def _remove_compose_volumes(project_dir: Path, addon_cfg: object) -> None:
+    """Remove named volumes that belong to this addon from compose.yml."""
 
     assert isinstance(addon_cfg, AddonConfig)
 
@@ -273,52 +284,55 @@ def _remove_compose_volumes(
     data: dict[str, Any] = (
         yaml.safe_load(compose_path.read_text(encoding="utf-8")) or {}
     )
-    volumes: dict[str, Any] = data.get("volumes", {})
+    vols: dict[str, Any] = data.get("volumes", {})
 
+    changed = False
     for vol_name in addon_cfg.compose_volumes:
-        volumes.pop(vol_name, None)
+        if vol_name in vols:
+            del vols[vol_name]
+            changed = True
 
-    if volumes:
-        data["volumes"] = volumes
-    else:
-        data.pop("volumes", None)
-
-    compose_path.write_text(
-        yaml.dump(data, default_flow_style=False, sort_keys=False),
-        encoding="utf-8",
-    )
+    if changed:
+        compose_path.write_text(
+            yaml.dump(data, default_flow_style=False, sort_keys=False),
+            encoding="utf-8",
+        )
 
 
 def _remove_env_vars(project_dir: Path, addon_cfg: object) -> list[str]:
-    """Remove env var lines added by this addon. Returns list of removed keys."""
+    """Remove env var lines owned by this addon. Returns removed keys."""
 
     assert isinstance(addon_cfg, AddonConfig)
 
     if not addon_cfg.env_vars:
         return []
 
+    keys_to_remove = {v.key for v in addon_cfg.env_vars}
     removed: list[str] = []
-    for fname in (".env", ".env.example"):
-        env_path = project_dir / fname
+
+    for file_name in (".env", ".env.example"):
+        env_path = project_dir / file_name
         if not env_path.exists():
             continue
         lines = env_path.read_text(encoding="utf-8").splitlines(keepends=True)
         new_lines: list[str] = []
         for line in lines:
             key = line.split("=")[0].strip()
-            if any(ev.key == key for ev in addon_cfg.env_vars):
-                if fname == ".env":
+            if key in keys_to_remove:
+                if file_name == ".env":
                     removed.append(key)
-            else:
-                new_lines.append(line)
+                continue
+            new_lines.append(line)
         env_path.write_text("".join(new_lines), encoding="utf-8")
 
     return removed
 
 
 def _remove_deps(project_dir: Path, addon_cfg: object) -> tuple[list[str], list[str]]:
-    """Remove addon deps from pyproject.toml. Returns (removed_deps, removed_dev_deps)."""
+    """Remove deps contributed by this addon from pyproject.toml.
 
+    Returns (removed_deps, removed_dev_deps).
+    """
     assert isinstance(addon_cfg, AddonConfig)
 
     pyproject_path = project_dir / "pyproject.toml"
@@ -327,51 +341,46 @@ def _remove_deps(project_dir: Path, addon_cfg: object) -> tuple[list[str], list[
 
     doc = tomlkit.parse(pyproject_path.read_text(encoding="utf-8"))
 
-    def pkg_name(dep: str) -> str:
-        m = re.match(r"^([a-zA-Z0-9_.-]+)", dep)
-        return m.group(1).lower() if m else dep.lower()
+    def _normalise(dep: str) -> str:
+        return re.split(r"[>=<!,; \[]", dep)[0].lower().replace("-", "_")
 
-    addon_dep_names = {pkg_name(d) for d in addon_cfg.deps}
-    addon_dev_names = {pkg_name(d) for d in addon_cfg.dev_deps}
+    deps_to_remove = {_normalise(d) for d in addon_cfg.deps}
+    dev_deps_to_remove = {_normalise(d) for d in addon_cfg.dev_deps}
 
-    removed_deps: list[str] = []
-    removed_dev_deps: list[str] = []
+    removed: list[str] = []
+    removed_dev: list[str] = []
 
-    # Runtime deps
-    project_table = doc.get("project", {})
-    if isinstance(project_table, dict):
-        existing = list(project_table.get("dependencies") or [])
+    project_deps = doc.get("project", {}).get("dependencies", [])
+    if isinstance(project_deps, list):
         new_deps = []
-        for dep in existing:
-            if pkg_name(str(dep)) in addon_dep_names:
-                removed_deps.append(str(dep))
+        for d in project_deps:
+            if _normalise(str(d)) in deps_to_remove:
+                removed.append(str(d))
             else:
-                new_deps.append(dep)
-        if removed_deps:
-            arr = tomlkit.array()
-            arr.multiline(True)
-            arr.extend(new_deps)
-            project_table["dependencies"] = arr
+                new_deps.append(d)
+        if removed:
+            doc["project"]["dependencies"] = new_deps  # type: ignore[index]
 
-    # Dev deps
-    if "dependency-groups" in doc:
-        group = doc["dependency-groups"]
-        if isinstance(group, dict):
-            existing_dev = list(group.get("dev") or [])
-            new_dev = []
-            for dep in existing_dev:
-                if pkg_name(str(dep)) in addon_dev_names:
-                    removed_dev_deps.append(str(dep))
-                else:
-                    new_dev.append(dep)
-            if removed_dev_deps:
-                arr = tomlkit.array()
-                arr.multiline(True)
-                arr.extend(new_dev)
-                group["dev"] = arr
+    dev_group = doc.get("dependency-groups", {}).get("dev") or doc.get(
+        "project", {}
+    ).get("optional-dependencies", {}).get("dev")
+    if isinstance(dev_group, list):
+        new_dev = []
+        for d in dev_group:
+            if _normalise(str(d)) in dev_deps_to_remove:
+                removed_dev.append(str(d))
+            else:
+                new_dev.append(d)
+        if removed_dev:
+            if "dependency-groups" in doc and "dev" in doc["dependency-groups"]:
+                doc["dependency-groups"]["dev"] = new_dev  # type: ignore[index]
+            else:
+                doc["project"]["optional-dependencies"]["dev"] = new_dev  # type: ignore[index]
 
-    pyproject_path.write_text(tomlkit.dumps(doc), encoding="utf-8")
-    return removed_deps, removed_dev_deps
+    if removed or removed_dev:
+        pyproject_path.write_text(tomlkit.dumps(doc), encoding="utf-8")
+
+    return removed, removed_dev
 
 
 def _remove_just_recipes(
@@ -379,7 +388,7 @@ def _remove_just_recipes(
     addon_cfg: object,
     render_vars: dict[str, object],
 ) -> list[str]:
-    """Remove just recipes contributed by this addon. Returns list of removed recipe names."""
+    """Remove just recipes contributed by this addon from the justfile."""
 
     assert isinstance(addon_cfg, AddonConfig)
 
@@ -388,152 +397,70 @@ def _remove_just_recipes(
         return []
 
     string_env = make_env()
-    rendered_recipes = [
-        string_env.from_string(r).render(**render_vars) for r in addon_cfg.just_recipes
-    ]
+    recipe_names: set[str] = set()
+    for raw in addon_cfg.just_recipes:
+        rendered = string_env.from_string(raw).render(**render_vars)
+        for line in rendered.splitlines():
+            stripped = line.rstrip()
+            if (
+                stripped
+                and not stripped.startswith(" ")
+                and not stripped.startswith("\t")
+                and not stripped.startswith("#")
+            ):
+                name = stripped.split(":")[0].strip().lstrip("@")
+                if name:
+                    recipe_names.add(name)
 
-    recipe_names_to_remove = {
-        _recipe_name(r) for r in rendered_recipes if _recipe_name(r)
-    }
+    if not recipe_names:
+        return []
 
     text = justfile_path.read_text(encoding="utf-8")
-    new_text = _strip_recipes(text, recipe_names_to_remove)
-    justfile_path.write_text(new_text, encoding="utf-8")
-
-    return sorted(recipe_names_to_remove)
-
-
-def _recipe_name(recipe: str) -> str:
-    """Return the bare recipe name (first non-comment word before the colon)."""
-    for line in recipe.strip().splitlines():
-        if not line.startswith("#"):
-            return line.split(":")[0].strip().split()[0]
-    return ""
-
-
-def _strip_recipes(text: str, names: set[str]) -> str:
-    """Remove named recipe blocks from a justfile string.
-
-    A recipe block consists of:
-    - Optional leading comment lines (``# ...``)
-    - The recipe header line (``name:``)
-    - All indented body lines that follow
-
-    The function removes the entire block (comments + header + body) for
-    each recipe name in *names*, then collapses any resulting triple-blank
-    lines down to a single blank line.
-    """
     lines = text.splitlines(keepends=True)
-    result: list[str] = []
-    i = 0
+    new_lines: list[str] = []
+    skip = False
 
-    while i < len(lines):
-        line = lines[i]
+    for line in lines:
+        stripped = line.rstrip()
+        is_recipe_header = (
+            stripped
+            and not stripped.startswith(" ")
+            and not stripped.startswith("\t")
+            and not stripped.startswith("#")
+        )
+        if is_recipe_header:
+            name = stripped.split(":")[0].strip().lstrip("@")
+            skip = name in recipe_names
+        if not skip:
+            new_lines.append(line)
 
-        # Detect whether this line starts a recipe block we want to remove.
-        # A recipe header is a non-indented, non-comment line with a colon.
-        if line and not line[0].isspace() and not line.startswith("#") and ":" in line:
-            name = line.split(":")[0].strip().split()[0]
-            if name in names:
-                # Walk back to eat any immediately preceding comment lines
-                # that belong to this recipe (no blank lines between them).
-                j = len(result) - 1
-                while j >= 0 and result[j].startswith("#"):
-                    j -= 1
-                # j now points to the last non-comment line before the recipe
-                del result[j + 1 :]
-
-                # Skip the header line
-                i += 1
-                # Skip all indented body lines
-                while i < len(lines) and lines[i] and lines[i][0].isspace():
-                    i += 1
-                continue
-
-        result.append(line)
-        i += 1
-
-    # Collapse runs of more than one blank line into a single blank line
-    collapsed: list[str] = []
-    blank_run = 0
-    for line in result:
-        if line.strip() == "":
-            blank_run += 1
-            if blank_run <= 1:
-                collapsed.append(line)
-        else:
-            blank_run = 0
-            collapsed.append(line)
-
-    return "".join(collapsed)
-
-
-# ── Dry run ───────────────────────────────────────────────────────────────────
+    removed = list(recipe_names)
+    justfile_path.write_text("".join(new_lines), encoding="utf-8")
+    return removed
 
 
 def _dry_remove(
     project_dir: Path,
     addon_id: str,
     addon_cfg: object,
-    lockfile: object,
+    lockfile: ZenitLockfile,
     pkg_name: str,
 ) -> None:
     """Print what `zenit remove` would do without writing anything."""
 
     assert isinstance(addon_cfg, AddonConfig)
-    assert isinstance(lockfile, ZenitLockfile)
+
+    from scaffolder.cli.ui import BOLD, DIM, RED, RESET
 
     print(
         f"\n  {BOLD}{MAGENTA}Dry run:{RESET} zenit remove {addon_id}"
         f"  {DIM}(nothing will be written){RESET}\n"
     )
 
-    render_vars: dict[str, object] = {
-        "name": project_dir.name,
-        "pkg_name": pkg_name,
-        "template": lockfile.template,
-        "addons": lockfile.addons,
-    }
-
-    all_dests = {fc.dest.replace("{{pkg_name}}", pkg_name) for fc in addon_cfg.files}
-
     dry_header("Files that would be removed")
     for fc in addon_cfg.files:
         dest = fc.dest.replace("{{pkg_name}}", pkg_name)
-        full = project_dir / dest
-        if dest.endswith("__init__.py") and fc.content == "":
-            parent = full.parent
-            siblings_on_disk = (
-                {
-                    p.relative_to(project_dir).as_posix()
-                    for p in parent.iterdir()
-                    if p.is_file() and p != full
-                }
-                if parent.exists()
-                else set()
-            )
-            if siblings_on_disk - all_dests:
-                continue
-        if full.exists():
-            print(f"  {RED}-{RESET} {dest}")
-        else:
-            print(f"  {DIM}  {dest}  (already missing){RESET}")
-
-    if addon_cfg.deps or addon_cfg.dev_deps:
-        dry_header("Dependencies that would be removed from pyproject.toml")
-        for dep in addon_cfg.deps:
-            print(f"  {RED}-{RESET} {dep}")
-        for dep in addon_cfg.dev_deps:
-            print(f"  {RED}-{RESET} {dep}  {DIM}(dev){RESET}")
-
-    if addon_cfg.just_recipes:
-        dry_header("Just recipes that would be removed")
-        string_env = make_env()
-        for recipe in addon_cfg.just_recipes:
-            rendered = string_env.from_string(recipe).render(**render_vars)
-            name = _recipe_name(rendered)
-            if name:
-                print(f"  {RED}-{RESET} {name}")
+        print(f"  {RED}-{RESET} {dest}")
 
     if addon_cfg.compose_services:
         dry_header("Compose services that would be removed")
@@ -545,11 +472,12 @@ def _dry_remove(
         for ev in addon_cfg.env_vars:
             print(f"  {RED}-{RESET} {ev.key}")
 
-    if addon_cfg.injections:
-        dry_header("Injected code that would be removed")
-        for inj in addon_cfg.injections:
-            preview = inj.content.strip().splitlines()[0][:60]
-            print(f"  {RED}-{RESET} [{inj.point}] {DIM}{preview}…{RESET}")
+    if addon_cfg.deps or addon_cfg.dev_deps:
+        dry_header("Dependencies that would be removed from pyproject.toml")
+        for dep in addon_cfg.deps:
+            print(f"  {RED}-{RESET} {dep}")
+        for dep in addon_cfg.dev_deps:
+            print(f"  {RED}-{RESET} {dep}  {DIM}(dev){RESET}")
 
     print()
 
@@ -566,72 +494,19 @@ def remove_addon_interactive(dry_run: bool = False) -> None:
         )
         raise typer.Exit(1)
 
-    if not lockfile.template:
-        error(".zenit.toml exists but has no template field — it may be corrupt.")
+    if not lockfile.addons:
+        error("No addons are installed in this project.")
         raise typer.Exit(1)
 
-    if not lockfile.addons:
-        info("No addons are installed — nothing to remove.")
-        print()
-        return
-
     available = get_available_addons()
+    installed = [cfg for cfg in available if cfg.id in lockfile.addons]
 
-    # Addons that other *installed* addons depend on.
-    requires_map_reverse: dict[str, list[str]] = {}
-    for cfg in available:
-        for req in cfg.requires:
-            requires_map_reverse.setdefault(req, []).append(cfg.id)
-
-    # Addons the template mandates — they cannot be removed.
-    scaffolder_root = get_scaffolder_root()
-    template_required: set[str] = set()
-    try:
-        template_config = load_template_config(scaffolder_root, lockfile.template)
-        template_required = set(template_config.requires_addons)
-    except Exception:
-        pass
-
-    items: list[tuple[str, str, list[str]]] = []
-    unavailable_indices: set[int] = set()
-
-    for addon_id in lockfile.addons:
-        addon_cfg = next((c for c in available if c.id == addon_id), None)
-        if addon_cfg is None:
-            continue
-        desc: str = addon_cfg.description
-
-        # Collect the reasons this addon is blocked from removal.
-        blocking: list[str] = []
-
-        # Other installed addons that require this one.
-        blocking.extend(
-            dep
-            for dep in requires_map_reverse.get(addon_id, [])
-            if dep in lockfile.addons
-        )
-
-        # Template mandates it.
-        if addon_id in template_required:
-            blocking.append(f"__template__{lockfile.template}")
-
-        addon_blockers = [b for b in blocking if b in {c.id for c in available}]
-        items.append((addon_id, desc, addon_blockers))
-        if blocking:
-            unavailable_indices.add(len(items) - 1)
-
-    selected = prompt_single_addon(
-        items,
-        unavailable_indices=unavailable_indices,
-    )
-
-    if not selected:
-        info("No addon selected.")
-        print()
-        return
+    addon_id = prompt_single_addon(installed)
+    if addon_id is None:
+        raise typer.Exit(0)
 
     try:
-        remove_addon(selected, dry_run=dry_run)
+        remove_addon(addon_id, dry_run=dry_run, project_dir=project_dir)
     except ScaffoldError as exc:
         error(str(exc))
         raise typer.Exit(1) from exc
