@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import hashlib
+import sys
 from difflib import SequenceMatcher
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -9,19 +9,20 @@ import libcst as cst
 
 from scaffolder.core.handlers import FileHandler
 from scaffolder.core.handlers.locators import LocatorError, locate
+from scaffolder.core.manifest import fingerprint as _fingerprint
 from scaffolder.schema.exceptions import ScaffoldError
 
 if TYPE_CHECKING:
     from scaffolder.schema.models import ManifestBlock
 
-# ── Constants (define once) ──────────────────────────────────────────────────
+# ── Constants ────────────────────────────────────────────────────────────────
 
 FUZZY_REMOVAL_THRESHOLD: float = 0.85
 FUZZY_WINDOW_LINES: int = 20
 MANIFEST_SCHEMA_VERSION: int = 2
 
 
-# ── Exceptions ───────────────────────────────────────────────────────────────
+# ── Exceptions ────────────────────────────────────────────────────────────────
 
 
 class InjectionError(ScaffoldError):
@@ -32,32 +33,26 @@ class RemovalError(ScaffoldError):
     """Raised when an injected block cannot be located for removal."""
 
 
-# ── Fingerprinting ────────────────────────────────────────────────────────────
+# ── Normalisation helpers (delegated to manifest.py) ─────────────────────────
 
 
-def _canonical(source: str) -> str:
-    """Return the source with consistent trailing newline, no CR."""
-    return source.replace("\r\n", "\n").replace("\r", "\n")
+def _normalise_for_fuzzy(source: str) -> str:
+    """Produce a normalised string suitable for fuzzy-match comparison.
 
+    Uses the same normalisation as manifest.fingerprint() so that fuzzy
+    scoring is consistent with the stored fingerprint_normalised values.
+    Delegates to manifest._normalise via the round-trip already done there.
+    We call _fingerprint on a best-effort basis — if libcst cannot parse
+    the fragment (e.g. it is not valid Python), fall back to rstrip-only.
+    """
+    try:
+        from scaffolder.core.manifest import _normalise as _manifest_normalise
 
-def _normalise(source: str) -> str:
-    """Strip leading/trailing blank lines and normalise internal whitespace runs."""
-    lines = _canonical(source).splitlines()
-    stripped = [ln.rstrip() for ln in lines]
-    # drop leading / trailing blank lines
-    while stripped and not stripped[0]:
-        stripped.pop(0)
-    while stripped and not stripped[-1]:
-        stripped.pop()
-    return "\n".join(stripped)
-
-
-def fingerprint(source: str) -> str:
-    return "sha256:" + hashlib.sha256(_canonical(source).encode()).hexdigest()
-
-
-def fingerprint_normalised(source: str) -> str:
-    return "sha256:" + hashlib.sha256(_normalise(source).encode()).hexdigest()
+        module = libcst.parse_module(source)  # type: ignore[attr-defined]
+        return _manifest_normalise(module.code)
+    except Exception:
+        lines = [ln.rstrip() for ln in source.splitlines()]
+        return "\n".join(lines)
 
 
 # ── Core apply / remove ───────────────────────────────────────────────────────
@@ -112,8 +107,6 @@ def remove(
         C — fuzzy match within FUZZY_WINDOW_LINES of recorded position.
         D — raise RemovalError with actionable instructions.
     """
-    import sys
-
     source = file.read_text(encoding="utf-8")
     lines = source.splitlines(keepends=True)
 
@@ -127,14 +120,16 @@ def remove(
     # ── Stage A: exact fingerprint ───────────────────────────────────────────
     if 0 <= rec_start < len(lines) and rec_end < len(lines):
         candidate = _extract(rec_start, rec_end)
-        if fingerprint(candidate) == block.fingerprint:
+        fp, _ = _fingerprint(candidate)
+        if fp == block.fingerprint:
             _remove_lines(file, lines, rec_start, rec_end)
             return
 
     # ── Stage B: normalised fingerprint ─────────────────────────────────────
     if 0 <= rec_start < len(lines) and rec_end < len(lines):
         candidate = _extract(rec_start, rec_end)
-        if fingerprint_normalised(candidate) == block.fingerprint_normalised:
+        _, fp_norm = _fingerprint(candidate)
+        if fp_norm == block.fingerprint_normalised:
             _remove_lines(file, lines, rec_start, rec_end)
             return
 
@@ -145,13 +140,13 @@ def remove(
 
     best_ratio = 0.0
     best_start = -1
-    norm_ref = _normalise("".join(lines[rec_start : rec_end + 1]))
+    norm_ref = _normalise_for_fuzzy("".join(lines[rec_start : rec_end + 1]))
 
     for s in range(window_start, window_end - block_len + 2):
         e = s + block_len - 1
         if e > len(lines) - 1:
             break
-        candidate = _normalise(_extract(s, e))
+        candidate = _normalise_for_fuzzy(_extract(s, e))
         ratio = SequenceMatcher(None, norm_ref, candidate).ratio()
         if ratio > best_ratio:
             best_ratio = ratio
@@ -190,7 +185,6 @@ def _remove_lines(
     """Delete lines[start:end+1] from *file*, cleaning up surrounding blank lines."""
     new_lines = lines[:start] + lines[end + 1 :]
 
-    # clean up double blank lines left by removal
     cleaned: list[str] = []
     prev_blank = False
     for ln in new_lines:
