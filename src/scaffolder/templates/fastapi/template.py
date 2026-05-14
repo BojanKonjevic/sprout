@@ -32,8 +32,12 @@ config = TemplateConfig(
         "lifespan_shutdown": InjectionPoint(
             file="src/{{pkg_name}}/lifecycle.py",
             locator=LocatorSpec(
-                name="before_return_in_function",
-                args={"function": "lifespan"},
+                name="in_function_body",
+                args={
+                    "function": "lifespan",
+                    "anchor_pattern": r"yield",
+                    "position": "after",
+                },
             ),
         ),
         "env_vars": InjectionPoint(

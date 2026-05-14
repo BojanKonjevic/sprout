@@ -1,4 +1,3 @@
-# src/scaffolder/core/handlers/justfile_handler.py
 from __future__ import annotations
 
 from pathlib import Path

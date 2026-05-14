@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import re
 import sys
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
 import tomlkit
-from collections.abc import Mapping
 import typer
 import yaml
 from tomlkit.items import Array
@@ -40,7 +40,7 @@ from scaffolder.core.manifest import (
 )
 from scaffolder.core.render import make_env
 from scaffolder.schema.exceptions import ScaffoldError
-from scaffolder.schema.models import AddonConfig, InjectionPoint
+from scaffolder.schema.models import AddonConfig
 from scaffolder.templates._load_config import load_template_config
 
 
@@ -96,13 +96,8 @@ def remove_addon(
     # ── files ──────────────────────────────────────────────────────────────
     removed_files = _remove_files(project_dir, addon_cfg, pkg_name)
 
-    # ── injections ──────────────────────────────────────────────────────────
-    _undo_injections(
-        project_dir,
-        addon_cfg,
-        template_config.injection_points,
-        pkg_name,
-    )
+    # ── injections (physical removal only — manifest written at the end) ────
+    _undo_injections_physical(project_dir, addon_cfg)
 
     # ── compose services ────────────────────────────────────────────────────
     removed_services = _remove_compose_services(project_dir, addon_cfg)
@@ -116,6 +111,11 @@ def remove_addon(
 
     # ── justfile recipes ──────────────────────────────────────────────────
     removed_recipes = _remove_just_recipes(project_dir, addon_cfg, render_vars)
+
+    # ── manifest (written once, after all physical removals succeed) ────────
+    manifest = read_manifest(project_dir)
+    remove_blocks_for_addon(manifest, addon_id)
+    write_manifest(project_dir, manifest)
 
     # ── lockfile ──────────────────────────────────────────────────────────
     new_addons = [a for a in lockfile.addons if a != addon_id]
@@ -213,17 +213,17 @@ def _prune_empty_parents(directory: Path, stop_at: Path) -> None:
             break
 
 
-def _undo_injections(
+def _undo_injections_physical(
     project_dir: Path,
     addon_cfg: object,
-    injection_points: dict[str, InjectionPoint],
-    pkg_name: str,
 ) -> None:
-    """Remove all code blocks injected by *addon_cfg* using the manifest.
+    """Physically remove all Python blocks injected by *addon_cfg*.
 
-    Reads the manifest, dispatches each recorded block to the appropriate
-    handler's remove(), then removes the addon's entries from the manifest
-    and writes it back.
+    Reads the current manifest to find recorded blocks, dispatches each to
+    the appropriate handler's remove(), and stops.  It does NOT mutate or
+    write the manifest — that is the caller's responsibility, once all other
+    physical removals have also succeeded.  This keeps manifest writes atomic
+    with respect to the full removal sequence.
     """
     assert isinstance(addon_cfg, AddonConfig)
 
@@ -237,9 +237,6 @@ def _undo_injections(
         if not file_path.exists():
             continue
         dispatcher.remove(file_path, block)
-
-    remove_blocks_for_addon(manifest, addon_cfg.id)
-    write_manifest(project_dir, manifest)
 
 
 def _remove_compose_services(
@@ -439,9 +436,8 @@ def _remove_just_recipes(
         if not skip:
             new_lines.append(line)
 
-    removed = list(recipe_names)
     justfile_path.write_text("".join(new_lines), encoding="utf-8")
-    return removed
+    return list(recipe_names)
 
 
 def _dry_remove(
@@ -455,17 +451,33 @@ def _dry_remove(
 
     assert isinstance(addon_cfg, AddonConfig)
 
-    from scaffolder.cli.ui import BOLD, DIM, RED, RESET
-
     print(
         f"\n  {BOLD}{MAGENTA}Dry run:{RESET} zenit remove {addon_id}"
         f"  {DIM}(nothing will be written){RESET}\n"
     )
 
     dry_header("Files that would be removed")
+    all_dests = {fc.dest.replace("{{pkg_name}}", pkg_name) for fc in addon_cfg.files}
     for fc in addon_cfg.files:
         dest = fc.dest.replace("{{pkg_name}}", pkg_name)
-        print(f"  {RED}-{RESET} {dest}")
+        full = project_dir / dest
+        if dest.endswith("__init__.py") and fc.content == "":
+            parent = full.parent
+            siblings_on_disk = (
+                {
+                    p.relative_to(project_dir).as_posix()
+                    for p in parent.iterdir()
+                    if p.is_file() and p != full
+                }
+                if parent.exists()
+                else set()
+            )
+            if siblings_on_disk - all_dests:
+                continue
+        if full.exists():
+            print(f"  {RED}-{RESET} {dest}")
+        else:
+            print(f"  {DIM}  {dest}  (already missing){RESET}")
 
     if addon_cfg.compose_services:
         dry_header("Compose services that would be removed")

@@ -26,6 +26,7 @@ from scaffolder.schema.models import ManifestBlock
 if TYPE_CHECKING:
     from scaffolder.core.context import Context
     from scaffolder.schema.models import (
+        AddonConfig,
         ComposeService,
         Contributions,
         EnvVar,
@@ -33,6 +34,16 @@ if TYPE_CHECKING:
     )
 
 _RECIPE_NAME_RE = re.compile(r"^([a-zA-Z0-9_-]+)\s*:", re.MULTILINE)
+
+
+def _pkg_name(dep: str) -> str:
+    """Canonical package-name extractor for PEP 508 dependency specifiers.
+
+    Handles >=, ==, !=, ~=, extras ([...]), environment markers (;), and
+    URL references (@).  Normalises separators to underscores so that
+    'my-package' and 'my_package' compare equal.
+    """
+    return re.split(r"[>=<!,; \[@]", dep)[0].strip().lower().replace("-", "_")
 
 
 def apply_contributions(
@@ -51,8 +62,15 @@ def apply_contributions(
     3. Apply structural injections (via HandlerDispatcher) and record in manifest.
     4. Merge compose services and volumes into ``compose.yml`` (if present).
     5. Append env vars to ``.env`` and ``.env.example`` (if present).
-    6. Run each addon's optional ``post_apply`` hook.
-    7. Write updated manifest to .zenit.toml.
+    6. Record per-addon manifest entries (env, compose, deps, recipes).
+    7. Run each addon's optional ``post_apply`` hook.
+    8. Write updated manifest to .zenit.toml.
+
+    Template-owned entries (env vars, compose services/volumes, deps, recipes)
+    are recorded separately by ``_stamp_template_manifest`` in scaffold.py and
+    are NOT recorded here — ``contributions`` may contain template items merged
+    in from ``collect_all``, but ownership of those belongs to the template, not
+    to any addon.
     """
     project_dir = ctx.project_dir
     pkg_name = str(render_vars["pkg_name"])
@@ -120,8 +138,8 @@ def apply_contributions(
 
         # Only Python files get fingerprint-tracked ManifestBlocks.
         if file_path.suffix == ".py":
-            # Extract the actual injected lines from the file so libcst has
-            # full module context (class body fragments are not valid modules).
+            # Read back the written file so the fingerprint covers the actual
+            # bytes on disk (libcst may normalise whitespace during round-trip).
             fresh_lines = file_path.read_text(encoding="utf-8").splitlines(
                 keepends=True
             )
@@ -150,38 +168,20 @@ def apply_contributions(
         if env_path.exists() and contributions.env_vars:
             _merge_env_vars(env_path, contributions.env_vars)
 
-    # Record non-Python manifest entries.
-    source = "addon" if contributions._addon_configs else "template"
-    addon_id = (
-        contributions._addon_configs[0].id if contributions._addon_configs else ""
-    )
-
-    for ev in contributions.env_vars:
-        add_env_entry(manifest, ev.key, source, addon_id)
-
-    for svc in contributions.compose_services:
-        add_compose_service(manifest, svc.name, source, addon_id)
-
-    for vol in contributions.compose_volumes:
-        add_compose_volume(manifest, vol, source, addon_id)
-
-    for dep in contributions.deps:
-        pkg = dep.split(">=")[0].split("==")[0].split("[")[0].strip()
-        add_dependency(manifest, pkg, dep, source, addon_id, dev=False)
-
-    for dep in contributions.dev_deps:
-        pkg = dep.split(">=")[0].split("==")[0].split("[")[0].strip()
-        add_dependency(manifest, pkg, dep, source, addon_id, dev=True)
-
+    # ── Per-addon manifest recording ──────────────────────────────────────────
+    #
+    # We iterate each AddonConfig directly so that every manifest entry carries
+    # the correct addon_id.  Using the merged flat lists on `contributions` with
+    # a single addon_id derived from _addon_configs[0] would assign all entries
+    # to one addon when multiple addons are applied together (e.g. at scaffold
+    # time via collect_all), corrupting ownership metadata.
+    #
+    # Template-owned entries are intentionally excluded here: _stamp_template_manifest
+    # in scaffold.py records those with source="template", addon="" after write_lockfile.
+    # Doing it here would double-record them on every scaffold run.
     string_env = make_env()
-    recipe_render_vars: dict[str, object] = dict(render_vars)
-    for recipe_raw in contributions.just_recipes:
-        rendered_recipe = string_env.from_string(recipe_raw).render(
-            **recipe_render_vars
-        )
-        m = _RECIPE_NAME_RE.search(rendered_recipe)
-        if m:
-            add_just_recipe(manifest, m.group(1), source, addon_id)
+    for addon_cfg in contributions._addon_configs:
+        _record_addon_manifest_entries(manifest, addon_cfg, string_env, render_vars)
 
     for addon_cfg in contributions._addon_configs:
         hooks = addon_cfg._module
@@ -189,6 +189,66 @@ def apply_contributions(
             hooks.post_apply(ctx)
 
     write_manifest(project_dir, manifest)
+
+
+# ── Manifest recording ────────────────────────────────────────────────────────
+
+
+def _record_addon_manifest_entries(
+    manifest: object,
+    addon_cfg: AddonConfig,
+    string_env: object,
+    render_vars: dict[str, object],
+) -> None:
+    """Record all non-Python manifest entries owned by *addon_cfg*.
+
+    Python block entries are recorded inline in the injection loop above,
+    because they require the post-write line numbers and fingerprints that
+    are only available at injection time.
+    """
+    from scaffolder.schema.models import Manifest
+
+    assert isinstance(manifest, Manifest)
+
+    addon_id = addon_cfg.id
+
+    for ev in addon_cfg.env_vars:
+        add_env_entry(manifest, ev.key, source="addon", addon=addon_id)
+
+    for svc in addon_cfg.compose_services:
+        add_compose_service(manifest, svc.name, source="addon", addon=addon_id)
+
+    for vol in addon_cfg.compose_volumes:
+        add_compose_volume(manifest, vol, source="addon", addon=addon_id)
+
+    for dep in addon_cfg.deps:
+        add_dependency(
+            manifest,
+            _pkg_name(dep),
+            dep,
+            source="addon",
+            addon=addon_id,
+            dev=False,
+        )
+
+    for dep in addon_cfg.dev_deps:
+        add_dependency(
+            manifest,
+            _pkg_name(dep),
+            dep,
+            source="addon",
+            addon=addon_id,
+            dev=True,
+        )
+
+    from jinja2 import Environment
+
+    assert isinstance(string_env, Environment)
+    for recipe_raw in addon_cfg.just_recipes:
+        rendered = string_env.from_string(recipe_raw).render(**render_vars)
+        m = _RECIPE_NAME_RE.search(rendered)
+        if m:
+            add_just_recipe(manifest, m.group(1), source="addon", addon=addon_id)
 
 
 # ── Internal helpers ──────────────────────────────────────────────────────────
