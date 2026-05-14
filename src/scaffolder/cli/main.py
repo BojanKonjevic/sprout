@@ -165,11 +165,18 @@ def cmd_remove(
 
 
 @app.command("doctor")
-def cmd_doctor() -> None:
+def cmd_doctor(
+    thorough: Annotated[
+        bool,
+        typer.Option(
+            "--thorough", help="Run full Python block integrity checks (slower)"
+        ),
+    ] = False,
+) -> None:
     """Check that the current project matches zenit's expectations."""
     from pathlib import Path
 
-    from scaffolder.cli.ui import error, success
+    from scaffolder.cli.ui import DIM, RESET, error, success
     from scaffolder.core.lockfile import read_lockfile
 
     project_dir = Path.cwd()
@@ -182,8 +189,10 @@ def cmd_doctor() -> None:
         raise typer.Exit(1)
 
     print(f"\n  Checking project '{project_dir.name}'…")
+    if thorough:
+        print(f"  {DIM}Thorough mode — parsing Python files with libcst.{RESET}")
 
-    results = run_doctor(project_dir)
+    results = run_doctor(project_dir, thorough=thorough)
 
     if not results:
         print("\n  No checks registered yet.\n")

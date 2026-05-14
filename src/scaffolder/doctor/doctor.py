@@ -12,10 +12,11 @@ from pathlib import Path
 import yaml
 
 from scaffolder.addons._registry import get_available_addons
-from scaffolder.cli.ui import BOLD, CYAN, DIM, GREEN, RED, RESET, YELLOW
+from scaffolder.cli.ui import BOLD, DIM, GREEN, RED, RESET, YELLOW
 from scaffolder.core._paths import get_scaffolder_root
 from scaffolder.core.collect import collect_all
-from scaffolder.core.lockfile import ZenitLockfile, read_lockfile
+from scaffolder.core.lockfile import SCHEMA_VERSION, ZenitLockfile, read_lockfile
+from scaffolder.core.manifest import read_manifest
 from scaffolder.templates._load_config import load_template_config
 
 
@@ -55,20 +56,370 @@ class HealthResult:
         return any(i.severity == Severity.WARN for i in self.issues)
 
 
-def run_doctor(project_dir: Path) -> list[HealthResult]:
-
+def run_doctor(project_dir: Path, *, thorough: bool = False) -> list[HealthResult]:
     lockfile = read_lockfile(project_dir)
     if lockfile is None:
         return [_check_metadata(project_dir)]
 
     results: list[HealthResult] = []
     results.append(_check_metadata(project_dir))
+    results.append(_check_manifest_schema(project_dir, lockfile))
     results.append(_check_dependencies(project_dir, lockfile))
     results.append(_check_files(project_dir, lockfile))
     results.append(_check_addon_health(project_dir, lockfile))
     results.append(_check_compose(project_dir, lockfile))
     results.append(_check_env(project_dir, lockfile))
+    results.append(_check_manifest_env(project_dir))
+    results.append(_check_manifest_compose(project_dir))
+    results.append(_check_manifest_deps(project_dir))
+    results.append(_check_manifest_recipes(project_dir))
+    results.append(_check_python_line_presence(project_dir))
+
+    if thorough:
+        results.append(_check_python_integrity(project_dir))
+
     return results
+
+
+# ── Manifest-driven fast-tier checks ─────────────────────────────────────────
+
+
+def _check_manifest_schema(project_dir: Path, lockfile: ZenitLockfile) -> HealthResult:
+    """Verify schema_version == 2 and manifest has no orphan blocks."""
+    result = HealthResult("Manifest schema")
+
+    if lockfile.schema_version != SCHEMA_VERSION:
+        result.warn(
+            f"Project schema_version is {lockfile.schema_version}, expected {SCHEMA_VERSION}.",
+            hint=(
+                "This project was scaffolded with an older version of zenit. "
+                "Re-scaffold or run 'zenit doctor' after upgrading to confirm compatibility."
+            ),
+        )
+    else:
+        result.ok(f"schema_version is {SCHEMA_VERSION}.")
+
+    manifest = read_manifest(project_dir)
+    addon_ids = set(lockfile.addons)
+
+    orphan_addons = {
+        b.addon
+        for b in manifest.python_blocks
+        if b.addon and b.addon != "template" and b.addon not in addon_ids
+    }
+    if orphan_addons:
+        result.error(
+            f"Manifest contains blocks for addons not in lockfile: {', '.join(sorted(orphan_addons))}.",
+            hint="Run 'zenit remove <addon>' to clean up, or re-scaffold the project.",
+        )
+    else:
+        result.ok("No orphan manifest blocks.")
+
+    return result
+
+
+def _check_manifest_env(project_dir: Path) -> HealthResult:
+    """All manifest.env keys must be present in .env and .env.example."""
+    result = HealthResult("Manifest env integrity")
+    manifest = read_manifest(project_dir)
+
+    if not manifest.env:
+        result.ok("No manifest env entries to verify.")
+        return result
+
+    for file_name in (".env", ".env.example"):
+        env_path = project_dir / file_name
+        if not env_path.exists():
+            result.warn(
+                f"'{file_name}' is missing — cannot verify env integrity.",
+                hint=f"Restore '{file_name}' or run 'zenit add' for the relevant addon.",
+            )
+            continue
+
+        text = env_path.read_text(encoding="utf-8")
+        for entry in manifest.env:
+            if f"{entry.key}=" not in text:
+                result.error(
+                    f"Manifest env key '{entry.key}' (owned by '{entry.addon or 'template'}') "
+                    f"is missing from '{file_name}'.",
+                    hint=f"Add '{entry.key}=<value>' to '{file_name}', "
+                    f"or run 'zenit remove {entry.addon}' to clean up the manifest.",
+                )
+            else:
+                result.ok(f"'{entry.key}' is present in '{file_name}'.")
+
+    return result
+
+
+def _check_manifest_compose(project_dir: Path) -> HealthResult:
+    """All manifest compose_services and compose_volumes must exist in compose.yml."""
+    result = HealthResult("Manifest compose integrity")
+    manifest = read_manifest(project_dir)
+
+    if not manifest.compose_services and not manifest.compose_volumes:
+        result.ok("No manifest compose entries to verify.")
+        return result
+
+    compose_path = project_dir / "compose.yml"
+    if not compose_path.exists():
+        if manifest.compose_services or manifest.compose_volumes:
+            result.error(
+                "compose.yml is missing but manifest records compose services/volumes.",
+                hint="Restore compose.yml or remove the relevant addon.",
+            )
+        return result
+
+    try:
+        data = yaml.safe_load(compose_path.read_text(encoding="utf-8")) or {}
+    except Exception as e:
+        result.error(
+            f"compose.yml could not be parsed: {e}",
+            hint="Fix the YAML syntax and re-run 'zenit doctor'.",
+        )
+        return result
+
+    services: dict[str, object] = data.get("services", {})
+    volumes: dict[str, object] = data.get("volumes", {})
+
+    for entry in manifest.compose_services:
+        if entry.name not in services:
+            result.error(
+                f"Manifest service '{entry.name}' (owned by '{entry.addon or 'template'}') "
+                f"is missing from compose.yml.",
+                hint=f"Run 'zenit add {entry.addon}' to restore it, "
+                f"or 'zenit remove {entry.addon}' to clean up.",
+            )
+        else:
+            result.ok(f"Service '{entry.name}' is present in compose.yml.")
+
+    for entry in manifest.compose_volumes:
+        if entry.name not in volumes:
+            result.error(
+                f"Manifest volume '{entry.name}' (owned by '{entry.addon or 'template'}') "
+                f"is missing from compose.yml.",
+                hint="Restore the volume definition in compose.yml.",
+            )
+        else:
+            result.ok(f"Volume '{entry.name}' is present in compose.yml.")
+
+    return result
+
+
+def _check_manifest_deps(project_dir: Path) -> HealthResult:
+    """All manifest.dependencies must be present in pyproject.toml."""
+    result = HealthResult("Manifest dependency integrity")
+    manifest = read_manifest(project_dir)
+
+    if not manifest.dependencies:
+        result.ok("No manifest dependencies to verify.")
+        return result
+
+    pyproject_path = project_dir / "pyproject.toml"
+    if not pyproject_path.exists():
+        result.error(
+            "pyproject.toml is missing — cannot verify manifest dependencies.",
+            hint="Restore pyproject.toml.",
+        )
+        return result
+
+    try:
+        with open(pyproject_path, "rb") as f:
+            data = tomllib.load(f)
+    except Exception as e:
+        result.error(
+            f"pyproject.toml could not be parsed: {e}",
+            hint="Fix the TOML syntax and re-run 'zenit doctor'.",
+        )
+        return result
+
+    def _pkg(dep: str) -> str:
+        return re.split(r"[>=<!,; \[]", dep)[0].lower().replace("-", "_")
+
+    raw_deps: list[str] = data.get("project", {}).get("dependencies", [])
+    dev_group: list[str] = data.get("dependency-groups", {}).get("dev", []) or data.get(
+        "project", {}
+    ).get("optional-dependencies", {}).get("dev", [])
+
+    installed = {_pkg(d) for d in raw_deps}
+    installed_dev = {_pkg(d) for d in dev_group}
+
+    for dep in manifest.dependencies:
+        bucket = installed_dev if dep.dev else installed
+        if _pkg(dep.package) not in bucket:
+            kind = "dev " if dep.dev else ""
+            result.error(
+                f"Manifest {kind}dependency '{dep.package}' "
+                f"(owned by '{dep.addon or 'template'}') is missing from pyproject.toml.",
+                hint=f"Run 'uv add {dep.spec}' or 'zenit add {dep.addon}' to restore it.",
+            )
+        else:
+            result.ok(f"Dependency '{dep.package}' is present.")
+
+    return result
+
+
+def _check_manifest_recipes(project_dir: Path) -> HealthResult:
+    """All manifest.just_recipes must exist in the justfile."""
+    result = HealthResult("Manifest just-recipe integrity")
+    manifest = read_manifest(project_dir)
+
+    if not manifest.just_recipes:
+        result.ok("No manifest just-recipes to verify.")
+        return result
+
+    justfile_path = project_dir / "justfile"
+    if not justfile_path.exists():
+        result.warn(
+            "justfile is missing — cannot verify just-recipe integrity.",
+            hint="Restore the justfile.",
+        )
+        return result
+
+    text = justfile_path.read_text(encoding="utf-8")
+    recipe_name_re = re.compile(r"^([a-zA-Z0-9_-]+)\s*:", re.MULTILINE)
+    existing_names = set(recipe_name_re.findall(text))
+
+    for entry in manifest.just_recipes:
+        if entry.name not in existing_names:
+            result.error(
+                f"Manifest just-recipe '{entry.name}' (owned by '{entry.addon or 'template'}') "
+                f"is missing from the justfile.",
+                hint=f"Run 'zenit add {entry.addon}' to restore it.",
+            )
+        else:
+            result.ok(f"Just-recipe '{entry.name}' is present.")
+
+    return result
+
+
+def _check_python_line_presence(project_dir: Path) -> HealthResult:
+    """Fast check: each ManifestBlock's line range still exists in the file."""
+    result = HealthResult("Python block line presence")
+    manifest = read_manifest(project_dir)
+
+    if not manifest.python_blocks:
+        result.ok("No Python blocks recorded in manifest.")
+        return result
+
+    for block in manifest.python_blocks:
+        file_path = project_dir / block.file
+        if not file_path.exists():
+            result.error(
+                f"File '{block.file}' (containing '{block.point}' block for '{block.addon}') "
+                f"is missing.",
+                hint=f"Restore the file or run 'zenit remove {block.addon}'.",
+            )
+            continue
+
+        try:
+            _, end_str = block.lines.split("-")
+            end_line = int(end_str)
+        except ValueError:
+            result.warn(
+                f"Block '{block.point}' for '{block.addon}' has malformed lines field: {block.lines!r}.",
+            )
+            continue
+
+        line_count = file_path.read_text(encoding="utf-8").count("\n")
+        if end_line > line_count:
+            result.error(
+                f"Block '{block.point}' for addon '{block.addon}' records lines up to "
+                f"{end_line}, but '{block.file}' only has {line_count} lines.",
+                hint=(
+                    f"The file may have been truncated. Run 'zenit doctor --thorough' "
+                    f"for a full fingerprint check, or 'zenit remove {block.addon}' to clean up."
+                ),
+            )
+        else:
+            result.ok(
+                f"Block '{block.point}' for '{block.addon}' at lines {block.lines} "
+                f"is within '{block.file}'."
+            )
+
+    return result
+
+
+# ── Thorough tier ──────────────────────────────────────────────────────────────
+
+
+def _check_python_integrity(project_dir: Path) -> HealthResult:
+    """Thorough check: parse each file, extract block, recompute fingerprints.
+
+    Only imported when --thorough is passed to avoid libcst in the fast-tier
+    hot path.
+    """
+    from scaffolder.core.manifest import fingerprint as compute_fingerprint
+
+    result = HealthResult("Python block integrity (thorough)")
+    manifest = read_manifest(project_dir)
+
+    if not manifest.python_blocks:
+        result.ok("No Python blocks to verify.")
+        return result
+
+    for block in manifest.python_blocks:
+        file_path = project_dir / block.file
+        if not file_path.exists():
+            result.error(
+                f"File '{block.file}' is missing (block '{block.point}' for '{block.addon}').",
+                hint=f"Run 'zenit remove {block.addon}' to clean up the manifest.",
+            )
+            continue
+
+        try:
+            start_str, end_str = block.lines.split("-")
+            start_line = int(start_str)
+            end_line = int(end_str)
+        except ValueError:
+            result.warn(
+                f"Block '{block.point}' for '{block.addon}' has malformed lines: {block.lines!r}."
+            )
+            continue
+
+        lines = file_path.read_text(encoding="utf-8").splitlines(keepends=True)
+        if end_line > len(lines):
+            result.error(
+                f"Block '{block.point}' for '{block.addon}' extends beyond end of '{block.file}'.",
+                hint=f"Run 'zenit remove {block.addon}' or restore the file.",
+            )
+            continue
+
+        extracted = "".join(lines[start_line - 1 : end_line])
+
+        try:
+            fp, fp_norm = compute_fingerprint(extracted)
+        except Exception as e:
+            result.warn(
+                f"Could not parse block '{block.point}' in '{block.file}': {e}",
+                hint="The block may not be valid Python. Run 'zenit remove' to clean up.",
+            )
+            continue
+
+        if fp == block.fingerprint:
+            result.ok(
+                f"Block '{block.point}' for '{block.addon}' in '{block.file}' is unchanged."
+            )
+        elif fp_norm == block.fingerprint_normalised:
+            result.warn(
+                f"Block '{block.point}' for '{block.addon}' in '{block.file}' was reformatted "
+                f"(normalised fingerprint matches).",
+                hint="This is safe — run 'zenit doctor --thorough' after reformatting to confirm.",
+            )
+        else:
+            result.error(
+                f"Block '{block.point}' for '{block.addon}' in '{block.file}' has been modified "
+                f"(fingerprint mismatch at lines {block.lines}).",
+                hint=(
+                    f"If the change is intentional, run 'zenit remove {block.addon}' and "
+                    f"'zenit add {block.addon}' to re-inject. "
+                    f"Otherwise restore the original block."
+                ),
+            )
+
+    return result
+
+
+# ── Legacy fast-tier checks (unchanged) ───────────────────────────────────────
 
 
 def _check_metadata(project_dir: Path) -> HealthResult:
@@ -354,10 +705,7 @@ def _check_compose(project_dir: Path, lockfile: object) -> HealthResult:
 
     services: dict[str, object] = data.get("services", {})
 
-    # check for duplicate service names (yaml.safe_load deduplicates keys silently,
-    # so we detect this by counting raw occurrences in the file text)
     raw_text = compose_path.read_text(encoding="utf-8")
-
     service_name_counts: dict[str, int] = {}
     in_services = False
     for line in raw_text.splitlines():
@@ -367,11 +715,9 @@ def _check_compose(project_dir: Path, lockfile: object) -> HealthResult:
             in_services = True
             continue
         if in_services:
-            # top-level key at 0 indent means we left the services block
             if line[0] != " ":
                 in_services = False
                 continue
-            # service names are at exactly 2 spaces indent
             m = re.match(r"^  ([a-zA-Z0-9_-]+):$", line)
             if m:
                 name = m.group(1)
@@ -387,7 +733,6 @@ def _check_compose(project_dir: Path, lockfile: object) -> HealthResult:
     else:
         result.ok("No duplicate service definitions in compose.yml.")
 
-    # check expected services are present
     scaffolder_root = get_scaffolder_root()
     try:
         template_config = load_template_config(scaffolder_root, lockfile.template)
@@ -400,92 +745,86 @@ def _check_compose(project_dir: Path, lockfile: object) -> HealthResult:
         )
         return result
 
-    all_services = [svc.name for svc in template_config.compose_services] + [
-        svc.name for svc in contributions.compose_services
-    ]
-
-    missing_services = [s for s in all_services if s not in services]
-    if missing_services:
-        for name in missing_services:
+    for svc in contributions.compose_services:
+        if svc.name not in services:
             result.error(
-                f"Expected compose service '{name}' is missing from compose.yml.",
-                hint=f"Restore the '{name}' service or re-scaffold the relevant addon.",
+                f"Expected compose service '{svc.name}' is missing from compose.yml.",
+                hint="Re-run 'zenit add' for the addon that provides this service.",
             )
-    else:
-        if all_services:
-            result.ok(
-                f"All expected compose services are present: {', '.join(all_services)}."
-            )
+        else:
+            result.ok(f"Compose service '{svc.name}' is present.")
 
     return result
 
 
 def _check_env(project_dir: Path, lockfile: object) -> HealthResult:
-    """Check that expected env vars are present in .env and .env.example."""
+    """Check that .env and .env.example contain expected env vars."""
 
     assert isinstance(lockfile, ZenitLockfile)
-    result = HealthResult("Environment variables")
+    result = HealthResult("Env vars")
 
     scaffolder_root = get_scaffolder_root()
-
     try:
         template_config = load_template_config(scaffolder_root, lockfile.template)
-        available = get_available_addons()
-        selected_addon_configs = [cfg for cfg in available if cfg.id in lockfile.addons]
-        contributions = collect_all(template_config, selected_addon_configs)
     except Exception:
-        result.warn("Could not load template/addon config to verify env vars.")
+        result.warn(
+            f"Could not load template '{lockfile.template}' to verify env vars.",
+        )
         return result
 
-    expected_vars = [
-        ev.key for ev in (template_config.env_vars + contributions.env_vars)
-    ]
+    available = get_available_addons()
+    selected_addon_configs = [cfg for cfg in available if cfg.id in lockfile.addons]
+    contributions = collect_all(template_config, selected_addon_configs)
+    expected_keys = [ev.key for ev in contributions.env_vars]
 
-    if not expected_vars:
-        result.ok("No env vars expected for this template and addons.")
+    if not expected_keys:
+        result.ok("No env vars expected.")
         return result
 
-    for fname in (".env", ".env.example"):
-        env_path = project_dir / fname
+    for file_name in (".env", ".env.example"):
+        env_path = project_dir / file_name
         if not env_path.exists():
             result.warn(
-                f"'{fname}' is missing.",
-                hint=f"Create '{fname}' with the required env vars.",
+                f"'{file_name}' is missing.",
+                hint=f"Expected env vars: {', '.join(expected_keys)}.",
             )
             continue
 
         text = env_path.read_text(encoding="utf-8")
-        missing = [key for key in expected_vars if f"{key}=" not in text]
-        if missing:
-            for key in missing:
+        for key in expected_keys:
+            if f"{key}=" not in text:
                 result.error(
-                    f"'{key}' is missing from '{fname}'.",
-                    hint=f"Add '{key}=<value>' to '{fname}'.",
+                    f"'{key}' is missing from '{file_name}'.",
+                    hint=f"Add '{key}=<value>' to '{file_name}'.",
                 )
-        else:
-            result.ok(f"All expected env vars are present in '{fname}'.")
+            else:
+                result.ok(f"'{key}' is present in '{file_name}'.")
 
     return result
 
 
+# ── Rendering ──────────────────────────────────────────────────────────────────
+
+
 def print_results(results: list[HealthResult]) -> bool:
-    """Print health check results. Returns True if any errors were found."""
+    """Print health check results. Returns True if any errors are present."""
 
-    any_errors = False
-
+    has_errors = False
     for result in results:
-        print(f"\n  {BOLD}{CYAN}{result.category}{RESET}")
+        if not result.issues:
+            continue
+        print(f"\n  {BOLD}{result.category}{RESET}")
         for issue in result.issues:
             if issue.severity == Severity.OK:
-                icon = f"{GREEN}✓{RESET}"
+                symbol = f"{GREEN}✓{RESET}"
             elif issue.severity == Severity.WARN:
-                icon = f"{YELLOW}⚠{RESET}"
+                symbol = f"{YELLOW}⚠{RESET}"
+                has_errors = True
             else:
-                icon = f"{RED}✗{RESET}"
-                any_errors = True
-
-            print(f"    {icon}  {issue.message}")
+                symbol = f"{RED}✗{RESET}"
+                has_errors = True
+            print(f"    {symbol}  {issue.message}")
             if issue.hint:
-                print(f"       {DIM}{issue.hint}{RESET}")
+                print(f"         {DIM}{issue.hint}{RESET}")
 
-    return any_errors
+    return has_errors
