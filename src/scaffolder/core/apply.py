@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any
 import yaml
 
 from scaffolder.core.handlers.base import HandlerDispatcher
+from scaffolder.core.handlers.justfile_handler import _RECIPE_NAME_RE
 from scaffolder.core.manifest import (
     add_compose_service,
     add_compose_volume,
@@ -32,8 +33,6 @@ if TYPE_CHECKING:
         EnvVar,
         InjectionPoint,
     )
-
-_RECIPE_NAME_RE = re.compile(r"^([a-zA-Z0-9_-]+)\s*:", re.MULTILINE)
 
 
 def _pkg_name(dep: str) -> str:

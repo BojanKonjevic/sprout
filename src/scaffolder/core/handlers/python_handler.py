@@ -10,6 +10,7 @@ import libcst as cst
 
 from scaffolder.core.handlers.base import FileHandler
 from scaffolder.core.handlers.locators import LocatorError, locate
+from scaffolder.core.manifest import _normalise as _manifest_normalise
 from scaffolder.core.manifest import fingerprint as _fingerprint
 from scaffolder.schema.exceptions import ScaffoldError
 
@@ -84,7 +85,6 @@ def _locate_line(
 
 FUZZY_REMOVAL_THRESHOLD: float = 0.85
 FUZZY_WINDOW_LINES: int = 20
-MANIFEST_SCHEMA_VERSION: int = 2
 
 
 # ── Exceptions ────────────────────────────────────────────────────────────────
@@ -111,8 +111,6 @@ def _normalise_for_fuzzy(source: str) -> str:
     the fragment (e.g. it is not valid Python), fall back to rstrip-only.
     """
     try:
-        from scaffolder.core.manifest import _normalise as _manifest_normalise
-
         module = cst.parse_module(source)
         return _manifest_normalise(module.code)
     except Exception:

@@ -30,7 +30,6 @@ from scaffolder.cli.ui import (
     success,
     warn,
 )
-from scaffolder.core._paths import get_scaffolder_root
 from scaffolder.core.handlers import HandlerDispatcher
 from scaffolder.core.lockfile import ZenitLockfile, read_lockfile, write_lockfile
 from scaffolder.core.manifest import (
@@ -41,7 +40,6 @@ from scaffolder.core.manifest import (
 from scaffolder.core.render import make_env
 from scaffolder.schema.exceptions import ScaffoldError
 from scaffolder.schema.models import AddonConfig
-from scaffolder.templates._load_config import load_template_config
 
 
 def remove_addon(
@@ -57,7 +55,6 @@ def remove_addon(
 
     template = lockfile.template
     pkg_name = project_dir.name.replace("-", "_")
-    scaffolder_root = get_scaffolder_root()
     addon_cfg = next(cfg for cfg in available if cfg.id == addon_id)
 
     if dry_run:
@@ -81,8 +78,6 @@ def remove_addon(
             raise typer.Exit(0)
     else:
         warn("Non-interactive mode — proceeding automatically.")
-
-    template_config = load_template_config(scaffolder_root, template)
 
     render_vars: dict[str, object] = {
         "name": project_dir.name,

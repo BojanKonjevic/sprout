@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import re
 import secrets
 import shutil
 import sys
@@ -16,12 +15,13 @@ from scaffolder.cli.ui import confirm, info, print_commands_from_just, success
 from scaffolder.config.config import load_config
 from scaffolder.core._apply_loader import load_apply
 from scaffolder.core._paths import get_scaffolder_root
-from scaffolder.core.apply import apply_contributions
+from scaffolder.core.apply import _pkg_name, apply_contributions
 from scaffolder.core.collect import collect_all
 from scaffolder.core.context import Context
 from scaffolder.core.dryrun import run_dry
 from scaffolder.core.generate import generate_all
 from scaffolder.core.git import init
+from scaffolder.core.handlers.justfile_handler import _RECIPE_NAME_RE
 from scaffolder.core.lockfile import write_lockfile
 from scaffolder.core.manifest import (
     add_compose_service,
@@ -40,8 +40,6 @@ from scaffolder.core.validate import (
 )
 from scaffolder.schema.models import TemplateConfig
 from scaffolder.templates._load_config import load_template_config
-
-_RECIPE_NAME_RE = re.compile(r"^([a-zA-Z0-9_-]+)\s*:", re.MULTILINE)
 
 
 def scaffold_project(name: str, dry_run: bool = False) -> None:
@@ -166,11 +164,11 @@ def _stamp_template_manifest(
         add_compose_volume(manifest, vol, source="template", addon="")
 
     for dep in template_config.deps:
-        pkg = dep.split(">=")[0].split("==")[0].split("[")[0].strip()
+        pkg = _pkg_name(dep)
         add_dependency(manifest, pkg, dep, source="template", addon="", dev=False)
 
     for dep in template_config.dev_deps:
-        pkg = dep.split(">=")[0].split("==")[0].split("[")[0].strip()
+        pkg = _pkg_name(dep)
         add_dependency(manifest, pkg, dep, source="template", addon="", dev=True)
 
     for recipe_raw in template_config.just_recipes:

@@ -163,6 +163,9 @@ def fingerprint(code: str) -> tuple[str, str]:
         module = libcst.parse_module(code)
         canonical = module.code
     except Exception:
+        # Class-body fragments (e.g. single annotated attributes) are not
+        # valid modules. Fall back to raw text so fingerprinting doesn't
+        # crash, but note that Stage A/B removal may fall through to fuzzy.
         canonical = code
     raw_hash = hashlib.sha256(canonical.encode()).hexdigest()
     norm_hash = hashlib.sha256(_normalise(canonical).encode()).hexdigest()

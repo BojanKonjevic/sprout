@@ -819,7 +819,6 @@ def print_results(results: list[HealthResult]) -> bool:
                 symbol = f"{GREEN}✓{RESET}"
             elif issue.severity == Severity.WARN:
                 symbol = f"{YELLOW}⚠{RESET}"
-                has_errors = True
             else:
                 symbol = f"{RED}✗{RESET}"
                 has_errors = True

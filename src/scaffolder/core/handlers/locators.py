@@ -262,18 +262,12 @@ def _is_import(stmt: cst.BaseStatement) -> bool:
 
 
 def _is_class_attribute(stmt: cst.BaseStatement) -> bool:
-    """Return True if *stmt* looks like a class field assignment or annotation."""
+    """Return True if *stmt* is a class field assignment or annotation."""
     if not isinstance(stmt, cst.SimpleStatementLine):
         return False
     if len(stmt.body) != 1:
         return False
-    inner = stmt.body[0]
-    if isinstance(inner, (cst.Assign, cst.AnnAssign)):
-        return True
-    # Exclude bare pass / ellipsis
-    if isinstance(inner, cst.Expr):
-        return not isinstance(inner.value, (cst.Ellipsis, cst.ConcatenatedString))
-    return False
+    return isinstance(stmt.body[0], (cst.Assign, cst.AnnAssign))
 
 
 def _is_docstring(stmt: cst.BaseStatement) -> bool:
