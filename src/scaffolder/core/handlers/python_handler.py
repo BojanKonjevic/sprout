@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 
 import libcst as cst
 
-from scaffolder.core.handlers import FileHandler
+from scaffolder.core.handlers.base import FileHandler
 from scaffolder.core.handlers.locators import LocatorError, locate
 from scaffolder.core.manifest import fingerprint as _fingerprint
 from scaffolder.schema.exceptions import ScaffoldError

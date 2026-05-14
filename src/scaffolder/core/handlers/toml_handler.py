@@ -4,7 +4,7 @@ from pathlib import Path
 
 import tomlkit
 
-from scaffolder.core.handlers import FileHandler
+from scaffolder.core.handlers.base import FileHandler
 from scaffolder.schema.models import ManifestBlock
 
 
