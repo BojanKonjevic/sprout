@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import re
 import tomllib
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from enum import Enum
-from collections.abc import Sequence
 from importlib.metadata import version as get_version
 from pathlib import Path
 
@@ -18,6 +18,12 @@ from scaffolder.core._paths import get_scaffolder_root
 from scaffolder.core.collect import collect_all
 from scaffolder.core.lockfile import SCHEMA_VERSION, ZenitLockfile, read_lockfile
 from scaffolder.core.manifest import read_manifest
+from scaffolder.schema.models import (
+    DependencyEntry,
+    EnvEntry,
+    ManifestBlock,
+    OwnedEntry,
+)
 from scaffolder.templates._load_config import load_template_config
 
 
@@ -85,6 +91,9 @@ def run_doctor(project_dir: Path, *, thorough: bool = False) -> list[HealthResul
 # ── Manifest-driven fast-tier checks ─────────────────────────────────────────
 
 
+type _AnyEntry = ManifestBlock | EnvEntry | OwnedEntry | DependencyEntry
+
+
 def _check_manifest_schema(project_dir: Path, lockfile: ZenitLockfile) -> HealthResult:
     """Verify schema_version == 2 and manifest has no orphan blocks."""
     result = HealthResult("Manifest schema")
@@ -104,7 +113,9 @@ def _check_manifest_schema(project_dir: Path, lockfile: ZenitLockfile) -> Health
 
     addon_ids = set(lockfile.addons)
 
-    def _orphan_addons_in(entries: Sequence[object], attr: str = "addon") -> set[str]:
+    def _orphan_addons_in(
+        entries: Sequence[_AnyEntry], attr: str = "addon"
+    ) -> set[str]:
         return {
             getattr(e, attr)
             for e in entries
