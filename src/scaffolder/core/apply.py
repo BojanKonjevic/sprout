@@ -10,6 +10,7 @@ import yaml
 from jinja2 import Environment
 
 from scaffolder.core.handlers.base import HandlerDispatcher
+from scaffolder.schema.exceptions import ScaffoldError
 from scaffolder.core.handlers.justfile_handler import _RECIPE_NAME_RE
 from scaffolder.core.manifest import (
     add_compose_service,
@@ -104,7 +105,11 @@ def apply_contributions(
         elif fc.source is not None:
             src_path = Path(fc.source)
             if not src_path.is_absolute():
-                raise ValueError(f"source path for {fc.dest!r} must be absolute")
+                raise ScaffoldError(
+                    f"Internal error: the source path for '{fc.dest}' is relative ('{fc.source}'). "
+                    f"FileContribution.source must be an absolute path. "
+                    f"This is a bug in the template or addon — please report it."
+                )
             if fc.template:
                 env = make_env(src_path.parent)
                 content = env.get_template(src_path.name).render(**render_vars)
