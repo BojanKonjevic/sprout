@@ -289,32 +289,50 @@ def _decode_manifest(raw: dict[str, Any]) -> Manifest:
         )
 
     for e in raw.get("env", []):
-        m.env.append(EnvEntry(key=e["key"], source=e["source"], addon=e["addon"]))
+        m.env.append(
+            EnvEntry(
+                key=e.get("key", ""),
+                source=e.get("source", ""),
+                addon=e.get("addon", ""),
+            )
+        )
 
     for s in raw.get("compose_services", []):
         m.compose_services.append(
-            OwnedEntry(name=s["name"], source=s["source"], addon=s["addon"])
+            OwnedEntry(
+                name=s.get("name", ""),
+                source=s.get("source", ""),
+                addon=s.get("addon", ""),
+            )
         )
 
     for v in raw.get("compose_volumes", []):
         m.compose_volumes.append(
-            OwnedEntry(name=v["name"], source=v["source"], addon=v["addon"])
+            OwnedEntry(
+                name=v.get("name", ""),
+                source=v.get("source", ""),
+                addon=v.get("addon", ""),
+            )
         )
 
     for d in raw.get("dependencies", []):
         m.dependencies.append(
             DependencyEntry(
-                package=d["package"],
-                spec=d["spec"],
-                source=d["source"],
-                addon=d["addon"],
+                package=d.get("package", ""),
+                spec=d.get("spec", ""),
+                source=d.get("source", ""),
+                addon=d.get("addon", ""),
                 dev=bool(d.get("dev", False)),
             )
         )
 
     for r in raw.get("just_recipes", []):
         m.just_recipes.append(
-            OwnedEntry(name=r["name"], source=r["source"], addon=r["addon"])
+            OwnedEntry(
+                name=r.get("name", ""),
+                source=r.get("source", ""),
+                addon=r.get("addon", ""),
+            )
         )
 
     return m
