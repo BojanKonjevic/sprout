@@ -6,6 +6,7 @@ import re
 import tomllib
 from dataclasses import dataclass, field
 from enum import Enum
+from collections.abc import Sequence
 from importlib.metadata import version as get_version
 from pathlib import Path
 
@@ -100,13 +101,24 @@ def _check_manifest_schema(project_dir: Path, lockfile: ZenitLockfile) -> Health
         result.ok(f"schema_version is {SCHEMA_VERSION}.")
 
     manifest = read_manifest(project_dir)
+
     addon_ids = set(lockfile.addons)
 
-    orphan_addons = {
-        b.addon
-        for b in manifest.python_blocks
-        if b.addon and b.addon != "template" and b.addon not in addon_ids
-    }
+    def _orphan_addons_in(entries: Sequence[object], attr: str = "addon") -> set[str]:
+        return {
+            getattr(e, attr)
+            for e in entries
+            if getattr(e, attr) and getattr(e, attr) not in addon_ids
+        }
+
+    orphan_addons = (
+        _orphan_addons_in(manifest.python_blocks)
+        | _orphan_addons_in(manifest.env)
+        | _orphan_addons_in(manifest.compose_services)
+        | _orphan_addons_in(manifest.compose_volumes)
+        | _orphan_addons_in(manifest.dependencies)
+        | _orphan_addons_in(manifest.just_recipes)
+    )
     if orphan_addons:
         result.error(
             f"Manifest contains blocks for addons not in lockfile: {', '.join(sorted(orphan_addons))}.",
