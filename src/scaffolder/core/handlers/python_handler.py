@@ -205,11 +205,15 @@ def remove(
     window_start = max(0, rec_start - FUZZY_WINDOW_LINES)
     window_end = min(len(lines) - 1, rec_end + FUZZY_WINDOW_LINES)
 
+    ref_start = max(0, min(rec_start, len(lines) - 1))
+    ref_end = max(0, min(rec_end, len(lines) - 1))
+    ref_text = "".join(lines[ref_start : ref_end + 1])
+    norm_ref = _normalise_for_fuzzy(ref_text) if ref_text else ""
+
     best_ratio = 0.0
     best_start = -1
-    norm_ref = _normalise_for_fuzzy("".join(lines[rec_start : rec_end + 1]))
 
-    for s in range(window_start, window_end - block_len + 2):
+    for s in range(window_start, window_end + 1):
         e = s + block_len - 1
         if e > len(lines) - 1:
             break
