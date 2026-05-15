@@ -76,6 +76,11 @@ def _locate_line(
         for node in module.body:
             if isinstance(node, cst.FunctionDef) and node.name.value == fn_name:
                 return _split_for(node.body.body, insert_index)
+        raise InjectionError(
+            f"_locate_line: function '{fn_name}' not found in module. "
+            f"Cannot convert CST index to line number. "
+            f"Has the function been removed or renamed?"
+        )
 
     # Unknown locator — fail loudly so developers add it to the dispatch table.
     raise InjectionError(
