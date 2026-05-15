@@ -26,6 +26,7 @@ Normalisation contract
 from __future__ import annotations
 
 import hashlib
+import sys
 import re
 from pathlib import Path
 from typing import Any
@@ -61,7 +62,12 @@ def read_manifest(project_dir: Path) -> Manifest:
 
     try:
         doc = tomlkit.parse(path.read_text(encoding="utf-8"))
-    except Exception:
+    except Exception as exc:
+        print(
+            f"Warning: could not parse '{path}': {exc}. "
+            f"Manifest will be treated as empty. Run 'zenit doctor' to verify.",
+            file=sys.stderr,
+        )
         return Manifest()
 
     raw: Any = doc.get("manifest", {})
