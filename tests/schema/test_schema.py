@@ -14,27 +14,10 @@ from scaffolder.schema.models import (
     ComposeService,
     Contributions,
     EnvVar,
-    ExtensionPoint,
     FileContribution,
     Injection,
-    InjectionMode,
     TemplateConfig,
 )
-
-# ── InjectionMode ─────────────────────────────────────────────────────────────
-
-
-def test_injection_mode_after_sentinel_value():
-    assert InjectionMode.AFTER_SENTINEL.value == "after_sentinel"
-
-
-def test_injection_mode_append_value():
-    assert InjectionMode.APPEND.value == "append"
-
-
-def test_injection_mode_members_are_distinct():
-    assert InjectionMode.AFTER_SENTINEL != InjectionMode.APPEND
-
 
 # ── FileContribution ──────────────────────────────────────────────────────────
 
@@ -102,29 +85,6 @@ def test_injection_addon_id_defaults_empty():
 def test_injection_addon_id_can_be_set():
     inj = Injection(point="startup", content="pass", addon_id="sentry")
     assert inj.addon_id == "sentry"
-
-
-# ── ExtensionPoint ────────────────────────────────────────────────────────────
-
-
-def test_extension_point_required_fields():
-    ep = ExtensionPoint(file="src/main.py", sentinel="    # [zenit: startup]")
-    assert ep.file == "src/main.py"
-    assert ep.sentinel == "    # [zenit: startup]"
-
-
-def test_extension_point_default_mode():
-    ep = ExtensionPoint(file="src/main.py", sentinel="# sentinel")
-    assert ep.mode == InjectionMode.AFTER_SENTINEL
-
-
-def test_extension_point_explicit_append_mode():
-    ep = ExtensionPoint(
-        file="src/settings.py",
-        sentinel="    # [zenit: fields]",
-        mode=InjectionMode.APPEND,
-    )
-    assert ep.mode == InjectionMode.APPEND
 
 
 # ── ComposeService ────────────────────────────────────────────────────────────
@@ -284,25 +244,11 @@ def test_template_config_list_defaults_are_empty():
     assert cfg.injections == []
 
 
-def test_template_config_extension_points_defaults_empty_dict():
-    cfg = TemplateConfig(id="blank", description="")
-    assert cfg.extension_points == {}
-
-
 def test_template_config_mutable_defaults_are_independent():
     cfg1 = TemplateConfig(id="blank", description="")
     cfg2 = TemplateConfig(id="fastapi", description="")
     cfg1.deps.append("fastapi")
     assert cfg2.deps == []
-
-
-def test_template_config_extension_points_are_independent():
-    from scaffolder.schema.models import ExtensionPoint
-
-    cfg1 = TemplateConfig(id="blank", description="")
-    cfg2 = TemplateConfig(id="fastapi", description="")
-    cfg1.extension_points["startup"] = ExtensionPoint(file="main.py", sentinel="# s")
-    assert "startup" not in cfg2.extension_points
 
 
 # ── Contributions ─────────────────────────────────────────────────────────────
