@@ -14,7 +14,6 @@ import yaml
 from conftest import SCAFFOLDER_ROOT
 
 from scaffolder.core.apply import (
-    _apply_to_file,
     _merge_compose_volumes,
     _merge_env_vars,
     apply_contributions,
@@ -26,10 +25,8 @@ from scaffolder.schema.models import (
     ComposeService,
     Contributions,
     EnvVar,
-    ExtensionPoint,
     FileContribution,
     Injection,
-    InjectionMode,
 )
 
 # ── helpers ───────────────────────────────────────────────────────────────────
@@ -62,10 +59,6 @@ def _render_vars(ctx: Context, **extra: object) -> dict[str, object]:
 
 def _empty_contributions() -> Contributions:
     return Contributions()
-
-
-def _no_extension_points() -> dict[str, ExtensionPoint]:
-    return {}
 
 
 # ── file writing ──────────────────────────────────────────────────────────────
@@ -152,142 +145,6 @@ def test_source_path_must_be_absolute(tmp_path):
     )
     with pytest.raises(ValueError, match="absolute"):
         apply_contributions(ctx, contributions, {}, _render_vars(ctx))
-
-
-# ── injections ────────────────────────────────────────────────────────────────
-
-
-def test_injection_after_sentinel(tmp_path):
-    ctx = _ctx(tmp_path)
-    target = ctx.project_dir / "main.py"
-    target.write_text("def main():\n    # [sentinel]\n    pass\n")
-
-    extension_points = {
-        "startup": ExtensionPoint(
-            file="main.py",
-            sentinel="    # [sentinel]",
-            mode=InjectionMode.AFTER_SENTINEL,
-        )
-    }
-    contributions = Contributions(
-        injections=[Injection(point="startup", content="    do_something()")]
-    )
-    apply_contributions(ctx, contributions, extension_points, _render_vars(ctx))
-
-    text = target.read_text()
-    assert "    # [sentinel]\n    do_something()" in text
-
-
-def test_injection_append_mode(tmp_path):
-    ctx = _ctx(tmp_path)
-    target = ctx.project_dir / "settings.py"
-    target.write_text("class Settings:\n    # [sentinel]\n    x: int = 1\n")
-
-    extension_points = {
-        "fields": ExtensionPoint(
-            file="settings.py",
-            sentinel="    # [sentinel]",
-            mode=InjectionMode.APPEND,
-        )
-    }
-    contributions = Contributions(
-        injections=[Injection(point="fields", content="    y: str = 'hello'")]
-    )
-    apply_contributions(ctx, contributions, extension_points, _render_vars(ctx))
-
-    text = target.read_text()
-    # In APPEND mode the content is appended at the end of the file
-    assert "    y: str = 'hello'" in text
-
-
-def test_injection_skipped_when_sentinel_missing(tmp_path):
-    ctx = _ctx(tmp_path)
-    target = ctx.project_dir / "main.py"
-    target.write_text("def main(): pass\n")
-
-    extension_points = {
-        "startup": ExtensionPoint(
-            file="main.py",
-            sentinel="    # [missing-sentinel]",
-        )
-    }
-    contributions = Contributions(
-        injections=[Injection(point="startup", content="    injected()")]
-    )
-    apply_contributions(ctx, contributions, extension_points, _render_vars(ctx))
-
-    assert "injected" not in target.read_text()
-
-
-def test_injection_skipped_when_file_missing(tmp_path):
-    ctx = _ctx(tmp_path)
-    extension_points = {
-        "startup": ExtensionPoint(file="nonexistent.py", sentinel="# sentinel")
-    }
-    contributions = Contributions(
-        injections=[Injection(point="startup", content="injected()")]
-    )
-    # Should not raise; missing file is silently skipped
-    apply_contributions(ctx, contributions, extension_points, _render_vars(ctx))
-
-
-def test_injection_skipped_when_extension_point_not_registered(tmp_path):
-    ctx = _ctx(tmp_path)
-    target = ctx.project_dir / "main.py"
-    target.write_text("# [sentinel]\n")
-
-    contributions = Contributions(
-        injections=[Injection(point="unknown_point", content="injected()")]
-    )
-    apply_contributions(ctx, contributions, {}, _render_vars(ctx))
-
-    assert "injected" not in target.read_text()
-
-
-def test_multiple_injections_same_point_all_applied(tmp_path):
-    ctx = _ctx(tmp_path)
-    target = ctx.project_dir / "lifecycle.py"
-    target.write_text("# startup:\n    # [sentinel]\n")
-
-    extension_points = {
-        "startup": ExtensionPoint(
-            file="lifecycle.py",
-            sentinel="    # [sentinel]",
-            mode=InjectionMode.AFTER_SENTINEL,
-        )
-    }
-    contributions = Contributions(
-        injections=[
-            Injection(point="startup", content="    init_a()"),
-            Injection(point="startup", content="    init_b()"),
-        ]
-    )
-    apply_contributions(ctx, contributions, extension_points, _render_vars(ctx))
-
-    text = target.read_text()
-    assert "init_a()" in text
-    assert "init_b()" in text
-
-
-def test_injection_pkg_name_in_file_path(tmp_path):
-    ctx = _ctx(tmp_path)
-    (ctx.project_dir / "src" / "myapp").mkdir(parents=True)
-    target = ctx.project_dir / "src" / "myapp" / "lifecycle.py"
-    target.write_text("    # [sentinel]\n")
-
-    extension_points = {
-        "startup": ExtensionPoint(
-            file="src/{{pkg_name}}/lifecycle.py",
-            sentinel="    # [sentinel]",
-            mode=InjectionMode.AFTER_SENTINEL,
-        )
-    }
-    contributions = Contributions(
-        injections=[Injection(point="startup", content="    go()")]
-    )
-    apply_contributions(ctx, contributions, extension_points, _render_vars(ctx))
-
-    assert "go()" in target.read_text()
 
 
 # ── compose merging ───────────────────────────────────────────────────────────
@@ -521,48 +378,6 @@ def test_post_apply_hook_not_required(tmp_path):
     contributions = Contributions(_addon_configs=[addon])
     apply_contributions(ctx, contributions, {}, _render_vars(ctx))
     # Should not raise
-
-
-# ── _apply_to_file unit tests ─────────────────────────────────────────────────
-
-
-def test_apply_to_file_after_sentinel(tmp_path):
-    f = tmp_path / "target.py"
-    f.write_text("before\n    # sentinel\nafter\n")
-    ep = ExtensionPoint(
-        file="target.py", sentinel="    # sentinel", mode=InjectionMode.AFTER_SENTINEL
-    )
-    _apply_to_file(f, ep, ["    injected()"])
-    text = f.read_text()
-    assert "    # sentinel\n    injected()\nafter" in text
-
-
-def test_apply_to_file_append(tmp_path):
-    f = tmp_path / "target.py"
-    f.write_text("line1\n    # sentinel\nline3\n")
-    ep = ExtensionPoint(
-        file="target.py", sentinel="    # sentinel", mode=InjectionMode.APPEND
-    )
-    _apply_to_file(f, ep, ["appended line"])
-    text = f.read_text()
-    assert text.endswith("appended line\n")
-
-
-def test_apply_to_file_noop_when_file_missing(tmp_path):
-    f = tmp_path / "nonexistent.py"
-    ep = ExtensionPoint(file="nonexistent.py", sentinel="# sentinel")
-    # Should not raise
-    _apply_to_file(f, ep, ["something"])
-
-
-def test_apply_to_file_noop_when_sentinel_absent(tmp_path):
-    f = tmp_path / "target.py"
-    f.write_text("no sentinel here\n")
-    ep = ExtensionPoint(
-        file="target.py", sentinel="# MISSING", mode=InjectionMode.AFTER_SENTINEL
-    )
-    _apply_to_file(f, ep, ["injected"])
-    assert "injected" not in f.read_text()
 
 
 # ── _merge_env_vars unit tests ────────────────────────────────────────────────

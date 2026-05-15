@@ -10,7 +10,6 @@ import yaml
 from jinja2 import Environment
 
 from scaffolder.core.handlers.base import HandlerDispatcher
-from scaffolder.schema.exceptions import ScaffoldError
 from scaffolder.core.handlers.justfile_handler import _RECIPE_NAME_RE
 from scaffolder.core.manifest import (
     add_compose_service,
@@ -24,6 +23,7 @@ from scaffolder.core.manifest import (
     write_manifest,
 )
 from scaffolder.core.render import make_env
+from scaffolder.schema.exceptions import ScaffoldError
 from scaffolder.schema.models import Manifest, ManifestBlock
 
 if TYPE_CHECKING:

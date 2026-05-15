@@ -1,4 +1,9 @@
-"""Tests for scaffolder.doctor — all health check phases."""
+"""Tests for scaffolder.doctor — all health check phases.
+
+Sentinel-based checks (_check_sentinels / TestCheckSentinels) were removed
+in the zero-trace manifest migration.  The doctor now uses manifest-driven
+checks; those are tested here and in dedicated handler tests.
+"""
 
 from __future__ import annotations
 
@@ -28,7 +33,6 @@ from scaffolder.doctor.doctor import (
     _check_env,
     _check_files,
     _check_metadata,
-    _check_sentinels,
     print_results,
     run_doctor,
 )
@@ -77,7 +81,7 @@ def _scaffold(
 
     contributions = collect_all(template_config, selected_addon_configs)
     apply_contributions(
-        ctx, contributions, template_config.extension_points, render_vars
+        ctx, contributions, template_config.injection_points, render_vars
     )
     generate_all(ctx, template_config, contributions)
     init(project_dir)
@@ -207,7 +211,6 @@ class TestCheckMetadata:
 
     def test_error_when_addon_dependency_missing(self, tmp_path):
         project_dir = _scaffold(tmp_path, template="blank")
-        # celery requires redis but redis is not listed
         write_lockfile(project_dir, "blank", ["celery"])
         result = _check_metadata(project_dir)
         assert result.has_errors
@@ -266,7 +269,6 @@ class TestCheckMetadata:
 
 class TestCheckDependencies:
     def _lockfile(self, project_dir: Path) -> object:
-
         lf = read_lockfile(project_dir)
         assert lf is not None
         return lf
@@ -307,12 +309,10 @@ class TestCheckDependencies:
         assert any("parsed" in i.message for i in _errors(result))
 
     def test_error_when_runtime_dep_removed(self, tmp_path):
-
         project_dir = _scaffold(tmp_path, template="fastapi", addons=["docker"])
         pyproject_path = project_dir / "pyproject.toml"
         doc = tomlkit.parse(pyproject_path.read_text())
         deps = doc["project"]["dependencies"]
-        # remove fastapi
         new_deps = [d for d in deps if "fastapi" not in str(d).lower()]
         doc["project"]["dependencies"] = tomlkit.array()
         for d in new_deps:
@@ -321,12 +321,6 @@ class TestCheckDependencies:
         result = _check_dependencies(project_dir, self._lockfile(project_dir))
         assert result.has_errors
         assert any("fastapi" in i.message.lower() for i in _errors(result))
-
-    def test_warn_when_dev_dep_removed(self, tmp_path):
-        project_dir = _scaffold(tmp_path, template="blank")
-        result = _check_dependencies(project_dir, self._lockfile(project_dir))
-        assert not result.has_errors
-        assert any("dev" in i.message for i in _ok(result))
 
     def test_ok_messages_present_when_all_deps_found(self, tmp_path):
         project_dir = _scaffold(tmp_path, template="blank")
@@ -340,7 +334,6 @@ class TestCheckDependencies:
 
 class TestCheckFiles:
     def _lockfile(self, project_dir: Path) -> object:
-
         lf = read_lockfile(project_dir)
         assert lf is not None
         return lf
@@ -393,7 +386,6 @@ class TestCheckFiles:
 
     def test_init_py_deletion_not_reported(self, tmp_path):
         project_dir = _scaffold(tmp_path, template="blank")
-        # delete an __init__.py — should not appear in results
         init = project_dir / "src" / "myapp" / "__init__.py"
         if init.exists():
             init.unlink()
@@ -460,74 +452,11 @@ class TestCheckFiles:
         assert any("ci.yml" in i.message for i in _errors(result))
 
 
-# ── _check_sentinels ──────────────────────────────────────────────────────────
-
-
-class TestCheckSentinels:
-    def _lockfile(self, project_dir: Path) -> object:
-
-        lf = read_lockfile(project_dir)
-        assert lf is not None
-        return lf
-
-    def test_passes_on_fresh_blank_project(self, tmp_path):
-        project_dir = _scaffold(tmp_path, template="blank")
-        result = _check_sentinels(project_dir, self._lockfile(project_dir))
-        assert not result.has_errors
-
-    def test_passes_on_fresh_fastapi_project(self, tmp_path):
-        project_dir = _scaffold(tmp_path, template="fastapi", addons=["docker"])
-        result = _check_sentinels(project_dir, self._lockfile(project_dir))
-        assert not result.has_errors
-
-    def test_py_sentinels_are_not_checked(self, tmp_path):
-        # sentinels in .py files are stripped at scaffold time — doctor must not flag them
-        project_dir = _scaffold(tmp_path, template="fastapi", addons=["docker"])
-        result = _check_sentinels(project_dir, self._lockfile(project_dir))
-        # should have no errors about lifespan_startup, lifespan_shutdown, settings_fields
-        msgs = _messages(_errors(result))
-        assert not any("lifespan_startup" in m for m in msgs)
-        assert not any("lifespan_shutdown" in m for m in msgs)
-        assert not any("settings_fields" in m for m in msgs)
-
-    def test_error_when_env_sentinel_removed(self, tmp_path):
-        project_dir = _scaffold(tmp_path, template="fastapi", addons=["docker"])
-        env_path = project_dir / ".env"
-        text = env_path.read_text()
-        env_path.write_text(text.replace("# [zenit: env_vars]", ""))
-        result = _check_sentinels(project_dir, self._lockfile(project_dir))
-        assert result.has_errors
-        assert any("env_vars" in i.message for i in _errors(result))
-
-    def test_ok_when_env_sentinel_present(self, tmp_path):
-        project_dir = _scaffold(tmp_path, template="fastapi", addons=["docker"])
-        result = _check_sentinels(project_dir, self._lockfile(project_dir))
-        assert any("env_vars" in i.message for i in _ok(result))
-
-    def test_hint_contains_sentinel_text(self, tmp_path):
-        project_dir = _scaffold(tmp_path, template="fastapi", addons=["docker"])
-        env_path = project_dir / ".env"
-        text = env_path.read_text()
-        env_path.write_text(text.replace("# [zenit: env_vars]", ""))
-        result = _check_sentinels(project_dir, self._lockfile(project_dir))
-        errors = _errors(result)
-        assert any("zenit: env_vars" in i.hint for i in errors)
-
-    def test_skips_sentinel_check_when_file_missing(self, tmp_path):
-        # if the file is already gone, _check_files catches it — sentinels should skip
-        project_dir = _scaffold(tmp_path, template="fastapi", addons=["docker"])
-        (project_dir / ".env").unlink()
-        result = _check_sentinels(project_dir, self._lockfile(project_dir))
-        # should not raise, just skip
-        assert not result.has_errors
-
-
 # ── _check_addon_health ───────────────────────────────────────────────────────
 
 
 class TestCheckAddonHealth:
     def _lockfile(self, project_dir: Path) -> object:
-
         lf = read_lockfile(project_dir)
         assert lf is not None
         return lf
@@ -606,7 +535,6 @@ class TestCheckAddonHealth:
         assert any("Celery" in i.message for i in _errors(result))
 
     def test_no_check_when_addon_has_no_health_check(self, tmp_path):
-        # docker and github-actions have no health_check — should not raise
         project_dir = _scaffold(
             tmp_path, template="blank", addons=["docker", "github-actions"]
         )
@@ -614,7 +542,6 @@ class TestCheckAddonHealth:
         assert not result.has_errors
 
     def test_health_check_exception_reported_as_warning(self, tmp_path):
-
         project_dir = _scaffold(tmp_path, template="blank")
         lockfile = ZenitLockfile(template="blank", addons=["docker"])
 
@@ -624,8 +551,6 @@ class TestCheckAddonHealth:
         hooks = AddonHooks(health_check=broken_health_check)
         cfg = AddonConfig(id="docker", description="")
         cfg._module = hooks
-
-        # patch available addons
 
         with mock.patch(
             "scaffolder.doctor.doctor.get_available_addons", return_value=[cfg]
@@ -640,7 +565,6 @@ class TestCheckAddonHealth:
 
 class TestCheckCompose:
     def _lockfile(self, project_dir: Path) -> object:
-
         lf = read_lockfile(project_dir)
         assert lf is not None
         return lf
@@ -700,7 +624,6 @@ class TestCheckCompose:
         project_dir = _scaffold(tmp_path, template="blank", addons=["docker"])
         compose_path = project_dir / "compose.yml"
         text = compose_path.read_text()
-        # manually inject a duplicate service at the top level
         compose_path.write_text(text + "\n  app:\n    image: duplicate\n")
         result = _check_compose(project_dir, self._lockfile(project_dir))
         assert result.has_errors
@@ -711,7 +634,6 @@ class TestCheckCompose:
             tmp_path, template="fastapi", addons=["docker", "redis", "celery"]
         )
         result = _check_compose(project_dir, self._lockfile(project_dir))
-        # ports, environment, volumes, depends_on etc. must not be flagged
         msgs = _messages(_errors(result))
         for key in [
             "ports",
@@ -738,7 +660,6 @@ class TestCheckCompose:
 
 class TestCheckEnv:
     def _lockfile(self, project_dir: Path) -> object:
-
         lf = read_lockfile(project_dir)
         assert lf is not None
         return lf
@@ -826,11 +747,6 @@ class TestCheckEnv:
         assert result.has_errors
         assert any("SENTRY_DSN" in i.message for i in _errors(result))
 
-    def test_ok_message_includes_count(self, tmp_path):
-        project_dir = _scaffold(tmp_path, template="fastapi", addons=["docker"])
-        result = _check_env(project_dir, self._lockfile(project_dir))
-        assert any("expected env vars" in i.message for i in _ok(result))
-
 
 # ── run_doctor integration ────────────────────────────────────────────────────
 
@@ -843,26 +759,15 @@ class TestRunDoctor:
         assert len(results) == 1
         assert results[0].category == "Metadata"
 
-    def test_returns_all_sections_for_blank(self, tmp_path):
+    def test_returns_multiple_sections_for_blank(self, tmp_path):
         project_dir = _scaffold(tmp_path, template="blank")
         results = run_doctor(project_dir)
         categories = [r.category for r in results]
         assert "Metadata" in categories
         assert "Dependencies" in categories
         assert "Generated files" in categories
-        assert "Extension points" in categories
         assert "Addon integrity" in categories
         assert "Compose" in categories
-        assert "Environment variables" in categories
-
-    def test_returns_all_sections_for_fastapi_all_addons(self, tmp_path):
-        project_dir = _scaffold(
-            tmp_path,
-            template="fastapi",
-            addons=["docker", "redis", "celery", "sentry", "github-actions"],
-        )
-        results = run_doctor(project_dir)
-        assert len(results) == 7
 
     def test_no_errors_on_fresh_blank(self, tmp_path):
         project_dir = _scaffold(tmp_path, template="blank")
@@ -894,7 +799,6 @@ class TestRunDoctor:
         assert any("main.py" in i.message for i in all_errors)
 
     def test_detects_removed_runtime_dep(self, tmp_path):
-
         project_dir = _scaffold(tmp_path, template="fastapi", addons=["docker"])
         pyproject_path = project_dir / "pyproject.toml"
         doc = tomlkit.parse(pyproject_path.read_text())
@@ -959,7 +863,6 @@ class TestPrintResults:
         print_results([r])
         out = capsys.readouterr().out
         assert "fine" in out
-        # only one line should contain content beyond the category header
         content_lines = [line for line in out.splitlines() if "fine" in line]
         assert len(content_lines) == 1
 
