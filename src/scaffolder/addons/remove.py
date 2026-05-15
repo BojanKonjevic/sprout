@@ -231,6 +231,12 @@ def _undo_injections_physical(
             continue
         file_path = project_dir / block.file
         if not file_path.exists():
+            print(
+                f"Warning: '{block.file}' is missing — skipping removal of "
+                f"'{block.point}' injection for addon '{addon_cfg.id}'. "
+                f"Run 'zenit doctor' to verify project integrity.",
+                file=sys.stderr,
+            )
             continue
         dispatcher.remove(file_path, block)
 
