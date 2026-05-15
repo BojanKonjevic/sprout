@@ -110,7 +110,7 @@ def can_apply(project_dir: Path, lockfile: ZenitLockfile) -> str | None:
     return None
 
 
-def health_check(project_dir: Path, lockfile: object) -> list[HealthIssue]:
+def health_check(project_dir: Path, lockfile: ZenitLockfile) -> list[HealthIssue]:
 
     pkg_name = project_dir.name.replace("-", "_")
     issues: list[HealthIssue] = []
@@ -119,7 +119,6 @@ def health_check(project_dir: Path, lockfile: object) -> list[HealthIssue]:
     if not sentry_file.exists():
         return issues
 
-    assert isinstance(lockfile, ZenitLockfile)
     template = lockfile.template
 
     if template == "fastapi":

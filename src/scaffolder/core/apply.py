@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import yaml
+from jinja2 import Environment
 
 from scaffolder.core.handlers.base import HandlerDispatcher
 from scaffolder.core.handlers.justfile_handler import _RECIPE_NAME_RE
@@ -22,7 +23,7 @@ from scaffolder.core.manifest import (
     write_manifest,
 )
 from scaffolder.core.render import make_env
-from scaffolder.schema.models import ManifestBlock
+from scaffolder.schema.models import Manifest, ManifestBlock
 
 if TYPE_CHECKING:
     from scaffolder.core.context import Context
@@ -194,9 +195,9 @@ def apply_contributions(
 
 
 def _record_addon_manifest_entries(
-    manifest: object,
+    manifest: Manifest,
     addon_cfg: AddonConfig,
-    string_env: object,
+    string_env: Environment,
     render_vars: dict[str, object],
 ) -> None:
     """Record all non-Python manifest entries owned by *addon_cfg*.
@@ -205,9 +206,6 @@ def _record_addon_manifest_entries(
     because they require the post-write line numbers and fingerprints that
     are only available at injection time.
     """
-    from scaffolder.schema.models import Manifest
-
-    assert isinstance(manifest, Manifest)
 
     addon_id = addon_cfg.id
 
@@ -240,9 +238,6 @@ def _record_addon_manifest_entries(
             dev=True,
         )
 
-    from jinja2 import Environment
-
-    assert isinstance(string_env, Environment)
     for recipe_raw in addon_cfg.just_recipes:
         rendered = string_env.from_string(recipe_raw).render(**render_vars)
         m = _RECIPE_NAME_RE.search(rendered)

@@ -26,8 +26,8 @@ Normalisation contract
 from __future__ import annotations
 
 import hashlib
-import sys
 import re
+import sys
 from pathlib import Path
 from typing import Any
 

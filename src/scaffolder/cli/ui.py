@@ -5,6 +5,10 @@ import sys
 import threading
 import time
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from scaffolder.core.context import Context
 
 # Enable VT100 / ANSI escape processing on Windows.
 # This is a no-op on Windows 10 1511+ and all Unix systems, but required on
@@ -82,10 +86,7 @@ def dry_section(title: str) -> None:
 # ── Confirm prompt ────────────────────────────────────────────────────────────
 
 
-def confirm(ctx: object) -> bool:
-    from scaffolder.core.context import Context
-
-    assert isinstance(ctx, Context)
+def confirm(ctx: Context) -> bool:
 
     template_line = f"{CYAN}{ctx.template}{RESET}"
     addon_line = (

@@ -160,10 +160,10 @@ def remove_addon(
 # ── Removal helpers ───────────────────────────────────────────────────────────
 
 
-def _remove_files(project_dir: Path, addon_cfg: object, pkg_name: str) -> list[str]:
+def _remove_files(
+    project_dir: Path, addon_cfg: AddonConfig, pkg_name: str
+) -> list[str]:
     """Delete files that were created by this addon. Returns list of removed paths."""
-
-    assert isinstance(addon_cfg, AddonConfig)
 
     all_dests = {fc.dest.replace("{{pkg_name}}", pkg_name) for fc in addon_cfg.files}
 
@@ -211,7 +211,7 @@ def _prune_empty_parents(directory: Path, stop_at: Path) -> None:
 
 def _undo_injections_physical(
     project_dir: Path,
-    addon_cfg: object,
+    addon_cfg: AddonConfig,
 ) -> None:
     """Physically remove all Python blocks injected by *addon_cfg*.
 
@@ -221,7 +221,6 @@ def _undo_injections_physical(
     physical removals have also succeeded.  This keeps manifest writes atomic
     with respect to the full removal sequence.
     """
-    assert isinstance(addon_cfg, AddonConfig)
 
     manifest = read_manifest(project_dir)
     dispatcher = HandlerDispatcher()
@@ -243,11 +242,9 @@ def _undo_injections_physical(
 
 def _remove_compose_services(
     project_dir: Path,
-    addon_cfg: object,
+    addon_cfg: AddonConfig,
 ) -> list[str]:
     """Remove compose services that belong to this addon. Returns removed service names."""
-
-    assert isinstance(addon_cfg, AddonConfig)
 
     compose_path = project_dir / "compose.yml"
     if not compose_path.exists() or not addon_cfg.compose_services:
@@ -273,10 +270,8 @@ def _remove_compose_services(
     return removed
 
 
-def _remove_compose_volumes(project_dir: Path, addon_cfg: object) -> None:
+def _remove_compose_volumes(project_dir: Path, addon_cfg: AddonConfig) -> None:
     """Remove named volumes that belong to this addon from compose.yml."""
-
-    assert isinstance(addon_cfg, AddonConfig)
 
     compose_path = project_dir / "compose.yml"
     if not compose_path.exists() or not addon_cfg.compose_volumes:
@@ -300,10 +295,8 @@ def _remove_compose_volumes(project_dir: Path, addon_cfg: object) -> None:
         )
 
 
-def _remove_env_vars(project_dir: Path, addon_cfg: object) -> list[str]:
+def _remove_env_vars(project_dir: Path, addon_cfg: AddonConfig) -> list[str]:
     """Remove env var lines owned by this addon. Returns removed keys."""
-
-    assert isinstance(addon_cfg, AddonConfig)
 
     if not addon_cfg.env_vars:
         return []
@@ -331,12 +324,13 @@ def _remove_env_vars(project_dir: Path, addon_cfg: object) -> list[str]:
     return removed
 
 
-def _remove_deps(project_dir: Path, addon_cfg: object) -> tuple[list[str], list[str]]:
+def _remove_deps(
+    project_dir: Path, addon_cfg: AddonConfig
+) -> tuple[list[str], list[str]]:
     """Remove deps contributed by this addon from pyproject.toml.
 
     Returns (removed_deps, removed_dev_deps).
     """
-    assert isinstance(addon_cfg, AddonConfig)
 
     pyproject_path = project_dir / "pyproject.toml"
     if not pyproject_path.exists():
@@ -391,12 +385,10 @@ def _remove_deps(project_dir: Path, addon_cfg: object) -> tuple[list[str], list[
 
 def _remove_just_recipes(
     project_dir: Path,
-    addon_cfg: object,
+    addon_cfg: AddonConfig,
     render_vars: dict[str, object],
 ) -> list[str]:
     """Remove just recipes contributed by this addon from the justfile."""
-
-    assert isinstance(addon_cfg, AddonConfig)
 
     justfile_path = project_dir / "justfile"
     if not justfile_path.exists() or not addon_cfg.just_recipes:
@@ -442,13 +434,11 @@ def _remove_just_recipes(
 def _dry_remove(
     project_dir: Path,
     addon_id: str,
-    addon_cfg: object,
+    addon_cfg: AddonConfig,
     lockfile: ZenitLockfile,
     pkg_name: str,
 ) -> None:
     """Print what `zenit remove` would do without writing anything."""
-
-    assert isinstance(addon_cfg, AddonConfig)
 
     print(
         f"\n  {BOLD}{MAGENTA}Dry run:{RESET} zenit remove {addon_id}"

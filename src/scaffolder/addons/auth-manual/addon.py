@@ -172,8 +172,7 @@ def can_apply(project_dir: Path, lockfile: ZenitLockfile) -> str | None:
     return None
 
 
-def post_apply(ctx: object) -> None:
+def post_apply(ctx: Context) -> None:
 
-    assert isinstance(ctx, Context)
     info("Run 'just migrate \"add users\"' then 'just upgrade' to create auth tables.")
     info("Run 'just gen-secret' to generate a SECRET_KEY and add it to .env.")
