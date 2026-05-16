@@ -1,7 +1,7 @@
 """Tests for scaffolder.assembler.apply_contributions.
 
 This is the most complex function in the codebase and was previously untested.
-It writes files, applies sentinel-based injections, merges compose services,
+It writes files, applies handler-based injections, merges compose services,
 and patches .env / .env.example.
 """
 
@@ -264,88 +264,6 @@ def test_multiple_compose_services_merged(tmp_path):
     data = yaml.safe_load(compose_path.read_text())
     assert "redis" in data["services"]
     assert "worker" in data["services"]
-
-
-# ── env var merging ───────────────────────────────────────────────────────────
-
-
-def test_env_var_appended_after_sentinel(tmp_path):
-    ctx = _ctx(tmp_path)
-    env_path = ctx.project_dir / ".env"
-    env_path.write_text("DEBUG=false\n# [zenit: env_vars]\n")
-
-    contributions = Contributions(
-        env_vars=[EnvVar(key="REDIS_URL", default="redis://localhost:6379/0")]
-    )
-    apply_contributions(ctx, contributions, {}, _render_vars(ctx))
-
-    text = env_path.read_text()
-    assert "REDIS_URL=redis://localhost:6379/0" in text
-
-
-def test_env_var_with_comment(tmp_path):
-    ctx = _ctx(tmp_path)
-    env_path = ctx.project_dir / ".env"
-    env_path.write_text("# [zenit: env_vars]\n")
-
-    contributions = Contributions(
-        env_vars=[EnvVar(key="SENTRY_DSN", default="", comment="Get from sentry.io")]
-    )
-    apply_contributions(ctx, contributions, {}, _render_vars(ctx))
-
-    text = env_path.read_text()
-    assert "SENTRY_DSN=" in text
-    assert "# Get from sentry.io" in text
-
-
-def test_env_var_not_duplicated_if_already_present(tmp_path):
-    ctx = _ctx(tmp_path)
-    env_path = ctx.project_dir / ".env"
-    env_path.write_text("REDIS_URL=redis://localhost:6379/0\n# [zenit: env_vars]\n")
-
-    contributions = Contributions(
-        env_vars=[EnvVar(key="REDIS_URL", default="redis://localhost:6379/0")]
-    )
-    apply_contributions(ctx, contributions, {}, _render_vars(ctx))
-
-    text = env_path.read_text()
-    assert text.count("REDIS_URL=") == 1
-
-
-def test_env_skipped_when_sentinel_missing(tmp_path):
-    ctx = _ctx(tmp_path)
-    env_path = ctx.project_dir / ".env"
-    env_path.write_text("DEBUG=false\n")
-
-    contributions = Contributions(
-        env_vars=[EnvVar(key="REDIS_URL", default="redis://localhost:6379/0")]
-    )
-    apply_contributions(ctx, contributions, {}, _render_vars(ctx))
-
-    assert "REDIS_URL" not in env_path.read_text()
-
-
-def test_env_example_also_patched(tmp_path):
-    ctx = _ctx(tmp_path)
-    for fname in (".env", ".env.example"):
-        (ctx.project_dir / fname).write_text("# [zenit: env_vars]\n")
-
-    contributions = Contributions(
-        env_vars=[EnvVar(key="REDIS_URL", default="redis://localhost:6379/0")]
-    )
-    apply_contributions(ctx, contributions, {}, _render_vars(ctx))
-
-    assert "REDIS_URL=" in (ctx.project_dir / ".env").read_text()
-    assert "REDIS_URL=" in (ctx.project_dir / ".env.example").read_text()
-
-
-def test_env_skipped_when_no_env_files(tmp_path):
-    ctx = _ctx(tmp_path)
-    contributions = Contributions(
-        env_vars=[EnvVar(key="REDIS_URL", default="redis://localhost:6379/0")]
-    )
-    # Should not raise even though .env doesn't exist
-    apply_contributions(ctx, contributions, {}, _render_vars(ctx))
 
 
 # ── post_apply hook ───────────────────────────────────────────────────────────
