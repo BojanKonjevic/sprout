@@ -9,7 +9,6 @@ from __future__ import annotations
 
 from scaffolder.core.manifest import _normalise, fingerprint
 
-
 # ── fingerprint() — top-level contract ───────────────────────────────────────
 
 
