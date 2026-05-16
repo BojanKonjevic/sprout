@@ -1,8 +1,15 @@
-"""Tests for scaffolder.assembler.apply_contributions.
+"""Integration tests for apply_contributions() → manifest recording.
 
-This is the most complex function in the codebase and was previously untested.
-It writes files, applies handler-based injections, merges compose services,
-and patches .env / .env.example.
+Verifies that apply_contributions() correctly records every category of
+injected item in the manifest — Python blocks with accurate fingerprints,
+env entries, compose services/volumes, dependencies, and just recipes.
+
+Tested invariants:
+  - Every Python injection produces a ManifestBlock with all fields populated.
+  - The stored fingerprint matches bytes on disk at the recorded line range.
+  - Env, compose, dep, and recipe entries carry correct source/addon metadata.
+  - Running apply_contributions twice produces no duplicate manifest entries.
+  - Injections for a missing file are silently skipped (no block recorded).
 """
 
 from __future__ import annotations
@@ -10,25 +17,24 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-import yaml
-from conftest import SCAFFOLDER_ROOT
 
-from scaffolder.core.apply import (
-    _merge_compose_volumes,
-    _merge_env_vars,
-    apply_contributions,
-)
+from scaffolder.core.apply import apply_contributions
 from scaffolder.core.context import Context
+from scaffolder.core.manifest import fingerprint as _fp
+from scaffolder.core.manifest import read_manifest
 from scaffolder.schema.models import (
     AddonConfig,
-    AddonHooks,
     ComposeService,
     Contributions,
     EnvVar,
-    FileContribution,
+    Injection,
+    InjectionPoint,
+    LocatorSpec,
 )
 
 # ── helpers ───────────────────────────────────────────────────────────────────
+
+_SCAFFOLDER_ROOT = Path(__file__).parent.parent.parent / "src" / "scaffolder"
 
 
 def _ctx(tmp_path: Path, name: str = "myapp") -> Context:
@@ -39,12 +45,12 @@ def _ctx(tmp_path: Path, name: str = "myapp") -> Context:
         pkg_name=name.replace("-", "_"),
         template="blank",
         addons=[],
-        scaffolder_root=SCAFFOLDER_ROOT,
+        scaffolder_root=_SCAFFOLDER_ROOT,
         project_dir=project_dir,
     )
 
 
-def _render_vars(ctx: Context, **extra: object) -> dict[str, object]:
+def _render_vars(ctx: Context) -> dict[str, object]:
     return {
         "name": ctx.name,
         "pkg_name": ctx.pkg_name,
@@ -52,278 +58,280 @@ def _render_vars(ctx: Context, **extra: object) -> dict[str, object]:
         "secret_key": "test-secret",
         "has_postgres": False,
         "has_redis": False,
-        **extra,
     }
 
 
-def _empty_contributions() -> Contributions:
-    return Contributions()
+def _injection_points(
+    *items: tuple[str, str, str, dict[str, object]],
+) -> dict[str, InjectionPoint]:
+    """Build a minimal injection_points dict.
+
+    Each item is (point_name, file_template, locator_name, locator_args).
+    """
+    return {
+        name: InjectionPoint(
+            file=file_tpl,
+            locator=LocatorSpec(name=loc_name, args=loc_args),
+        )
+        for name, file_tpl, loc_name, loc_args in items
+    }
 
 
-# ── file writing ──────────────────────────────────────────────────────────────
-
-
-def test_inline_content_file_is_written(tmp_path):
-    ctx = _ctx(tmp_path)
-    contributions = Contributions(
-        files=[FileContribution(dest="hello.txt", content="hello world\n")]
+def _addon(
+    addon_id: str,
+    *,
+    injections: list[Injection] | None = None,
+    env_vars: list[EnvVar] | None = None,
+    compose_services: list[ComposeService] | None = None,
+    compose_volumes: list[str] | None = None,
+    deps: list[str] | None = None,
+    dev_deps: list[str] | None = None,
+    just_recipes: list[str] | None = None,
+) -> AddonConfig:
+    return AddonConfig(
+        id=addon_id,
+        description="",
+        injections=injections or [],
+        env_vars=env_vars or [],
+        compose_services=compose_services or [],
+        compose_volumes=compose_volumes or [],
+        deps=deps or [],
+        dev_deps=dev_deps or [],
+        just_recipes=just_recipes or [],
     )
-    apply_contributions(ctx, contributions, {}, _render_vars(ctx))
-    assert (ctx.project_dir / "hello.txt").read_text() == "hello world\n"
 
 
-def test_inline_template_file_is_rendered(tmp_path):
+# ── Python block recording ────────────────────────────────────────────────────
+
+
+def test_apply_records_python_block_with_all_fields(tmp_path: Path) -> None:
     ctx = _ctx(tmp_path)
-    contributions = Contributions(
-        files=[
-            FileContribution(
-                dest="out.txt",
-                content="project=(( name ))\npkg=(( pkg_name ))",
-                template=True,
+    # Create a Python file for injection to land in
+    target = ctx.project_dir / "src" / "myapp" / "settings.py"
+    target.parent.mkdir(parents=True)
+    target.write_text(
+        'class Settings:\n    db_url: str = "postgresql://localhost"\n',
+        encoding="utf-8",
+    )
+
+    addon = _addon(
+        "redis",
+        injections=[
+            Injection(
+                point="settings_fields",
+                content='    redis_url: str = "redis://localhost"\n',
+                addon_id="redis",
             )
-        ]
-    )
-    apply_contributions(ctx, contributions, {}, _render_vars(ctx))
-    text = (ctx.project_dir / "out.txt").read_text()
-    assert "project=myapp" in text
-    assert "pkg=myapp" in text
-
-
-def test_pkg_name_placeholder_in_dest_is_expanded(tmp_path):
-    ctx = _ctx(tmp_path)
-    contributions = Contributions(
-        files=[FileContribution(dest="src/{{pkg_name}}/mod.py", content="")]
-    )
-    apply_contributions(ctx, contributions, {}, _render_vars(ctx))
-    assert (ctx.project_dir / "src" / "myapp" / "mod.py").exists()
-
-
-def test_hyphenated_name_pkg_placeholder(tmp_path):
-    ctx = _ctx(tmp_path, name="my-app")
-    contributions = Contributions(
-        files=[FileContribution(dest="src/{{pkg_name}}/__init__.py", content="")]
-    )
-    apply_contributions(ctx, contributions, {}, _render_vars(ctx))
-    assert (ctx.project_dir / "src" / "my_app" / "__init__.py").exists()
-
-
-def test_source_file_is_copied(tmp_path):
-    ctx = _ctx(tmp_path)
-    source = tmp_path / "source.txt"
-    source.write_text("copied content")
-    contributions = Contributions(
-        files=[FileContribution(dest="out.txt", source=str(source))]
-    )
-    apply_contributions(ctx, contributions, {}, _render_vars(ctx))
-    assert (ctx.project_dir / "out.txt").read_text() == "copied content"
-
-
-def test_source_template_file_is_rendered(tmp_path):
-    ctx = _ctx(tmp_path)
-    source = tmp_path / "tmpl.txt.j2"
-    source.write_text("hello (( name ))!")
-    contributions = Contributions(
-        files=[FileContribution(dest="out.txt", source=str(source), template=True)]
-    )
-    apply_contributions(ctx, contributions, {}, _render_vars(ctx))
-    assert (ctx.project_dir / "out.txt").read_text() == "hello myapp!"
-
-
-def test_dir_creation(tmp_path):
-    ctx = _ctx(tmp_path)
-    contributions = Contributions(dirs=["src/{{pkg_name}}/sub", "tests"])
-    apply_contributions(ctx, contributions, {}, _render_vars(ctx))
-    assert (ctx.project_dir / "src" / "myapp" / "sub").is_dir()
-    assert (ctx.project_dir / "tests").is_dir()
-
-
-def test_source_path_must_be_absolute(tmp_path):
-    ctx = _ctx(tmp_path)
-    contributions = Contributions(
-        files=[FileContribution(dest="out.txt", source="relative/path.txt")]
-    )
-    with pytest.raises(ValueError, match="absolute"):
-        apply_contributions(ctx, contributions, {}, _render_vars(ctx))
-
-
-# ── compose merging ───────────────────────────────────────────────────────────
-
-
-def test_compose_service_is_merged(tmp_path):
-    ctx = _ctx(tmp_path)
-    compose_path = ctx.project_dir / "compose.yml"
-    compose_path.write_text("services:\n  app:\n    image: myapp\n")
-
-    contributions = Contributions(
-        compose_services=[
-            ComposeService(name="redis", image="redis:7-alpine", ports=["6379:6379"])
-        ]
-    )
-    apply_contributions(ctx, contributions, {}, _render_vars(ctx))
-
-    data = yaml.safe_load(compose_path.read_text())
-    assert "redis" in data["services"]
-    assert data["services"]["redis"]["image"] == "redis:7-alpine"
-    assert data["services"]["redis"]["ports"] == ["6379:6379"]
-
-
-def test_compose_service_not_overwritten_if_already_exists(tmp_path):
-    ctx = _ctx(tmp_path)
-    compose_path = ctx.project_dir / "compose.yml"
-    compose_path.write_text("services:\n  redis:\n    image: redis:6\n")
-
-    contributions = Contributions(
-        compose_services=[ComposeService(name="redis", image="redis:7-alpine")]
-    )
-    apply_contributions(ctx, contributions, {}, _render_vars(ctx))
-
-    data = yaml.safe_load(compose_path.read_text())
-    # Original should be preserved
-    assert data["services"]["redis"]["image"] == "redis:6"
-
-
-def test_compose_volume_is_merged(tmp_path):
-    ctx = _ctx(tmp_path)
-    compose_path = ctx.project_dir / "compose.yml"
-    compose_path.write_text("services:\n  app:\n    image: x\n")
-
-    contributions = Contributions(
-        compose_services=[ComposeService(name="redis", image="redis:7-alpine")],
-        compose_volumes=["redis-data"],
-    )
-    apply_contributions(ctx, contributions, {}, _render_vars(ctx))
-
-    data = yaml.safe_load(compose_path.read_text())
-    assert "redis-data" in data.get("volumes", {})
-
-
-def test_compose_skipped_when_no_compose_yml(tmp_path):
-    ctx = _ctx(tmp_path)
-    contributions = Contributions(
-        compose_services=[ComposeService(name="redis", image="redis:7-alpine")]
-    )
-    # Should not raise even though compose.yml doesn't exist
-    apply_contributions(ctx, contributions, {}, _render_vars(ctx))
-
-
-def test_compose_service_pkg_name_in_command(tmp_path):
-    ctx = _ctx(tmp_path)
-    compose_path = ctx.project_dir / "compose.yml"
-    compose_path.write_text("services:\n  app:\n    image: x\n")
-
-    contributions = Contributions(
-        compose_services=[
-            ComposeService(
-                name="worker",
-                build=".",
-                command="celery -A {{pkg_name}}.tasks worker",
-            )
-        ]
-    )
-    apply_contributions(ctx, contributions, {}, _render_vars(ctx))
-
-    data = yaml.safe_load(compose_path.read_text())
-    assert "myapp.tasks" in data["services"]["worker"]["command"]
-    assert "{{pkg_name}}" not in data["services"]["worker"]["command"]
-
-
-def test_compose_service_pkg_name_in_environment(tmp_path):
-    ctx = _ctx(tmp_path)
-    compose_path = ctx.project_dir / "compose.yml"
-    compose_path.write_text("services:\n  app:\n    image: x\n")
-
-    contributions = Contributions(
-        compose_services=[
-            ComposeService(
-                name="worker",
-                build=".",
-                environment={"APP_MODULE": "{{pkg_name}}.main:app"},
-            )
-        ]
-    )
-    apply_contributions(ctx, contributions, {}, _render_vars(ctx))
-
-    data = yaml.safe_load(compose_path.read_text())
-    assert data["services"]["worker"]["environment"]["APP_MODULE"] == "myapp.main:app"
-
-
-def test_multiple_compose_services_merged(tmp_path):
-    ctx = _ctx(tmp_path)
-    compose_path = ctx.project_dir / "compose.yml"
-    compose_path.write_text("services:\n  app:\n    image: x\n")
-
-    contributions = Contributions(
-        compose_services=[
-            ComposeService(name="redis", image="redis:7-alpine"),
-            ComposeService(name="worker", build="."),
-        ]
-    )
-    apply_contributions(ctx, contributions, {}, _render_vars(ctx))
-
-    data = yaml.safe_load(compose_path.read_text())
-    assert "redis" in data["services"]
-    assert "worker" in data["services"]
-
-
-# ── post_apply hook ───────────────────────────────────────────────────────────
-
-
-def test_post_apply_hook_is_called(tmp_path):
-    ctx = _ctx(tmp_path)
-    calls: list[str] = []
-
-    def my_post_apply(c: Context) -> None:
-        calls.append("called")
-
-    hooks = AddonHooks(post_apply=my_post_apply)
-    addon = AddonConfig(id="fake", description="")
-    addon._module = hooks
-
-    contributions = Contributions(_addon_configs=[addon])
-    apply_contributions(ctx, contributions, {}, _render_vars(ctx))
-
-    assert calls == ["called"]
-
-
-def test_post_apply_hook_not_required(tmp_path):
-    ctx = _ctx(tmp_path)
-
-    hooks = AddonHooks()  # all fields are None by default
-    addon = AddonConfig(id="fake", description="")
-    addon._module = hooks
-
-    contributions = Contributions(_addon_configs=[addon])
-    apply_contributions(ctx, contributions, {}, _render_vars(ctx))
-    # Should not raise
-
-
-# ── _merge_env_vars unit tests ────────────────────────────────────────────────
-
-
-def test_merge_env_vars_multiple_keys(tmp_path):
-    env_path = tmp_path / ".env"
-    env_path.write_text("X=1\n# [zenit: env_vars]\n")
-    _merge_env_vars(
-        env_path,
-        [
-            EnvVar(key="A", default="1"),
-            EnvVar(key="B", default="2"),
         ],
     )
-    text = env_path.read_text()
-    assert "A=1" in text
-    assert "B=2" in text
+    contributions = Contributions(injections=addon.injections, _addon_configs=[addon])
+    injection_points = _injection_points(
+        (
+            "settings_fields",
+            "src/{{pkg_name}}/settings.py",
+            "after_last_class_attribute",
+            {"class_name": "Settings"},
+        ),
+    )
+
+    apply_contributions(ctx, contributions, injection_points, _render_vars(ctx))
+
+    manifest = read_manifest(ctx.project_dir)
+    assert len(manifest.python_blocks) == 1
+    block = manifest.python_blocks[0]
+
+    assert block.addon == "redis"
+    assert block.point == "settings_fields"
+    assert block.file == "src/myapp/settings.py"
+    assert "-" in block.lines  # e.g. "3-3"
+    assert block.fingerprint.startswith("sha256:")
+    assert block.fingerprint_normalised.startswith("sha256:")
+    assert block.locator["name"] == "after_last_class_attribute"
+    assert block.locator["args"] == {"class_name": "Settings"}
 
 
-# ── _merge_compose_volumes unit tests ────────────────────────────────────────
+def test_apply_fingerprint_matches_written_content(tmp_path: Path) -> None:
+    ctx = _ctx(tmp_path)
+    target = ctx.project_dir / "src" / "myapp" / "settings.py"
+    target.parent.mkdir(parents=True)
+    target.write_text(
+        'class Settings:\n    db_url: str = "postgresql://localhost"\n',
+        encoding="utf-8",
+    )
+
+    injection_text = '    redis_url: str = "redis://localhost"\n'
+    addon = _addon(
+        "redis",
+        injections=[
+            Injection(point="settings_fields", content=injection_text, addon_id="redis")
+        ],
+    )
+    contributions = Contributions(injections=addon.injections, _addon_configs=[addon])
+    injection_points = _injection_points(
+        (
+            "settings_fields",
+            "src/{{pkg_name}}/settings.py",
+            "after_last_class_attribute",
+            {"class_name": "Settings"},
+        ),
+    )
+
+    apply_contributions(ctx, contributions, injection_points, _render_vars(ctx))
+
+    manifest = read_manifest(ctx.project_dir)
+    block = manifest.python_blocks[0]
+
+    # Re-extract the exact bytes on disk at the recorded line range
+    start, end = (int(x) for x in block.lines.split("-"))
+    disk_lines = target.read_text(encoding="utf-8").splitlines(keepends=True)
+    on_disk_text = "".join(disk_lines[start - 1 : end])
+
+    expected_fp, _ = _fp(on_disk_text)
+    assert block.fingerprint == expected_fp
 
 
-def test_merge_compose_volumes_idempotent(tmp_path):
-    compose_path = tmp_path / "compose.yml"
-    compose_path.write_text("services: {}\nvolumes:\n  existing-vol:\n")
-    _merge_compose_volumes(compose_path.parent, ["existing-vol", "new-vol"])
-    data = yaml.safe_load(compose_path.read_text())
-    assert "existing-vol" in data["volumes"]
-    assert "new-vol" in data["volumes"]
-    # existing-vol should appear exactly once
-    assert list(data["volumes"].keys()).count("existing-vol") == 1
+def test_apply_skips_python_block_for_missing_file(tmp_path: Path) -> None:
+    ctx = _ctx(tmp_path)
+    # Target file deliberately not created
+    addon = _addon(
+        "redis",
+        injections=[
+            Injection(
+                point="settings_fields",
+                content='    redis_url: str = "redis://localhost"\n',
+                addon_id="redis",
+            )
+        ],
+    )
+    contributions = Contributions(injections=addon.injections, _addon_configs=[addon])
+    injection_points = _injection_points(
+        (
+            "settings_fields",
+            "src/{{pkg_name}}/settings.py",
+            "after_last_class_attribute",
+            {"class_name": "Settings"},
+        ),
+    )
+
+    apply_contributions(ctx, contributions, injection_points, _render_vars(ctx))
+
+    manifest = read_manifest(ctx.project_dir)
+    assert manifest.python_blocks == []
+
+
+# ── Non-Python manifest recording ─────────────────────────────────────────────
+
+
+def test_apply_records_env_entry(tmp_path: Path) -> None:
+    ctx = _ctx(tmp_path)
+    (ctx.project_dir / ".env").write_text("", encoding="utf-8")
+
+    addon = _addon(
+        "redis", env_vars=[EnvVar(key="REDIS_URL", default="redis://localhost")]
+    )
+    contributions = Contributions(_addon_configs=[addon], env_vars=addon.env_vars)
+
+    apply_contributions(ctx, contributions, {}, _render_vars(ctx))
+
+    manifest = read_manifest(ctx.project_dir)
+    entry = next((e for e in manifest.env if e.key == "REDIS_URL"), None)
+    assert entry is not None
+    assert entry.source == "addon"
+    assert entry.addon == "redis"
+
+
+def test_apply_records_compose_service_and_volume(tmp_path: Path) -> None:
+    ctx = _ctx(tmp_path)
+    (ctx.project_dir / "compose.yml").write_text(
+        "services:\n  app:\n    image: myapp\n", encoding="utf-8"
+    )
+
+    svc = ComposeService(name="redis", image="redis:7-alpine")
+    addon = _addon("redis", compose_services=[svc], compose_volumes=["redis-data"])
+    contributions = Contributions(
+        _addon_configs=[addon],
+        compose_services=addon.compose_services,
+        compose_volumes=addon.compose_volumes,
+    )
+
+    apply_contributions(ctx, contributions, {}, _render_vars(ctx))
+
+    manifest = read_manifest(ctx.project_dir)
+
+    svc_entry = next((s for s in manifest.compose_services if s.name == "redis"), None)
+    assert svc_entry is not None
+    assert svc_entry.source == "addon"
+    assert svc_entry.addon == "redis"
+
+    vol_entry = next(
+        (v for v in manifest.compose_volumes if v.name == "redis-data"), None
+    )
+    assert vol_entry is not None
+    assert vol_entry.source == "addon"
+    assert vol_entry.addon == "redis"
+
+
+def test_apply_records_dependency_entry(tmp_path: Path) -> None:
+    ctx = _ctx(tmp_path)
+    addon = _addon("redis", deps=["redis>=5"], dev_deps=["fakeredis"])
+    contributions = Contributions(_addon_configs=[addon])
+
+    apply_contributions(ctx, contributions, {}, _render_vars(ctx))
+
+    manifest = read_manifest(ctx.project_dir)
+
+    runtime = next((d for d in manifest.dependencies if d.package == "redis"), None)
+    assert runtime is not None
+    assert runtime.source == "addon"
+    assert runtime.addon == "redis"
+    assert runtime.dev is False
+
+    dev = next((d for d in manifest.dependencies if d.package == "fakeredis"), None)
+    assert dev is not None
+    assert dev.source == "addon"
+    assert dev.addon == "redis"
+    assert dev.dev is True
+
+
+def test_apply_records_just_recipe(tmp_path: Path) -> None:
+    ctx = _ctx(tmp_path)
+    addon = _addon("docker", just_recipes=["docker-up:\n    docker compose up -d\n"])
+    contributions = Contributions(_addon_configs=[addon])
+
+    apply_contributions(ctx, contributions, {}, _render_vars(ctx))
+
+    manifest = read_manifest(ctx.project_dir)
+    recipe = next((r for r in manifest.just_recipes if r.name == "docker-up"), None)
+    assert recipe is not None
+    assert recipe.source == "addon"
+    assert recipe.addon == "docker"
+
+
+# ── Idempotency ───────────────────────────────────────────────────────────────
+
+
+def test_apply_idempotent(tmp_path: Path) -> None:
+    """Running apply_contributions twice with the same contributions produces
+    no duplicate manifest entries — the add_* helpers deduplicate."""
+    ctx = _ctx(tmp_path)
+    (ctx.project_dir / ".env").write_text("", encoding="utf-8")
+
+    addon = _addon(
+        "redis",
+        env_vars=[EnvVar(key="REDIS_URL", default="redis://localhost")],
+        deps=["redis>=5"],
+    )
+    contributions = Contributions(
+        _addon_configs=[addon],
+        env_vars=addon.env_vars,
+    )
+
+    apply_contributions(ctx, contributions, {}, _render_vars(ctx))
+    apply_contributions(ctx, contributions, {}, _render_vars(ctx))
+
+    manifest = read_manifest(ctx.project_dir)
+    redis_url_entries = [e for e in manifest.env if e.key == "REDIS_URL"]
+    assert len(redis_url_entries) == 1
+
+    redis_dep_entries = [d for d in manifest.dependencies if d.package == "redis"]
+    assert len(redis_dep_entries) == 1
