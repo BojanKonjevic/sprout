@@ -162,9 +162,7 @@ class TestSentryCanApply:
         project_dir = _project_dir(tmp_path, "myapp")
         src = project_dir / "src" / "myapp"
         src.mkdir(parents=True)
-        (src / "main.py").write_text(
-            "def main():\n    # [zenit: main_startup]\n    pass\n"
-        )
+        (src / "main.py").write_text("def main():\n    pass\n")
         result = _get_can_apply("sentry")(project_dir, _lockfile(template="blank"))
         assert result is None
 
@@ -172,9 +170,7 @@ class TestSentryCanApply:
         project_dir = _project_dir(tmp_path, "myapi")
         src = project_dir / "src" / "myapi"
         src.mkdir(parents=True)
-        (src / "lifecycle.py").write_text(
-            "async def lifespan(app):\n    # [zenit: lifespan_startup]\n    yield\n"
-        )
+        (src / "lifecycle.py").write_text("async def lifespan(app):\n    yield\n")
         result = _get_can_apply("sentry")(project_dir, _lockfile(template="fastapi"))
         assert result is None
 
