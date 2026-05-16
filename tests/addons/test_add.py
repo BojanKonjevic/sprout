@@ -82,7 +82,7 @@ def _scaffold(tmp_path: Path, name: str, template: str, addons: list[str]) -> Pa
 
     contributions = collect_all(template_config, selected)
     apply_contributions(
-        ctx, contributions, template_config.extension_points, render_vars
+        ctx, contributions, template_config.injection_points, render_vars
     )
     generate_all(ctx, template_config, contributions)
     init(project_dir)
