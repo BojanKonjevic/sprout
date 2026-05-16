@@ -26,7 +26,6 @@ from scaffolder.schema.models import (
     Contributions,
     EnvVar,
     FileContribution,
-    Injection,
 )
 
 # ── helpers ───────────────────────────────────────────────────────────────────
