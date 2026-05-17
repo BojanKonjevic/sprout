@@ -16,8 +16,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
-
 from scaffolder.core.apply import apply_contributions
 from scaffolder.core.context import Context
 from scaffolder.core.manifest import fingerprint as _fp
