@@ -91,3 +91,30 @@ def test_lockfile_dataclass_defaults():
     assert lf.template == ""
     assert lf.addons == []
     assert lf.zenit_version == ""
+
+
+def test_write_lockfile_preserves_manifest_section(tmp_path):
+    """Regression: write_lockfile must not destroy an existing [manifest] section.
+
+    Previously used tomli_w.dumps which serialised a fresh dict containing only
+    [project], silently discarding [manifest] and any other sections present.
+    """
+    import tomlkit
+
+    path = tmp_path / ".zenit.toml"
+    doc = tomlkit.document()
+    manifest_table = tomlkit.table()
+    manifest_table.add("python_blocks", tomlkit.array())
+    manifest_table.add("env", tomlkit.array())
+    doc.add("manifest", manifest_table)
+    path.write_text(tomlkit.dumps(doc), encoding="utf-8")
+
+    write_lockfile(tmp_path, "fastapi", ["redis"])
+
+    raw = tomlkit.parse(path.read_text(encoding="utf-8"))
+    assert "manifest" in raw, (
+        "write_lockfile destroyed the [manifest] section. "
+        "It must use tomlkit round-trip, not tomli_w.dumps."
+    )
+    assert "project" in raw
+    assert raw["project"]["template"] == "fastapi"
