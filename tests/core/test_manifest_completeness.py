@@ -14,16 +14,13 @@ from __future__ import annotations
 import secrets
 from pathlib import Path
 
-import pytest
-
+from scaffolder.addons._registry import get_available_addons
 from scaffolder.core._apply_loader import load_apply
 from scaffolder.core.apply import apply_contributions
 from scaffolder.core.collect import collect_all
 from scaffolder.core.context import Context
 from scaffolder.core.generate import generate_all
 from scaffolder.core.git import init
-from scaffolder.core.manifest import fingerprint as _fp
-from scaffolder.core.manifest import read_manifest
 from scaffolder.core.lockfile import write_lockfile
 from scaffolder.core.manifest import (
     add_compose_service,
@@ -34,7 +31,7 @@ from scaffolder.core.manifest import (
     read_manifest,
     write_manifest,
 )
-from scaffolder.addons._registry import get_available_addons
+from scaffolder.core.manifest import fingerprint as _fp
 from scaffolder.templates._load_config import load_template_config
 
 _SCAFFOLDER_ROOT = Path(__file__).parent.parent.parent / "src" / "scaffolder"

@@ -100,6 +100,8 @@ def scaffold_project(name: str, dry_run: bool = False) -> None:
             "has_redis": "redis" in addons,
         }
 
+        write_lockfile(project_dir, template, addons)
+
         apply_contributions(
             ctx,
             contributions,
@@ -109,7 +111,6 @@ def scaffold_project(name: str, dry_run: bool = False) -> None:
         generate_all(ctx, template_config, contributions)
         init(project_dir)
 
-        write_lockfile(project_dir, template, addons)
         _stamp_template_manifest(project_dir, template_config)
 
     print()
