@@ -348,15 +348,17 @@ def _remove_deps(
     removed_dev: list[str] = []
 
     project_deps = doc.get("project", {}).get("dependencies", [])
-    if isinstance(project_deps, (list, Array)):
-        new_deps = []
+    if isinstance(project_deps, Array):
+        to_remove = []
         for d in project_deps:
             if _normalise(str(d)) in deps_to_remove:
                 removed.append(str(d))
             else:
-                new_deps.append(d)
+                to_remove.append(d)
         if removed:
-            doc["project"]["dependencies"] = new_deps  # type: ignore[index]
+            del project_deps[:]
+            for d in to_remove:
+                project_deps.append(d)
 
     _dev_doc = doc.get("dependency-groups", {})
     _dev_group = _dev_doc.get("dev") if hasattr(_dev_doc, "get") else None
