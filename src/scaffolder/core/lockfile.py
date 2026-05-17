@@ -23,7 +23,7 @@ from dataclasses import dataclass, field
 from importlib.metadata import version as get_version
 from pathlib import Path
 
-import tomli_w
+import tomlkit
 
 LOCKFILE_NAME = ".zenit.toml"
 SCHEMA_VERSION = 2
@@ -38,23 +38,31 @@ class ZenitLockfile:
 
 
 def write_lockfile(project_dir: Path, template: str, addons: list[str]) -> None:
-    """Write .zenit.toml into *project_dir*."""
+    """Write the [project] section of .zenit.toml into *project_dir*.
 
+    Uses tomlkit round-trip so any other sections already in the file
+    (e.g. [manifest]) are preserved exactly.
+    """
     try:
         zenit_version = get_version("zenit")
     except Exception:
         zenit_version = "dev"
 
-    data = {
-        "project": {
-            "template": template,
-            "addons": list(addons),
-            "zenit_version": zenit_version,
-            "schema_version": SCHEMA_VERSION,
-        }
-    }
     path = project_dir / LOCKFILE_NAME
-    path.write_text(tomli_w.dumps(data), encoding="utf-8")
+    doc = (
+        tomlkit.parse(path.read_text(encoding="utf-8"))
+        if path.exists()
+        else tomlkit.document()
+    )
+
+    project = tomlkit.table()
+    project.add("template", template)
+    project.add("addons", list(addons))
+    project.add("zenit_version", zenit_version)
+    project.add("schema_version", SCHEMA_VERSION)
+    doc["project"] = project
+
+    path.write_text(tomlkit.dumps(doc), encoding="utf-8")
 
 
 def read_lockfile(project_dir: Path) -> ZenitLockfile | None:
