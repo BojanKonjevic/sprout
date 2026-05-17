@@ -734,17 +734,21 @@ def _check_compose(project_dir: Path, lockfile: ZenitLockfile) -> HealthResult:
     raw_text = compose_path.read_text(encoding="utf-8")
     service_name_counts: dict[str, int] = {}
     in_services = False
+    services_indent = 0
     for line in raw_text.splitlines():
-        if line.strip() == "" or line.strip().startswith("#"):
-            continue
-        if line == "services:":
+        stripped = line.lstrip()
+        indent = len(line) - len(stripped)
+        if stripped == "services:":
             in_services = True
+            services_indent = indent
             continue
         if in_services:
-            if line[0] != " ":
+            if indent <= services_indent:
                 in_services = False
                 continue
-            m = re.match(r"^ +([a-zA-Z0-9_-]+):$", line)
+            if indent != services_indent + 2:
+                continue
+            m = re.match(r"^([a-zA-Z0-9_-]+):$", stripped)
             if m:
                 name = m.group(1)
                 service_name_counts[name] = service_name_counts.get(name, 0) + 1
