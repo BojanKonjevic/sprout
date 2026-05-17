@@ -743,6 +743,8 @@ def _check_compose(project_dir: Path, lockfile: ZenitLockfile) -> HealthResult:
             services_indent = indent
             continue
         if in_services:
+            if not stripped:
+                continue
             if indent <= services_indent:
                 in_services = False
                 continue
