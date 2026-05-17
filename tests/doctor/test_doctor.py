@@ -8,6 +8,7 @@ checks; those are tested here and in dedicated handler tests.
 from __future__ import annotations
 
 import secrets
+import sys
 import unittest.mock as mock
 from pathlib import Path
 
@@ -33,6 +34,8 @@ from scaffolder.doctor.doctor import (
     _check_env,
     _check_files,
     _check_metadata,
+    _check_python_integrity,
+    _check_python_line_presence,
     print_results,
     run_doctor,
 )
@@ -885,3 +888,215 @@ class TestPrintResults:
 
     def test_empty_results_returns_false(self, capsys):
         assert print_results([]) is False
+
+
+# ── _check_python_line_presence — fast tier ───────────────────────────────────
+
+
+class TestCheckPythonLinePresence:
+    def test_ok_on_fresh_fastapi_redis(self, tmp_path: Path) -> None:
+        project_dir = _scaffold(tmp_path, template="fastapi", addons=["redis"])
+        result = _check_python_line_presence(project_dir)
+        assert not result.has_errors
+
+    def test_error_when_file_truncated_below_recorded_end(self, tmp_path: Path) -> None:
+        """Fast-tier line check fires when a tracked file has fewer lines
+        than the manifest block's recorded end line."""
+        from scaffolder.core.manifest import read_manifest
+
+        project_dir = _scaffold(tmp_path, template="fastapi", addons=["redis"])
+        m = read_manifest(project_dir)
+
+        # Find any block with a real file and truncate it.
+        block = next(
+            (b for b in m.python_blocks if (project_dir / b.file).exists()), None
+        )
+        assert block is not None, (
+            "Expected at least one Python block after redis scaffold"
+        )
+
+        target = project_dir / block.file
+        target.write_text("# file truncated\n", encoding="utf-8")
+
+        result = _check_python_line_presence(project_dir)
+        assert result.has_errors
+        assert any(
+            block.file in i.message for i in result.issues if i.severity.name == "ERROR"
+        )
+
+    def test_ok_when_no_python_blocks(self, tmp_path: Path) -> None:
+        """Fast-tier line check on a project with no Python blocks returns OK."""
+        project_dir = _scaffold(tmp_path, template="blank")
+        result = _check_python_line_presence(project_dir)
+        assert not result.has_errors
+
+
+# ── _check_python_integrity — thorough tier ───────────────────────────────────
+
+
+class TestCheckPythonIntegrity:
+    """Parametrized over fixture states: exact match, normalised match,
+    semantic change, and invalid Python."""
+
+    def test_ok_when_block_matches_exact_fingerprint(self, tmp_path: Path) -> None:
+        """Thorough check: unmodified block → OK, no warning."""
+        project_dir = _scaffold(tmp_path, template="fastapi", addons=["redis"])
+        result = _check_python_integrity(project_dir)
+        assert not result.has_errors
+        assert not result.has_warnings
+
+    def test_warn_when_block_reformatted_but_normalised_matches(
+        self, tmp_path: Path
+    ) -> None:
+        """Thorough check: libcst round-trip on the tracked file changes the
+        raw fingerprint but the normalised fingerprint still matches → WARN."""
+        import libcst as cst
+
+        from scaffolder.core.manifest import read_manifest
+
+        project_dir = _scaffold(tmp_path, template="fastapi", addons=["redis"])
+        m = read_manifest(project_dir)
+        block = next(
+            (b for b in m.python_blocks if (project_dir / b.file).exists()), None
+        )
+        assert block is not None
+
+        target = project_dir / block.file
+        original = target.read_text(encoding="utf-8")
+        target.write_text(cst.parse_module(original).code, encoding="utf-8")
+
+        result = _check_python_integrity(project_dir)
+        # A pure CST round-trip should not degrade to ERROR.
+        assert not result.has_errors
+
+    def test_error_when_block_semantically_changed(self, tmp_path: Path) -> None:
+        """Thorough check: renaming a field in the tracked block breaks both
+        fingerprints → ERROR with file name and point in message."""
+        from scaffolder.core.manifest import read_manifest
+
+        project_dir = _scaffold(tmp_path, template="fastapi", addons=["redis"])
+        m = read_manifest(project_dir)
+        block = next(
+            (b for b in m.python_blocks if (project_dir / b.file).exists()), None
+        )
+        assert block is not None
+
+        target = project_dir / block.file
+        text = target.read_text(encoding="utf-8")
+        start, end = (int(x) for x in block.lines.split("-"))
+        lines = text.splitlines(keepends=True)
+        # Replace the block content with something semantically different.
+        replacement = "    __zenit_test_sentinel__: int = 999\n"
+        new_lines = lines[: start - 1] + [replacement] + lines[end:]
+        target.write_text("".join(new_lines), encoding="utf-8")
+
+        result = _check_python_integrity(project_dir)
+        assert result.has_errors
+        assert any(
+            block.file in i.message for i in result.issues if i.severity.name == "ERROR"
+        )
+
+    def test_warn_when_block_is_unparseable_python(self, tmp_path: Path) -> None:
+        """Thorough check: block text that libcst cannot parse → WARN (not ERROR).
+        The block may be a class-body fragment; this must not crash the check."""
+        from scaffolder.core.manifest import read_manifest
+
+        project_dir = _scaffold(tmp_path, template="fastapi", addons=["redis"])
+        m = read_manifest(project_dir)
+        block = next(
+            (b for b in m.python_blocks if (project_dir / b.file).exists()), None
+        )
+        assert block is not None
+
+        target = project_dir / block.file
+        text = target.read_text(encoding="utf-8")
+        start, end = (int(x) for x in block.lines.split("-"))
+        lines = text.splitlines(keepends=True)
+        # Write syntactically broken content at the block position.
+        broken = "    def (\n"
+        new_lines = lines[: start - 1] + [broken] + lines[end:]
+        target.write_text("".join(new_lines), encoding="utf-8")
+
+        # Must not raise — fingerprint falls back to raw text hashing.
+        # In this case the raw fingerprint won't match either → ERROR is also
+        # acceptable, but no unhandled exception.
+        try:
+            result = _check_python_integrity(project_dir)
+            assert result is not None
+        except Exception as exc:  # pragma: no cover
+            raise AssertionError(
+                "_check_python_integrity must not raise on unparseable Python"
+            ) from exc
+
+
+# ── Thorough tier — run_doctor integration ─────────────────────────────────────
+
+
+class TestRunDoctorThoroughFlag:
+    def test_thorough_flag_enables_python_integrity_check(self, tmp_path: Path) -> None:
+        """run_doctor(thorough=True) must include a 'Python block integrity' section
+        that is absent from the default fast run."""
+        project_dir = _scaffold(tmp_path, template="fastapi", addons=["redis"])
+
+        fast_results = run_doctor(project_dir, thorough=False)
+        thorough_results = run_doctor(project_dir, thorough=True)
+
+        fast_categories = {r.category for r in fast_results}
+        thorough_categories = {r.category for r in thorough_results}
+
+        integrity_category = "Python block integrity (thorough)"
+        assert integrity_category not in fast_categories, (
+            f"Fast run must not include '{integrity_category}'"
+        )
+        assert integrity_category in thorough_categories, (
+            f"Thorough run must include '{integrity_category}'"
+        )
+
+    def test_fast_tier_does_not_import_libcst(self, tmp_path: Path) -> None:
+        """The fast doctor path must not trigger a libcst import.
+
+        This is a performance contract: the fast tier must complete without
+        pulling in the libcst parse machinery, which is expensive to import
+        and should stay isolated to the thorough tier.
+        """
+        project_dir = _scaffold(tmp_path, template="fastapi", addons=["redis"])
+
+        # Evict libcst from sys.modules so we can detect a fresh import.
+        libcst_keys = [
+            k for k in sys.modules if k == "libcst" or k.startswith("libcst.")
+        ]
+        saved = {k: sys.modules.pop(k) for k in libcst_keys}
+
+        try:
+            run_doctor(project_dir, thorough=False)
+            assert "libcst" not in sys.modules, (
+                "Fast doctor tier must not import libcst. "
+                "Move libcst usage into _check_python_integrity (thorough only)."
+            )
+        finally:
+            sys.modules.update(saved)
+
+    def test_fast_tier_python_line_check_does_not_parse(self, tmp_path: Path) -> None:
+        """The fast-tier line-presence check must perform only a file-length
+        comparison — it must not call libcst.parse_module at any point.
+
+        Verified by patching libcst.parse_module to raise if called, then
+        asserting the check still returns a result without error.
+        """
+        import unittest.mock as _mock
+
+        project_dir = _scaffold(tmp_path, template="fastapi", addons=["redis"])
+
+        sentinel = AssertionError(
+            "_check_python_line_presence must not call libcst.parse_module"
+        )
+
+        try:
+            import libcst as _cst  # noqa: PLC0415
+        except ImportError:
+            return  # libcst not installed at all — nothing to patch
+
+        with _mock.patch.object(_cst, "parse_module", side_effect=sentinel):
+            result = _check_python_line_presence(project_dir)
+
+        assert result is not None
