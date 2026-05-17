@@ -18,5 +18,5 @@ re:
 publish:
     rm -f dist/*.tar.gz dist/*.whl
     uv build
-    uv publish
+    uv publish --token "$UV_PUBLISH_TOKEN"
     uv tool install --reinstall zenit
