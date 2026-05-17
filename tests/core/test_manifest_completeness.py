@@ -37,7 +37,7 @@ from scaffolder.core.manifest import (
 from scaffolder.addons._registry import get_available_addons
 from scaffolder.templates._load_config import load_template_config
 
-_SCAFFOLDER_ROOT = Path(__file__).parent.parent / "src" / "scaffolder"
+_SCAFFOLDER_ROOT = Path(__file__).parent.parent.parent / "src" / "scaffolder"
 
 
 # ── inline stamp (avoids importing CLI-heavy scaffold.py) ─────────────────────
