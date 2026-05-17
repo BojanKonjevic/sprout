@@ -109,8 +109,8 @@ def scaffold_project(name: str, dry_run: bool = False) -> None:
         generate_all(ctx, template_config, contributions)
         init(project_dir)
 
-        _stamp_template_manifest(project_dir, template_config)
         write_lockfile(project_dir, template, addons)
+        _stamp_template_manifest(project_dir, template_config)
 
     print()
     addon_suffix = (" + " + ", ".join(addons)) if addons else ""
