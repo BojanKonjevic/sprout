@@ -193,7 +193,8 @@ def apply_contributions(
         if hooks is not None and hooks.post_apply is not None:
             hooks.post_apply(ctx)
 
-    write_manifest(project_dir, manifest)
+    if not ctx.dry_run:
+        write_manifest(project_dir, manifest)
 
 
 # ── Manifest recording ────────────────────────────────────────────────────────
